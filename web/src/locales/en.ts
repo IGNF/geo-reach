@@ -34,7 +34,6 @@ export const en = {
   timesTo: 'Travel time to',
   beyond: (min: number) => `> ${min} min`,
   preview: { fold: 'Fold the panel', unfold: 'Unfold the panel', resize: 'Resize the panel' },
-  areaTile: (min: number) => `reachable in ${min} min`,
   stationsTile: 'stations',
   linesTile: 'lines',
   cyclewayTile: 'km of cycle lanes',
@@ -54,8 +53,6 @@ export const en = {
     bike: (km: number, min: number) => `${km} km of cycle lanes and greenways within ${min} min`,
     car: (hour: string, level: string) => `estimated traffic ${level} at ${hour}`,
     farthest: (name: string, km: string, min: number) => `Farthest: ${name}, ${km} km in ${min} min`,
-    area: (km2: string, min: number) => `${km2} km² reachable within ${min} min`,
-    areaShort: (km2: string) => `${km2} km² reachable`,
   },
   numberLocale: 'en-GB',
 };

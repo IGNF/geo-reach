@@ -30,7 +30,6 @@ export interface LiveInfo {
   point: LngLat;
   /** Seconds: the longest chosen isochrone, else the max time */
   limit: number;
-  areaKm2: number;
   /** Travel time to the landmarks, shortest first, and their distance as the crow flies */
   landmarks: { name: string; seconds: number; km: number }[];
   /** Transit: stations and lines one can board within the limit */
@@ -303,7 +302,6 @@ const MapView = ({
       return {
         point,
         limit,
-        areaKm2: engine.areaKm2(r.dist, limit),
         landmarks,
         transit: mode === 'transit' ? engine.reachedTransit(r.dist, limit) : undefined,
         nearestStation: mode === 'pedestrian' ? engine.nearestStation(r.dist) : undefined,

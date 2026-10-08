@@ -84,6 +84,7 @@ const App = () => {
   const gpfRoute = useGpfRoute(pinned, settled, mode, direction);
 
   if (!engine) return <PageLoader label={t.loading} />;
+  const insightText = live && insight(mode, live, hour);
 
   return (
     // The map leaves the room of the preview panel, so that its centre stays in sight
@@ -141,7 +142,7 @@ const App = () => {
           onWidthChange={setPreviewWidth}
         />
       </div>
-      {live && <div className="insight-bar glass">{insight(mode, live, hour)}</div>}
+      {insightText && <div className="insight-bar glass">{insightText}</div>}
     </div>
   );
 };

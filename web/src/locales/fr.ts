@@ -36,7 +36,6 @@ export const fr: Messages = {
   timesTo: 'Temps vers',
   beyond: (min) => `> ${min} min`,
   preview: { fold: 'Replier le panneau', unfold: 'Déplier le panneau', resize: 'Redimensionner le panneau' },
-  areaTile: (min) => `accessibles en ${min} min`,
   stationsTile: 'stations',
   linesTile: 'lignes',
   cyclewayTile: 'km d’aménagements',
@@ -55,8 +54,6 @@ export const fr: Messages = {
     bike: (km, min) => `${km} km de pistes, bandes cyclables et voies vertes en ${min} min`,
     car: (hour, level) => `trafic estimé ${level} à ${hour}`,
     farthest: (name, km, min) => `Le plus loin : ${name}, ${km} km en ${min} min`,
-    area: (km2, min) => `${km2} km² accessibles en ${min} min`,
-    areaShort: (km2) => `${km2} km² accessibles`,
   },
   numberLocale: 'fr-FR',
 };

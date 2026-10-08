@@ -107,7 +107,6 @@ consecutive streets of the same name, one wait per boarding, one ride per line (
 
 - `stationShare`: share of the metro, RER, train and tram stations (`railStations`) reached within each contour.
 - `reachedKm`: kilometres of road whose two ends are reached within each contour.
-- `areaKm2`: area of the 200 m cells holding a reached node.
 - `reachedTransit`, `nearestStation`: stations and lines one can board, first rail station reached.
 - `cyclewayKm`: kilometres of cycle lanes and greenways reached.
 

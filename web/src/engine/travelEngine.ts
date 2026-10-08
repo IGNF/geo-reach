@@ -181,34 +181,6 @@ export class TravelEngine {
     return edgeA[edge] === from ? pts : pts.reverse();
   }
 
-  /** 200 m cell of each road node, to measure reached areas */
-  private nodeCell?: { cell: Int32Array; marks: Uint8Array };
-
-  /** Square kilometres of 200 m cells holding a node reached within `limit` seconds */
-  areaKm2(dist: Float32Array, limit: number) {
-    const CELL = 200;
-    if (!this.nodeCell) {
-      const { nodeXY, nodeCount } = this.net;
-      const cols = Math.ceil(40000 / CELL);
-      const cell = new Int32Array(nodeCount);
-      for (let n = 0; n < nodeCount; n += 1)
-        cell[n] = (Math.floor(nodeXY[n * 2 + 1] / CELL) + cols / 2) * cols + Math.floor(nodeXY[n * 2] / CELL) + cols / 2;
-      this.nodeCell = { cell, marks: new Uint8Array(cols * cols) };
-    }
-    const { cell, marks } = this.nodeCell;
-    let count = 0;
-    const marked: number[] = [];
-    for (let n = 0; n < cell.length; n += 1) {
-      if (!(dist[n] <= limit) || marks[cell[n]]) continue;
-      marks[cell[n]] = 1;
-      marked.push(cell[n]);
-      count += 1;
-    }
-    for (const c of marked) marks[c] = 0;
-
-    return (count * CELL * CELL * this.groundScale * this.groundScale) / 1e6;
-  }
-
   /** Stations and lines one can board within `limit` seconds (bus lines only when the profile takes them) */
   reachedTransit(dist: Float32Array, limit: number) {
     const { net, profile } = this;

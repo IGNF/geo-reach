@@ -5,7 +5,6 @@ import { rampCss } from '../lib/colors';
 import type { Mode } from '../lib/config';
 import { formatDistance, formatMinutes, formatStreet } from '../lib/format';
 import type { Route } from '../lib/gpf';
-import { formatKm2 } from '../lib/insights';
 import { t } from '../locales';
 import type { LiveInfo, TargetInfo } from './MapView';
 
@@ -64,13 +63,14 @@ const LegRow = ({ leg }: { leg: Leg }) => {
   );
 };
 
-/** Two or three key figures of the explored point */
+/** Key figures of the explored point, none when the mode has none */
 const Tiles = ({ mode, live }: { mode: Mode; live: LiveInfo }) => {
-  const min = Math.round(live.limit / 60);
-  const tiles: [string, string][] = [[`${formatKm2(live.areaKm2)} km²`, t.areaTile(min)]];
+  const tiles: [string, string][] = [];
   if (live.transit) tiles.push([String(live.transit.stations), t.stationsTile], [String(live.transit.lines), t.linesTile]);
   if (mode === 'bike' && live.cyclewayKm !== undefined) tiles.push([String(Math.round(live.cyclewayKm)), t.cyclewayTile]);
   if (live.nearestStation) tiles.push([formatMinutes(live.nearestStation.seconds / 60), t.nearestTile]);
+
+  if (!tiles.length) return null;
 
   return (
     <div className="tiles">
