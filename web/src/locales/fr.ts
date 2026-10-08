@@ -14,7 +14,7 @@ export const fr: Messages = {
   bus: 'Inclure les bus',
   scenario: 'Scénario',
   scenarios: {
-    transit: { normal: 'Normal', disrupted: 'Perturbé', severe: 'Grève' },
+    transit: { normal: 'Normal', disrupted: 'Perturbé', severe: 'Très perturbé' },
     car: { normal: 'Normal', disrupted: 'Dense', severe: 'Saturé' },
   },
   scenarioHint: {

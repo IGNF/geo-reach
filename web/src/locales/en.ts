@@ -12,7 +12,7 @@ export const en = {
   bus: 'Include buses',
   scenario: 'Scenario',
   scenarios: {
-    transit: { normal: 'Normal', disrupted: 'Disrupted', severe: 'Strike' },
+    transit: { normal: 'Normal', disrupted: 'Disrupted', severe: 'Severely disrupted' },
     car: { normal: 'Normal', disrupted: 'Heavy', severe: 'Gridlock' },
   },
   scenarioHint: {
