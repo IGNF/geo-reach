@@ -39,7 +39,7 @@ const en = {
     hint: 'Click a box to read what it does.',
     label: 'Pipeline of geo-reach',
     labels: { zoomIn: 'Zoom in', zoomOut: 'Zoom out', fit: 'Fit', reset: 'Reset the layout' },
-    groups: { offline: 'Prepared once, offline', browser: 'In your browser, at every mouse move', gpf: 'Géoplateforme, online' },
+    groups: { offline: 'Prepared once, offline', browser: 'In your browser, at every mouse move', gpf: 'Géoplateforme' },
     edges: {
       zone: 'zone',
       cargo: 'cargo build',
@@ -207,7 +207,7 @@ const fr: typeof en = {
     hint: 'Cliquez sur une boîte pour lire ce qu’elle fait.',
     label: 'Chaîne de traitement de geo-reach',
     labels: { zoomIn: 'Zoomer', zoomOut: 'Dézoomer', fit: 'Ajuster', reset: 'Rétablir la disposition' },
-    groups: { offline: 'Préparé une fois, hors ligne', browser: 'Dans votre navigateur, à chaque mouvement', gpf: 'Géoplateforme, en ligne' },
+    groups: { offline: 'Préparé une fois, hors ligne', browser: 'Dans votre navigateur, à chaque mouvement', gpf: 'Géoplateforme' },
     edges: {
       zone: 'zone',
       cargo: 'cargo build',
