@@ -7,7 +7,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 const root = join(import.meta.dir, '..');
-const target = join(root, 'apps/web/src/engine/engine.wasm');
+const target = join(root, 'web/src/engine/engine.wasm');
 const cargoHome = process.env.CARGO_HOME ?? join(homedir(), '.cargo');
 const cargo = Bun.which('cargo') ?? [join(cargoHome, 'bin/cargo')].find(existsSync);
 
@@ -16,7 +16,7 @@ if (!cargo) {
     console.error('cargo not found (PATH, ~/.cargo/bin) and no engine.wasm: install Rust, see the README');
     process.exit(1);
   }
-  console.warn('cargo not found: using the versioned apps/web/src/engine/engine.wasm');
+  console.warn('cargo not found: using the versioned web/src/engine/engine.wasm');
   process.exit(0);
 }
 

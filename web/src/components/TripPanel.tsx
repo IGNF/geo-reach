@@ -101,13 +101,23 @@ const TripPanel = ({
   const [from, to] = direction === 'departure' ? [originAddress, targetAddress] : [targetAddress, originAddress];
 
   return (
-    <section className="glass preview">
+    <section className="glass card">
+      <header className="brand">
+        <span className="brand-dot" />
+        <div>
+          <Typography variant="subtitle1">{t.appName}</Typography>
+          <Typography variant="caption">{t.tagline}</Typography>
+        </div>
+        <a className="how-link" href={`${import.meta.env.BASE_URL}how-it-works.html`}>
+          {t.howItWorks}
+        </a>
+      </header>
       {notice && <Typography variant="error">{notice}</Typography>}
       {pinned ? (
         <Stack gap="sm">
           <Stack direction="row" justify="space-between" align="center" wrap="nowrap">
             <Typography variant="subtitle1">{t.panelTrip}</Typography>
-            <Button label={t.removePoint} icon={IconX} iconOnly variant="subtle" onClick={onUnpin} />
+            <Button label={t.removePoint} icon={IconX} variant="light" size="xs" onClick={onUnpin} />
           </Stack>
           <Place caption={t.departure} text={from} />
           <Place caption={t.arrival} text={target ? to : undefined} />
@@ -147,7 +157,7 @@ const TripPanel = ({
                     />
                     <span className="trip-step-name">{l.name}</span>
                     <span className="trip-step-meta">
-                      {Number.isFinite(l.seconds) ? formatMinutes(l.seconds / 60) : t.unreachable}
+                      {Number.isFinite(l.seconds) ? formatMinutes(l.seconds / 60) : t.beyond(scale)}
                     </span>
                   </li>
                 ))}

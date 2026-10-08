@@ -6,7 +6,7 @@ stored in `graph.bin`.
 
 ## graph.bin (road network)
 
-Written by `scripts/buildGraph.ts`, read by `apps/web/src/engine/network.ts` (`loadRoadNetwork`).
+Written by `scripts/buildGraph.ts`, read by `web/src/engine/network.ts` (`loadRoadNetwork`).
 
 | Section | Type | Content |
 |---|---|---|
@@ -40,7 +40,7 @@ dropped.
 
 ## transit.bin (public transport layer)
 
-Written by `crates/gtfs-prep`, read by `apps/web/src/engine/transit.ts` (`loadTransit`).
+Written by `crates/gtfs-prep`, read by `web/src/engine/transit.ts` (`loadTransit`).
 
 | Section | Type | Content |
 |---|---|---|
@@ -71,7 +71,7 @@ chosen hour of departure.
 ## engine.wasm
 
 Built by `bun run engine` (`scripts/buildEngine.ts`): `cargo build -p engine --target wasm32-unknown-unknown
---release`, copied to `apps/web/src/engine/engine.wasm` and imported by Vite as an asset URL. The file is versioned
+--release`, copied to `web/src/engine/engine.wasm` and imported by Vite as an asset URL. The file is versioned
 so that the app builds without Rust.
 
 ## Rebuilding
@@ -80,7 +80,7 @@ so that the app builds without Rust.
 bun run data   # graph.bin, paged WFS requests (5000 sections per page)
 mkdir -p .cache/gtfs
 curl -L -o .cache/gtfs/idfm.zip https://www.data.gouv.fr/api/1/datasets/r/413988ed-d340-467b-8be2-7b999fcd207a
-cargo run -p gtfs-prep --release -- .cache/gtfs/idfm.zip apps/web/public/data/graph.bin apps/web/public/data/transit.bin
+cargo run -p gtfs-prep --release -- .cache/gtfs/idfm.zip web/public/data/graph.bin web/public/data/transit.bin
 ```
 
 `transit.bin` depends on `graph.bin` (origin and bbox): rebuild it whenever the zone changes. The zone is `BBOX` in

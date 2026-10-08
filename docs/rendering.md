@@ -1,6 +1,6 @@
 # Rendering
 
-Code: `apps/web/src/map/networkLayer.ts`, a MapLibre [custom layer](https://maplibre.org/maplibre-gl-js/docs/API/interfaces/CustomLayerInterface/)
+Code: `web/src/map/networkLayer.ts`, a MapLibre [custom layer](https://maplibre.org/maplibre-gl-js/docs/API/interfaces/CustomLayerInterface/)
 that draws with WebGL 2 straight into the map canvas, between the basemap shapes and its labels.
 
 ## Why a custom layer

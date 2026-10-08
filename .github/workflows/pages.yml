@@ -28,7 +28,7 @@ jobs:
           BASE_PATH: /geo-reach/
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: apps/web/dist
+          path: web/dist
 
   deploy:
     needs: build

@@ -1,0 +1,17 @@
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--mantine-font-size-sm);
+  color: var(--mantine-color-anchor);
+  text-decoration: none;
+}
+
+.back-link:hover {
+  text-decoration: underline;
+}
+
+.limits {
+  margin: 0;
+  padding-left: 20px;
+}

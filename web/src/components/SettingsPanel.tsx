@@ -1,4 +1,5 @@
-import { ChipGroup, CopyButton, SegmentedSwitch, Slider, Stack, Switch, Typography } from '@ign-junn/design-system';
+import { ChipGroup, CopyButton, PreviewPanel, SegmentedSwitch, Slider, Stack, Switch, Typography } from '@ign-junn/design-system';
+import { IconAdjustmentsHorizontal } from '@ign-junn/design-system/icons';
 import { RAMP_GRADIENT_CSS } from '../lib/colors';
 import { trafficLevel } from '../lib/insights';
 import { CONTOURS, type Direction, MAX_SCALE, type Mode } from '../lib/config';
@@ -20,11 +21,15 @@ interface SettingsPanelProps {
   scale: number;
   onScaleChange: (scale: number) => void;
   shareUrl: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  width: number;
+  onWidthChange: (width: number) => void;
 }
 
 const HOUR_MARKS = [0, 6, 12, 18, 23].map((h) => ({ value: h, label: t.hour(h) }));
 
-/** Left panel: what to compute (mode, its options, time, isochrones) */
+/** Right panel, as high as the window and foldable: what to compute (mode, its options, time, isochrones) */
 const SettingsPanel = ({
   mode,
   onModeChange,
@@ -40,6 +45,10 @@ const SettingsPanel = ({
   scale,
   onScaleChange,
   shareUrl,
+  open,
+  onOpenChange,
+  width,
+  onWidthChange,
 }: SettingsPanelProps) => {
   const max = MAX_SCALE[mode];
   const timed = mode === 'transit' || mode === 'car';
@@ -49,14 +58,17 @@ const SettingsPanel = ({
   ];
 
   return (
-    <section className="glass settings">
-      <header className="brand">
-        <span className="brand-dot" />
-        <div>
-          <Typography variant="subtitle1">{t.appName}</Typography>
-          <Typography variant="caption">{t.tagline}</Typography>
-        </div>
-      </header>
+    <PreviewPanel
+      open={open}
+      onOpenChange={onOpenChange}
+      icon={IconAdjustmentsHorizontal}
+      caption={t.settingsCaption}
+      title={t.modes[mode]}
+      labels={t.preview}
+      width={width}
+      onWidthChange={onWidthChange}
+    >
+      <div className="settings">
       <ModePicker value={mode} onChange={onModeChange} disabled={transitAvailable ? [] : ['transit']} />
       {mode === 'transit' && <Switch label={t.bus} checked={bus} onChange={onBusChange} size="xs" />}
       {timed && (
@@ -94,7 +106,8 @@ const SettingsPanel = ({
         <SegmentedSwitch label={t.mapFrom} options={directions} value={direction} onChange={onDirectionChange} />
       </Stack>
       <CopyButton value={shareUrl} labels={t.share} variant="button" size="xs" />
-    </section>
+      </div>
+    </PreviewPanel>
   );
 };
 

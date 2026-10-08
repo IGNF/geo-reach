@@ -21,7 +21,7 @@ body,
 .app > .map {
   /* Beats `.maplibregl-map { position: relative }` */
   position: absolute;
-  inset: 0;
+  inset: 0 var(--preview-width, 0) 0 0;
 }
 
 .map .maplibregl-canvas {
@@ -37,46 +37,63 @@ body,
   box-shadow: var(--glass-shadow);
 }
 
-.left-slot,
-.right-slot {
+.left-slot {
   position: absolute;
   top: 16px;
   bottom: 16px;
+  left: 16px;
+  width: 340px;
   z-index: 2;
   display: flex;
   flex-direction: column;
   pointer-events: none;
 }
 
-.left-slot {
-  left: 16px;
-  width: 320px;
-}
-
-.right-slot {
-  right: 16px;
-  width: 330px;
-}
-
-.left-slot > *,
-.right-slot > * {
+.left-slot > * {
   pointer-events: auto;
   max-height: 100%;
   overflow-y: auto;
 }
 
-.settings,
-.preview {
+/* The DS preview panel, docked to the right edge, as high as the window */
+.right-slot {
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: 3;
+  display: flex;
+}
+
+.card {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   padding: 16px 18px;
+}
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-x: hidden;
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.how-link {
+  margin-left: auto;
+  align-self: flex-start;
+  font-size: var(--mantine-font-size-xs);
+  color: var(--mantine-color-anchor);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.how-link:hover {
+  text-decoration: underline;
 }
 
 .brand-dot {
@@ -104,8 +121,11 @@ body,
   border-radius: 12px;
   background: color-mix(in srgb, var(--mantine-color-default-border) 35%, transparent);
   color: var(--mantine-color-text);
-  font: 600 11px/1.2 inherit;
   font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
   cursor: pointer;
   transition:
     background 140ms ease,
@@ -127,6 +147,11 @@ body,
 .mode-tile:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* The marks of the hour slider need room under it and on its ends */
+.settings .mantine-Slider-root:has(.mantine-Slider-markLabel) {
+  margin: 0 12px 20px;
 }
 
 .legend-ramp {
@@ -159,7 +184,8 @@ body,
 }
 
 .tile strong {
-  font-size: 20px;
+  white-space: nowrap;
+  font-size: 18px;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
@@ -227,10 +253,10 @@ body,
 /* What matters for the chosen mode, at the bottom */
 .insight-bar {
   position: absolute;
-  left: 50%;
+  left: calc((100% - var(--preview-width, 0px)) / 2 + 178px);
   bottom: 24px;
   transform: translateX(-50%);
-  max-width: calc(100% - 720px);
+  max-width: calc(100% - var(--preview-width, 0px) - 400px);
   padding: 10px 18px;
   border-radius: 999px;
   font-size: 14px;
@@ -244,11 +270,6 @@ body,
     max-width: calc(100% - 32px);
     bottom: 90px;
   }
-}
-
-/* Map controls, bottom right */
-.maplibregl-ctrl-bottom-right {
-  margin-right: 362px;
 }
 
 .locate-button {

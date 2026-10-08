@@ -1,4 +1,5 @@
-import { PageLoader } from '@ign-junn/design-system';
+import { PageLoader, sizes } from '@ign-junn/design-system';
+import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import MapView, { type LiveInfo, type TargetInfo } from './components/MapView';
 import SettingsPanel from './components/SettingsPanel';
@@ -22,6 +23,8 @@ const App = () => {
   const [settled, setSettled] = useState<LngLat>();
   const [focus, setFocus] = useState<{ point: LngLat }>();
   const [notice, setNotice] = useState<string>();
+  const [previewOpen, setPreviewOpen] = useState(true);
+  const [previewWidth, setPreviewWidth] = useState(304);
   const { pinned, mode, direction, bus, hour, scale, contours } = view;
   const hash = urlHash(view);
   const contourSeconds = useMemo(() => contours.map((c) => c * 60), [contours]);
@@ -83,7 +86,11 @@ const App = () => {
   if (!engine) return <PageLoader label={t.loading} />;
 
   return (
-    <div className="app">
+    // The map leaves the room of the preview panel, so that its centre stays in sight
+    <div
+      className="app"
+      style={{ '--preview-width': `${previewOpen ? previewWidth : sizes.previewPanelFolded}px` } as CSSProperties}
+    >
       <MapView
         engine={engine}
         profileVersion={profileVersion}
@@ -98,6 +105,21 @@ const App = () => {
         onLocate={onLocate}
       />
       <div className="left-slot">
+        <TripPanel
+          mode={mode}
+          direction={direction}
+          pinned={!!pinned}
+          onUnpin={() => onPin(undefined)}
+          live={live}
+          target={target}
+          originAddress={originAddress}
+          targetAddress={targetAddress}
+          gpfRoute={gpfRoute}
+          scale={scale}
+          notice={notice}
+        />
+      </div>
+      <div className="right-slot">
         <SettingsPanel
           mode={mode}
           onModeChange={onModeChange}
@@ -113,21 +135,10 @@ const App = () => {
           scale={scale}
           onScaleChange={(s) => update({ scale: s })}
           shareUrl={`${window.location.origin}${window.location.pathname}${hash}`}
-        />
-      </div>
-      <div className="right-slot">
-        <TripPanel
-          mode={mode}
-          direction={direction}
-          pinned={!!pinned}
-          onUnpin={() => onPin(undefined)}
-          live={live}
-          target={target}
-          originAddress={originAddress}
-          targetAddress={targetAddress}
-          gpfRoute={gpfRoute}
-          scale={scale}
-          notice={notice}
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          width={previewWidth}
+          onWidthChange={setPreviewWidth}
         />
       </div>
       {live && <div className="insight-bar glass">{insight(mode, live, hour)}</div>}

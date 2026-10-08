@@ -56,10 +56,10 @@ Requirements: [Bun](https://bun.sh). Rust is only needed to change the engine (s
 ```sh
 bun install
 bun run dev        # http://127.0.0.1:5173
-bun run build      # static site in apps/web/dist
+bun run build      # static site in web/dist
 ```
 
-The prepared data (`apps/web/public/data/*.bin`) and the compiled engine (`apps/web/src/engine/engine.wasm`) are in
+The prepared data (`web/public/data/*.bin`) and the compiled engine (`web/src/engine/engine.wasm`) are in
 the repository: no data download, no Rust needed to run the app.
 
 ### How it works, in short
@@ -77,7 +77,7 @@ Details: [architecture](docs/architecture.md), [engine](docs/engine.md), [render
 ### Layout
 
 ```
-apps/web/            React + MapLibre app (Vite), UI built with @ign-junn/design-system
+web/                 React + MapLibre app (Vite), UI built with @ign-junn/design-system
 crates/engine/       travel time engine in Rust, compiled to WebAssembly
 crates/gtfs-prep/    Rust tool: GTFS timetables → public transport layer (transit.bin)
 scripts/             road network preparation (graph.bin), engine build
@@ -98,10 +98,10 @@ bun run engine     # also run by `bun run dev` and `bun run build` when cargo is
 ### Rebuild the data
 
 ```sh
-bun run data                                        # BD TOPO road network → apps/web/public/data/graph.bin
+bun run data                                        # BD TOPO road network → web/public/data/graph.bin
 mkdir -p .cache/gtfs
 curl -L -o .cache/gtfs/idfm.zip https://www.data.gouv.fr/api/1/datasets/r/413988ed-d340-467b-8be2-7b999fcd207a
-cargo run -p gtfs-prep --release -- .cache/gtfs/idfm.zip apps/web/public/data/graph.bin apps/web/public/data/transit.bin
+cargo run -p gtfs-prep --release -- .cache/gtfs/idfm.zip web/public/data/graph.bin web/public/data/transit.bin
 ```
 
 The zone is set in `scripts/buildGraph.ts` (`BBOX`), the reference day in `crates/gtfs-prep`.

@@ -29,11 +29,13 @@ const BIKE_SPEED = 15 / 3.6;
  * live traffic.
  */
 export const TRAFFIC: { major: number[]; local: number[] } = {
-  major: [0.95, 0.95, 0.95, 0.95, 0.95, 0.9, 0.75, 0.5, 0.42, 0.55, 0.65, 0.65, 0.62, 0.65, 0.65, 0.62, 0.55, 0.45, 0.42, 0.55, 0.72, 0.78, 0.85, 0.9],
-  local: [0.9, 0.9, 0.9, 0.9, 0.9, 0.88, 0.8, 0.65, 0.6, 0.68, 0.72, 0.72, 0.7, 0.72, 0.72, 0.7, 0.68, 0.62, 0.6, 0.68, 0.78, 0.82, 0.85, 0.88],
+  major: [1, 1, 1, 1, 1, 0.95, 0.8, 0.55, 0.48, 0.6, 0.7, 0.7, 0.68, 0.7, 0.7, 0.66, 0.58, 0.5, 0.48, 0.6, 0.78, 0.85, 0.92, 0.96],
+  local: [1, 1, 1, 1, 1, 0.95, 0.86, 0.7, 0.66, 0.74, 0.78, 0.78, 0.76, 0.78, 0.78, 0.75, 0.7, 0.66, 0.64, 0.72, 0.84, 0.9, 0.95, 0.98],
 };
-/** Per road section: crossings, lights */
-const CAR_PENALTY = 3;
+/** Per road section, seconds: crossings and lights on local streets, few on major roads */
+const CAR_PENALTY = { major: 0.5, local: 1.5 };
+/** Per road section, seconds: crossings slow bikes down too */
+const BIKE_PENALTY = 1.5;
 /** Getting off and out of the station */
 const ALIGHT_COST = 30;
 
@@ -69,14 +71,15 @@ const edgeCosts = (net: Network, { mode, bus, hour }: ProfileOptions) => {
       case EDGE_ROAD:
         if (mode === 'car') {
           const imp = net.edgeImportance[e];
-          const traffic = (imp > 0 && imp <= 3 ? TRAFFIC.major : TRAFFIC.local)[h];
-          const t = length / ((net.edgeCarSpeed[e] * traffic) / 3.6) + CAR_PENALTY;
+          const major = imp > 0 && imp <= 3;
+          const traffic = (major ? TRAFFIC.major : TRAFFIC.local)[h];
+          const t = length / ((net.edgeCarSpeed[e] * traffic) / 3.6) + (major ? CAR_PENALTY.major : CAR_PENALTY.local);
           if (flags & FLAG_CAR_FWD) fwd[e] = t;
           if (flags & FLAG_CAR_BWD) bwd[e] = t;
         } else if (mode === 'bike') {
           const speed = BIKE_SPEED * (flags & FLAG_CYCLEWAY ? 1.1 : 1) * (flags & FLAG_PATH ? 0.65 : 1);
-          if (flags & FLAG_BIKE_FWD) fwd[e] = length / speed;
-          if (flags & FLAG_BIKE_BWD) bwd[e] = length / speed;
+          if (flags & FLAG_BIKE_FWD) fwd[e] = length / speed + BIKE_PENALTY;
+          if (flags & FLAG_BIKE_BWD) bwd[e] = length / speed + BIKE_PENALTY;
         } else if (flags & FLAG_WALK) {
           const t = (length / WALK_SPEED) * (flags & FLAG_STAIRS ? 2 : 1);
           fwd[e] = t;
@@ -84,7 +87,7 @@ const edgeCosts = (net: Network, { mode, bus, hour }: ProfileOptions) => {
         }
         break;
       case EDGE_LINK:
-        if (mode === 'transit') {
+        if (mode === 'transit' || mode === 'pedestrian') {
           fwd[e] = length / WALK_SPEED;
           bwd[e] = fwd[e];
         }

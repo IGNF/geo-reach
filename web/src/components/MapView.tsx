@@ -31,8 +31,8 @@ export interface LiveInfo {
   /** Seconds: the longest chosen isochrone, else the max time */
   limit: number;
   areaKm2: number;
-  /** Travel time to the landmarks, shortest first */
-  landmarks: { name: string; seconds: number }[];
+  /** Travel time to the landmarks, shortest first, and their distance as the crow flies */
+  landmarks: { name: string; seconds: number; km: number }[];
   /** Transit: stations and lines one can board within the limit */
   transit?: { stations: number; lines: number };
   /** Walk: the metro, RER or tram station reached first */
@@ -289,7 +289,15 @@ const MapView = ({
       const limit = contourLimits.length ? Math.max(...contourLimits) : live.current.scale;
       const mode = engine.profile.mode;
       const landmarks = landmarkXY
-        .map(({ name, x, y }) => ({ name, seconds: engine.timeAt(r, x, y)?.seconds ?? Number.POSITIVE_INFINITY }))
+        .map(({ name, x, y }) => {
+          const [px, py] = toRel(point);
+
+          return {
+            name,
+            seconds: engine.timeAt(r, x, y)?.seconds ?? Number.POSITIVE_INFINITY,
+            km: (Math.hypot(x - px, y - py) * engine.groundScale) / 1000,
+          };
+        })
         .sort((a, b) => a.seconds - b.seconds);
 
       return {

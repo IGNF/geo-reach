@@ -9,7 +9,7 @@
 //!
 //! Usage: `cargo run -p gtfs-prep --release -- <feed.zip> <graph.bin> <transit.bin> [YYYYMMDD]`
 //!
-//! Output layout (little endian, 4-byte aligned), read by apps/web/src/engine/transit.ts:
+//! Output layout (little endian, 4-byte aligned), read by web/src/engine/transit.ts:
 //!   u32 magic 'TRN2', stationCount, lineCount, lineStopCount, rideCount, coordCount, stringsBytes, pad
 //!   stations:  f32 x, y (Mercator metres relative to the graph origin), u32 name (string index)
 //!   lines:     u32 name (string index), u32 color 0xRRGGBB, u32 text color, u32 GTFS route type

@@ -2,7 +2,7 @@
   "name": "geo-reach",
   "private": true,
   "type": "module",
-  "workspaces": ["apps/*"],
+  "workspaces": ["web"],
   "scripts": {
     "dev": "bun run engine && bun --filter web dev",
     "build": "bun run engine && bun --filter web build",

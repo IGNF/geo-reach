@@ -1,8 +1,8 @@
 /**
  * Builds the routing graph of the demo zone from the BD TOPO road sections of the Géoplateforme (WFS), once, into a
- * compact binary file served with the app (apps/web/public/data/graph.bin). Run: `bun scripts/buildGraph.ts`.
+ * compact binary file served with the app (web/public/data/graph.bin). Run: `bun scripts/buildGraph.ts`.
  *
- * Layout (little endian, every section 4-byte aligned), read by apps/web/src/engine/graph.ts:
+ * Layout (little endian, every section 4-byte aligned), read by web/src/engine/network.ts:
  *   u32 magic 'GRF2', u32 nodeCount, u32 edgeCount, u32 coordCount, u32 namesBytes, u32 pad
  *   f64 originX, originY (Web Mercator metres of the zone centre), f64 minLng, minLat, maxLng, maxLat
  *   f32 nodes[nodeCount * 2]          node positions, Mercator metres relative to the origin
@@ -21,7 +21,7 @@
 /** Paris and the inner suburbs around it */
 const BBOX = { minLng: 2.2, minLat: 48.78, maxLng: 2.52, maxLat: 48.93 };
 const PAGE = 5000;
-const OUT = new URL('../apps/web/public/data/graph.bin', import.meta.url);
+const OUT = new URL('../web/public/data/graph.bin', import.meta.url);
 const R = 6378137;
 const D2R = Math.PI / 180;
 

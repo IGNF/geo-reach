@@ -15,7 +15,7 @@ flowchart LR
     RS[crates/engine] -->|scripts/buildEngine.ts<br/>cargo → wasm32| W[engine.wasm]
   end
 
-  subgraph browser["Browser (apps/web)"]
+  subgraph browser["Browser (web)"]
     L[network.ts + transit.ts<br/>decode and merge] --> P[profile.ts<br/>costs + CSR graph]
     P --> E[travelEngine.ts<br/>snap + WASM Dijkstra]
     E -->|node times| R[networkLayer.ts<br/>WebGL custom layer]
@@ -35,14 +35,14 @@ flowchart LR
 | `scripts/buildGraph.ts` | TypeScript (Bun) | Downloads the BD TOPO road sections of the zone from the GPF WFS and writes `graph.bin` |
 | `crates/gtfs-prep` | Rust (native) | Reads the IDFM GTFS zip and writes `transit.bin`, aligned on the origin of `graph.bin` |
 | `crates/engine` | Rust → WebAssembly | Bounded multi-source Dijkstra, ~180 lines, no dependencies |
-| `scripts/buildEngine.ts` | TypeScript (Bun) | `cargo build --target wasm32-unknown-unknown`, copies the result to `apps/web/src/engine/engine.wasm` |
-| `apps/web/src/engine/` | TypeScript | Loads the binaries, builds the per-mode graph, drives the WASM engine, rebuilds paths |
-| `apps/web/src/map/networkLayer.ts` | TypeScript + GLSL | MapLibre custom layer that draws the network colored by time |
-| `apps/web/src/components/` | React | Map, control bar, trip panel |
-| `apps/web/src/lib/` | TypeScript | Config, GPF clients, URL state, colors, formatting |
-| `apps/web/src/locales/` | TypeScript | UI strings (English, French), picked from the browser language |
+| `scripts/buildEngine.ts` | TypeScript (Bun) | `cargo build --target wasm32-unknown-unknown`, copies the result to `web/src/engine/engine.wasm` |
+| `web/src/engine/` | TypeScript | Loads the binaries, builds the per-mode graph, drives the WASM engine, rebuilds paths |
+| `web/src/map/networkLayer.ts` | TypeScript + GLSL | MapLibre custom layer that draws the network colored by time |
+| `web/src/components/` | React | Map, settings panel (DS preview panel), trip card, mode picker |
+| `web/src/lib/` | TypeScript | Config, GPF clients, URL state, colors, formatting |
+| `web/src/locales/` | TypeScript | UI strings (English, French), picked from the browser language |
 
-Two workspaces sit side by side: Bun for JavaScript (`package.json`, `apps/*`) and Cargo for Rust (`Cargo.toml`,
+Two workspaces sit side by side: Bun for JavaScript (`package.json`, `web`) and Cargo for Rust (`Cargo.toml`,
 `crates/*`). A *crate* is a Rust package.
 
 ## Why it is fast
@@ -86,7 +86,7 @@ all. After `SETTLE_MS` without movement, `useGpfRoute` asks the Géoplateforme r
 
 ## Modes and directions
 
-A *profile* (`apps/web/src/engine/profile.ts`) is one combination of mode (`pedestrian`, `bike`, `car`,
+A *profile* (`web/src/engine/profile.ts`) is one combination of mode (`pedestrian`, `bike`, `car`,
 `transit`), direction (`departure`, `arrival`), hour of departure (traffic, service frequency) and bus on/off. Switching profile rebuilds the cost arrays and the CSR graph in
 JS (a few tens of ms), writes them into the WASM memory, and re-uploads the GPU geometry. Snap indexes are cached per
 mode.
