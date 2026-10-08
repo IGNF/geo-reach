@@ -5,6 +5,12 @@ import { buildProfile, type Profile, type ProfileOptions } from './profile';
 import { type Snap, SnapIndex } from './snap';
 
 const NONE = 0xffffffff;
+
+/**
+ * Seconds of a share of an edge: none at all when the share is zero, even along a forbidden way (0 × ∞ would give NaN,
+ * which the engine refuses: the cursor at the very end of a one-way street must still start from that end)
+ */
+const part = (share: number, seconds: number) => (share > 0 ? share * seconds : 0);
 /** Beyond this, the cursor is off the network */
 const MAX_SNAP_METRES = 600;
 
@@ -103,8 +109,8 @@ export class TravelEngine {
     const { fwd, bwd, direction } = this.profile;
     const e = s.edge;
     // Departure: point → A goes backwards along the edge. Arrival: A → point goes forwards.
-    const toA = direction === 'departure' ? s.f * bwd[e] : s.f * fwd[e];
-    const toB = direction === 'departure' ? (1 - s.f) * fwd[e] : (1 - s.f) * bwd[e];
+    const toA = direction === 'departure' ? part(s.f, bwd[e]) : part(s.f, fwd[e]);
+    const toB = direction === 'departure' ? part(1 - s.f, fwd[e]) : part(1 - s.f, bwd[e]);
 
     return { toA, toB };
   }
@@ -152,8 +158,8 @@ export class TravelEngine {
     const [a, b] = [this.net.edgeA[s.edge], this.net.edgeB[s.edge]];
     const walk = (s.distance * this.groundScale) / this.walkSpeed;
     // Departure: origin … A → point (forwards), origin … B → point (backwards). Arrival: the reverse.
-    const viaA = r.dist[a] + (direction === 'departure' ? s.f * fwd[s.edge] : s.f * bwd[s.edge]);
-    const viaB = r.dist[b] + (direction === 'departure' ? (1 - s.f) * bwd[s.edge] : (1 - s.f) * fwd[s.edge]);
+    const viaA = r.dist[a] + (direction === 'departure' ? part(s.f, fwd[s.edge]) : part(s.f, bwd[s.edge]));
+    const viaB = r.dist[b] + (direction === 'departure' ? part(1 - s.f, bwd[s.edge]) : part(1 - s.f, fwd[s.edge]));
     const node = viaA <= viaB ? a : b;
     const seconds = Math.min(viaA, viaB) + walk;
 

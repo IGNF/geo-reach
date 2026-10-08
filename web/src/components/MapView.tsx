@@ -13,7 +13,8 @@ import {
 // MapLibre's worker, bundled by Vite with its shared chunk (the library's own `new URL` lookup breaks in a bundle)
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { useEffect, useRef } from 'react';
-import { type ContourGrid, contourGrid, isochroneLines, joinSegments } from '../engine/contours';
+import { type ContourGrid, contourGrid } from '../engine/contours';
+import type { ContourRequest, ContourResult } from '../engine/contourWorker';
 import { type Leg, toLegs } from '../engine/legs';
 import { EDGE_BOARD, EDGE_RIDE, FLAG_BUS } from '../engine/network';
 import { type Result, TravelEngine } from '../engine/travelEngine';
@@ -71,7 +72,6 @@ interface MapViewProps {
 }
 
 const PANEL_THROTTLE_MS = 60;
-const CONTOUR_THROTTLE_MS = 100;
 const SETTLE_MS = 350;
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 
@@ -283,43 +283,51 @@ const MapView = ({
       return true;
     };
 
-    // Smooth isochrone lines, from the node times (at most every CONTOUR_THROTTLE_MS)
-    let grid: ContourGrid | undefined;
-    let lastContours = 0;
-    let contourTrailing: ReturnType<typeof setTimeout> | undefined;
-    const drawContours = (dist: Float32Array | undefined, limits: number[], force = false) => {
+    // Smooth isochrone lines, traced by their own worker from the node times: one request at a time, the latest
+    // result waiting meanwhile replaces any older one, so a slow trace (long car runs) never piles up nor blocks the map
+    const contourWorker = new Worker(new URL('../engine/contourWorker.ts', import.meta.url), { type: 'module' });
+    let gridSent = false;
+    let contourId = 0;
+    let contourBusy = false;
+    let contourNext: { dist: Float32Array; limits: number[] } | undefined;
+    const sendContours = (job: { dist: Float32Array; limits: number[] }) => {
+      if (!gridSent) {
+        // The grid is built once, then handed to the worker
+        const grid: ContourGrid = contourGrid(net, engine.groundScale);
+        contourWorker.postMessage({ type: 'grid', grid, origin: [ox, oy] } satisfies ContourRequest);
+        gridSent = true;
+      }
+      contourBusy = true;
+      contourId += 1;
+      contourWorker.postMessage(
+        { type: 'lines', id: contourId, dist: job.dist, limits: job.limits, walkSpeed: engine.walkSpeed } satisfies ContourRequest,
+        [job.dist.buffer],
+      );
+    };
+    contourWorker.onmessage = (event: MessageEvent<ContourResult>) => {
+      contourBusy = false;
+      // A newer request supersedes this answer: draw the newest only
+      if (event.data.id === contourId) map.getSource<GeoJSONSource>('contours')?.setData({ type: 'FeatureCollection', features: event.data.features });
+      if (contourNext) {
+        const job = contourNext;
+        contourNext = undefined;
+        sendContours(job);
+      }
+    };
+    const drawContours = (dist: Float32Array | undefined, limits: number[]) => {
       const source = map.getSource<GeoJSONSource>('contours');
       if (!source) return;
-      const now = performance.now();
-      clearTimeout(contourTrailing);
-      if (!force && now - lastContours < CONTOUR_THROTTLE_MS) {
-        // Once more after the last move, so that the lines match where the cursor stopped
-        contourTrailing = setTimeout(schedule, CONTOUR_THROTTLE_MS);
-
-        return;
-      }
-      lastContours = now;
       if (!dist || !limits.length) {
+        contourNext = undefined;
+        contourId += 1;
         source.setData(EMPTY);
 
         return;
       }
-      grid ??= contourGrid(net, engine.groundScale);
-      const features: GeoJSON.Feature[] = [];
-      isochroneLines(grid, dist, limits, engine.walkSpeed).forEach((segments, i) => {
-        const lines = joinSegments(segments);
-        const minutes = Math.round(limits[i] / 60);
-        features.push({
-          type: 'Feature',
-          properties: { minutes },
-          geometry: { type: 'MultiLineString', coordinates: lines.map((l) => l.map(toLngLat)) },
-        });
-        // One label per isochrone, as in the reference dataviz: at the top of its longest line
-        const longest = lines.reduce<[number, number][]>((a, l) => (l.length > a.length ? l : a), []);
-        const top = longest.reduce<[number, number] | undefined>((a, p) => (!a || p[1] > a[1] ? p : a), undefined);
-        if (top) features.push({ type: 'Feature', properties: { minutes }, geometry: { type: 'Point', coordinates: toLngLat(top) } });
-      });
-      source.setData({ type: 'FeatureCollection', features });
+      // A copy: the result's buffers go back to the engine worker
+      const job = { dist: dist.slice(), limits };
+      if (contourBusy) contourNext = job;
+      else sendContours(job);
     };
 
     const summary = (r: Result, point: LngLat): LiveInfo => {
@@ -592,6 +600,7 @@ const MapView = ({
     return () => {
       cancelAnimationFrame(c.frame);
       clearTimeout(c.settleTimer);
+      contourWorker.terminate();
       map.remove();
       c.ready = false;
     };

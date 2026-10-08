@@ -56,7 +56,9 @@ impl Engine {
 
     /// Lowers the time of a node if `time` is better and within the bound
     fn relax(&mut self, node: usize, time: f32, max_cost: f32, pred: Option<(u32, u32)>) {
-        if time >= self.dist[node] || time > max_cost {
+        // Written so that NaN is refused too (every comparison with NaN is false): accepted, it would come back
+        // around every cycle of the graph forever
+        if !(time < self.dist[node] && time <= max_cost) {
             return;
         }
         if self.dist[node].is_infinite() {

@@ -47,3 +47,20 @@ fn several_sources_keep_the_best_start() {
     e.run(2, 1000.0);
     assert_eq!(e.dist, vec![0.0, 10.0, 3.0]);
 }
+
+/// A start cost that is not a number (0 × ∞ when the cursor sits at the end of a one-way street) is ignored: it used to
+/// spread NaN around the cycles of the graph forever
+#[test]
+fn not_a_number_start_is_ignored() {
+    let mut e = Engine::default();
+    // 0 ⇄ 1
+    e.reserve(2, 2, 2);
+    e.offsets.copy_from_slice(&[0, 1, 2]);
+    e.heads.copy_from_slice(&[1, 0]);
+    e.costs.copy_from_slice(&[10.0, 10.0]);
+    e.arc_edge.copy_from_slice(&[0, 1]);
+    e.src_nodes.copy_from_slice(&[0, 1]);
+    e.src_costs.copy_from_slice(&[f32::NAN, 3.0]);
+    assert_eq!(e.run(2, 1000.0), 2);
+    assert_eq!(e.dist, vec![13.0, 3.0]);
+}

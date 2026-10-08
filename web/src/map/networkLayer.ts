@@ -23,6 +23,8 @@ in vec4 a_cost;
 uniform mat4 u_matrix;
 uniform vec2 u_viewport;
 uniform float u_width;
+uniform float u_scale;
+uniform float u_soft;
 uniform sampler2D u_times;
 out float v_t;
 out float v_side;
@@ -50,7 +52,12 @@ void main() {
   vec4 c = atStart ? c0 : c1;
   vec2 s = (atStart ? s0 : s1) + normal * a_corner.y * w * 0.5 + dir * (atStart ? -0.5 : 0.5) * w;
   gl_Position = vec4(s / half_vp * c.w, c.z, c.w);
-  v_t = atStart ? min(tA + a_cost.x, tB + a_cost.y) : min(tA + a_cost.z, tB + a_cost.w);
+  float t0 = min(tA + a_cost.x, tB + a_cost.y);
+  float t1 = min(tA + a_cost.z, tB + a_cost.w);
+  // Glow pass: a segment beyond the max time at both ends draws nothing; moved out of the clip space, it costs no
+  // pixel at all (over a million wide quads zoomed out would otherwise saturate the graphics card)
+  if (u_soft > 0.5 && !(min(t0, t1) <= u_scale)) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+  v_t = atStart ? t0 : t1;
   v_side = a_corner.y;
   v_style = a_nodes.z;
 }`;
@@ -297,7 +304,9 @@ export class NetworkLayer implements CustomLayerInterface {
     gl.disable(gl.DEPTH_TEST);
 
     // Glow, wider when zoomed out so the colors fill the blocks between streets
-    gl.uniform1f(u.u_width, Math.max(10, 46 - (zoom - 12) * 9) * dpr);
+    // Zoomed out, the glow keeps its ground width (the streets get closer on screen): no wider than 46 px
+    const glow = zoom >= 12 ? Math.max(10, 46 - (zoom - 12) * 9) : Math.max(8, 46 * 2 ** (zoom - 12));
+    gl.uniform1f(u.u_width, glow * dpr);
     gl.uniform1f(u.u_alpha, 0.11);
     gl.uniform1f(u.u_soft, 1);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.instances);

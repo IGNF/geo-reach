@@ -18,7 +18,7 @@ export interface ViewState {
 }
 
 export const DEFAULT_STATE: ViewState = {
-  mode: 'pedestrian',
+  mode: 'transit',
   direction: 'departure',
   bus: false,
   hour: 8,
