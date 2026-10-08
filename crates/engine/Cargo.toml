@@ -1,0 +1,8 @@
+[package]
+name = "engine"
+version = "0.1.0"
+edition = "2024"
+description = "Travel time engine of geo-reach: bounded Dijkstra over a compact road graph, compiled to WebAssembly"
+
+[lib]
+crate-type = ["cdylib", "rlib"]

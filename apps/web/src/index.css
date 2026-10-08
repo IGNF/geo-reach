@@ -1,0 +1,162 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+.app {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+
+.app > .map {
+  /* Beats `.maplibregl-map { position: relative }` */
+  position: absolute;
+  inset: 0;
+}
+
+.map .maplibregl-canvas {
+  cursor: crosshair;
+}
+
+.panel-slot {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  max-height: calc(100% - 140px);
+  display: flex;
+  flex-direction: column;
+  z-index: 2;
+}
+
+.control-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 10px 18px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--mantine-color-body) 92%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 16%);
+  z-index: 2;
+}
+
+.control-bar .scale {
+  width: 200px;
+}
+
+.legend-ramp {
+  height: 6px;
+  border-radius: 3px;
+}
+
+.trip-duration {
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  transition: color 160ms ease;
+}
+
+.trip-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.trip-steps li {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.trip-step-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trip-step-meta {
+  color: var(--mantine-color-dimmed);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Clicked point: a pulsing dot with its role */
+.origin-marker {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #1a9850;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 0 rgb(26 152 80 / 55%);
+  animation: pulse 1.8s ease-out infinite;
+  cursor: grab;
+}
+
+.origin-marker::after {
+  content: attr(data-label);
+  position: absolute;
+  top: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 8px;
+  border-radius: 8px;
+  background: #1a9850;
+  color: #fff;
+  font: 600 11px/1.6 system-ui, sans-serif;
+  white-space: nowrap;
+}
+
+@keyframes pulse {
+  to {
+    box-shadow: 0 0 0 22px rgb(26 152 80 / 0%);
+  }
+}
+
+/* Travel time under the cursor */
+.time-label {
+  --label-color: #1a9850;
+  padding: 3px 9px;
+  border-radius: 10px;
+  background: #1d1d1f;
+  color: #fff;
+  border-left: 4px solid var(--label-color);
+  font: 700 13px/1.4 system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 25%);
+}
+
+.line-badge {
+  min-width: 26px;
+  padding: 0 5px;
+  border-radius: 6px;
+  font: 700 11px/18px system-ui, sans-serif;
+  text-align: center;
+}
+
+.trip-steps li:has(.line-badge) {
+  grid-template-columns: auto 1fr auto;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.control-stat {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--mantine-color-default-border);
+}

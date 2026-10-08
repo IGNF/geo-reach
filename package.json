@@ -1,0 +1,13 @@
+{
+  "name": "geo-reach",
+  "private": true,
+  "type": "module",
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev": "bun run engine && bun --filter web dev",
+    "build": "bun run engine && bun --filter web build",
+    "lint": "bun --filter web lint",
+    "engine": "bun scripts/buildEngine.ts",
+    "data": "bun scripts/buildGraph.ts"
+  }
+}

@@ -1,0 +1,9 @@
+[package]
+name = "gtfs-prep"
+version = "0.1.0"
+edition = "2024"
+description = "Builds the public transport layer of geo-reach (transit.bin) from a GTFS feed, for the zone of graph.bin"
+
+[dependencies]
+csv = "1"
+zip = { version = "2", default-features = false, features = ["deflate"] }
