@@ -18,10 +18,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      # No Rust on the runner: the build keeps the versioned engine.wasm
+      # The runner has Rust: the engine is rebuilt from crates/engine
+      - run: rustup target add wasm32-unknown-unknown
       - run: bun run build
         env:
           BASE_PATH: /geo-reach/
