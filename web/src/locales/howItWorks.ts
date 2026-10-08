@@ -175,7 +175,7 @@ const en = {
   },
   why: {
     title: 'Why Rust and WebAssembly',
-    text: 'A routing server answers in about half a second: far too slow to follow the mouse. Computing in the browser removes the network; WebAssembly makes the computation fast and steady, without the pauses of the JavaScript garbage collector.',
+    text: 'A routing server takes about half a second to answer: far too slow to follow the mouse. So the computation runs on your own computer, with no round trip to a server. The engine is written in Rust and compiled to WebAssembly, a format close to machine code that the browser runs almost as fast as an installed program. JavaScript could do the same work, but more slowly and with small freezes: from time to time it stops to clean up its memory (the garbage collector). The Rust engine reuses the same memory on every computation, so it never pauses.',
     stats: [
       { value: '30 KB', label: 'engine, compiled' },
       { value: '1–6 ms', label: 'per computation' },
@@ -343,7 +343,7 @@ const fr: typeof en = {
   },
   why: {
     title: 'Pourquoi Rust et WebAssembly',
-    text: 'Un serveur de calcul d’itinéraire répond en une demi-seconde environ : bien trop lent pour suivre la souris. Calculer dans le navigateur supprime le réseau ; WebAssembly rend le calcul rapide et régulier, sans les pauses du ramasse-miettes de JavaScript.',
+    text: 'Un serveur de calcul d’itinéraire met environ une demi-seconde à répondre : bien trop lent pour suivre la souris. Le calcul se fait donc sur votre ordinateur, sans aller-retour vers un serveur. Le moteur est écrit en Rust et compilé en WebAssembly, un format proche du langage machine que le navigateur exécute presque aussi vite qu’un programme installé. JavaScript pourrait faire le même travail, mais plus lentement et avec de petits à-coups : de temps en temps, il s’arrête pour faire le ménage dans sa mémoire (le « ramasse-miettes »). Le moteur Rust réutilise la même mémoire à chaque calcul, il n’a donc jamais à s’arrêter.',
     stats: [
       { value: '30 Ko', label: 'moteur compilé' },
       { value: '1–6 ms', label: 'par calcul' },
