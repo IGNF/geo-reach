@@ -121,8 +121,9 @@ const HowItWorks = () => {
   const box = h.diagram.boxes[selected];
 
   return (
-    <Page width="wide">
+    <Page width="full">
       <Stack gap="xl">
+        <div className="narrow">
         <Stack gap="sm">
           <Stack direction="row" gap="md">
             <a className="back-link" href={import.meta.env.BASE_URL}>
@@ -136,38 +137,49 @@ const HowItWorks = () => {
           <Typography variant="display">{h.title}</Typography>
           <Typography variant="lead">{h.lead}</Typography>
         </Stack>
+        </div>
 
         <Stack gap="sm">
           <Typography variant="h2">{h.diagram.title}</Typography>
           <Typography variant="hint">{h.diagram.hint}</Typography>
-          <FlowDiagram
-            label={h.diagram.label}
-            nodes={NODES}
-            groups={GROUPS}
-            edges={EDGES}
-            legend={LEGEND}
-            labels={h.diagram.labels}
-            selected={selected}
-            onSelect={(id) => setSelected(id as StepId)}
-          />
-          <Card highlighted>
-            <Stack gap="xs">
-              <Typography variant="subtitle1">{box.label}</Typography>
-              <Typography variant="body1">{box.text}</Typography>
-              {'file' in box && box.file && (
-                <Link href={`${REPO}/blob/main/${box.file}`} icon={IconFileCode} size="xs">
-                  {box.file}
-                </Link>
-              )}
-            </Stack>
-          </Card>
+          <div className="diagram-layout">
+            <div className="diagram-main">
+              <FlowDiagram
+                label={h.diagram.label}
+                nodes={NODES}
+                groups={GROUPS}
+                edges={EDGES}
+                direction="down"
+                legend={LEGEND}
+                labels={h.diagram.labels}
+                selected={selected}
+                onSelect={(id) => setSelected(id as StepId)}
+              />
+            </div>
+            <div className="diagram-detail">
+              <Card highlighted>
+                <Stack gap="xs">
+                  <Typography variant="subtitle1">{box.label}</Typography>
+                  <Typography variant="body1">{box.text}</Typography>
+                  {'file' in box && box.file && (
+                    <Link href={`${REPO}/blob/main/${box.file}`} icon={IconFileCode} size="xs">
+                      {box.file}
+                    </Link>
+                  )}
+                </Stack>
+              </Card>
+            </div>
+          </div>
         </Stack>
 
+        <div className="narrow">
         <Stack gap="sm">
           <Typography variant="h2">{h.move.title}</Typography>
           <Steps items={h.move.steps.map((s, i) => ({ key: String(i), ...s }))} />
         </Stack>
+        </div>
 
+        <div className="narrow">
         <Stack gap="sm">
           <Typography variant="h2">{h.why.title}</Typography>
           <Typography variant="body1">{h.why.text}</Typography>
@@ -190,7 +202,9 @@ const HowItWorks = () => {
             </Stack>
           </Grid>
         </Stack>
+        </div>
 
+        <div className="narrow">
         <Stack gap="sm">
           <Typography variant="h2">{h.limits.title}</Typography>
           <ul className="limits">
@@ -204,6 +218,7 @@ const HowItWorks = () => {
             {h.more}
           </Link>
         </Stack>
+        </div>
       </Stack>
     </Page>
   );

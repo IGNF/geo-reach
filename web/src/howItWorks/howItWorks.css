@@ -15,3 +15,27 @@
   margin: 0;
   padding-left: 20px;
 }
+
+/* The diagram takes most of the width; its explanation stays in view beside it on large screens */
+.diagram-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mantine-spacing-lg);
+  align-items: start;
+}
+
+@media (min-width: 62em) {
+  .diagram-layout {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+
+  .diagram-detail {
+    position: sticky;
+    top: var(--mantine-spacing-lg);
+  }
+}
+
+/* Text sections keep a readable line length; the diagram uses the whole width */
+.narrow {
+  max-width: 1100px;
+}
