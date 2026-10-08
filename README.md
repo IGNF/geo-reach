@@ -43,6 +43,24 @@ locally.
 When the cursor stops, walking and driving times are checked against the Géoplateforme route service, shown in the
 trip panel.
 
+## Why not call the Géoplateforme route service directly?
+
+The first version did: on each click, it asked the Géoplateforme for a series of isochrones (12 to 15) and merged
+them into a map. One map took 1.2 s on foot and 2.7 s by car, and the service accepts about 5 requests per second.
+Following the mouse needs a new map at every screen refresh, 30 to 60 per second: about a hundred times more. The
+route service is made to answer route requests, not to feed an interactive map, and it has no public transport.
+
+So the **data** comes from the Géoplateforme and the **computation** runs in the browser:
+
+- the road network is the BD TOPO, read from the Géoplateforme WFS; the basemap is Plan IGN; addresses come from
+  its reverse geocoding;
+- the route service stays the reference: when the cursor stops, its walking or driving time is shown beside ours
+  in the trip panel. Walking uses the same speed (4 km/h); night driving times differ by about 15 %
+  (`scripts/calibrate.ts --gpf`).
+
+What would let the Géoplateforme serve this directly: a one-to-many service (a matrix of travel times, or
+isochrones as a grid), or a downloadable routing graph.
+
 ## Data and licences
 
 | Data | Source | Licence |

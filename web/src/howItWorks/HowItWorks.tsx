@@ -193,6 +193,30 @@ const HowItWorks = () => {
 
         <div className="narrow">
         <Stack gap="sm">
+          <Typography variant="h2">{h.gpf.title}</Typography>
+          <Typography variant="body1">{h.gpf.text}</Typography>
+          <Grid cols={{ base: 2, md: 4 }}>
+            {h.gpf.stats.map((s) => (
+              <Card key={s.label} fullHeight>
+                <Typography variant="stat">{s.value}</Typography>
+                <Typography variant="caption">{s.label}</Typography>
+              </Card>
+            ))}
+          </Grid>
+          <Typography variant="subtitle1">{h.gpf.keptTitle}</Typography>
+          <ul className="limits">
+            {h.gpf.kept.map((item) => (
+              <li key={item}>
+                <Typography variant="body1">{item}</Typography>
+              </li>
+            ))}
+          </ul>
+          <Typography variant="hint">{h.gpf.next}</Typography>
+        </Stack>
+        </div>
+
+        <div className="narrow">
+        <Stack gap="sm">
           <Typography variant="h2">{h.why.title}</Typography>
           <Typography variant="body1">{h.why.text}</Typography>
           <Grid cols={{ base: 2, md: 4 }}>

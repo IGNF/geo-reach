@@ -181,9 +181,26 @@ const en = {
       { title: 'Draw', description: 'The graphics card colors every piece of street from the times of its two ends.' },
     ],
   },
+  gpf: {
+    title: 'Why not the Géoplateforme route service directly',
+    text: 'The first version of this demo did use it: on each click, it asked the Géoplateforme for a series of isochrones and merged them into a map. It works, but one map takes one to three seconds, and the service accepts about five requests per second. Following the mouse needs a new map at every screen refresh: a hundred times more. The service is made to answer route requests, not to feed an interactive map; it also has no public transport. So the data comes from the Géoplateforme, and the computation runs in the browser.',
+    stats: [
+      { value: '12 to 15', label: 'isochrone requests for one map' },
+      { value: '1.2 to 2.7 s', label: 'per map (walk, car)' },
+      { value: '≈ 5 / s', label: 'requests accepted by the service' },
+      { value: '30 to 60 / s', label: 'maps needed to follow the mouse' },
+    ],
+    keptTitle: 'What still comes from the Géoplateforme',
+    kept: [
+      'The road network: BD TOPO sections read from the WFS service (directions, pedestrian and car access, speeds, street names).',
+      'The basemap (Plan IGN vector tiles) and the addresses near a point (reverse geocoding).',
+      'The route service as a reference: when the cursor stops, its walking or driving time is shown beside ours; the walking speed is the same (4 km/h), night driving times differ by about 15 %.',
+    ],
+    next: 'What would let the Géoplateforme serve this directly: a "one to many" service (a matrix of travel times, or isochrones as a grid), or a routing graph one can download.',
+  },
   why: {
     title: 'Why Rust and WebAssembly',
-    text: 'A routing server takes about half a second to answer: far too slow to follow the mouse. So the computation runs on your own computer, with no round trip to a server. The engine is written in Rust and compiled to WebAssembly, a format close to machine code that the browser runs almost as fast as an installed program. JavaScript could do the same work, but more slowly and with small freezes: from time to time it stops to clean up its memory (the garbage collector). The Rust engine reuses the same memory on every computation, so it never pauses.',
+    text: 'The computation runs on your own computer, with no round trip to a server. The engine is written in Rust and compiled to WebAssembly, a format close to machine code that the browser runs almost as fast as an installed program. JavaScript could do the same work, but more slowly and with small freezes: from time to time it stops to clean up its memory (the garbage collector). The Rust engine reuses the same memory on every computation, so it never pauses.',
     stats: [
       { value: '30 KB', label: 'engine, compiled' },
       { value: '539 k', label: 'street crossings' },
@@ -356,9 +373,26 @@ const fr: typeof en = {
       { title: 'Dessin', description: 'La carte graphique colore chaque bout de rue à partir des temps de ses deux extrémités.' },
     ],
   },
+  gpf: {
+    title: 'Pourquoi ne pas utiliser directement le calcul d’itinéraire de la Géoplateforme',
+    text: 'La première version de cette démo l’utilisait : à chaque clic, elle demandait une série d’isochrones à la Géoplateforme et les assemblait en carte. Ça fonctionne, mais une carte prend une à trois secondes, et le service accepte environ cinq requêtes par seconde. Suivre la souris demande une nouvelle carte à chaque rafraîchissement de l’écran : cent fois plus. Le service est fait pour répondre à des demandes d’itinéraire, pas pour alimenter une carte interactive ; il ne gère pas non plus les transports en commun. Les données viennent donc de la Géoplateforme, et le calcul se fait dans le navigateur.',
+    stats: [
+      { value: '12 à 15', label: 'requêtes d’isochrones pour une carte' },
+      { value: '1,2 à 2,7 s', label: 'par carte (à pied, voiture)' },
+      { value: '≈ 5 / s', label: 'requêtes acceptées par le service' },
+      { value: '30 à 60 / s', label: 'cartes nécessaires pour suivre la souris' },
+    ],
+    keptTitle: 'Ce qui vient toujours de la Géoplateforme',
+    kept: [
+      'Le réseau routier : tronçons BD TOPO lus par le service WFS (sens de circulation, accès piéton et voiture, vitesses, noms de voies).',
+      'Le fond de carte (tuiles vectorielles Plan IGN) et les adresses près d’un point (géocodage inverse).',
+      'Le calcul d’itinéraire comme référence : quand le curseur s’arrête, son temps à pied ou en voiture s’affiche à côté du nôtre ; la vitesse de marche est la même (4 km/h), les temps en voiture de nuit diffèrent d’environ 15 %.',
+    ],
+    next: 'Ce qui permettrait à la Géoplateforme de servir ce besoin directement : un service « un vers plusieurs » (matrice de temps de trajet, ou isochrones en grille), ou un graphe routier téléchargeable.',
+  },
   why: {
     title: 'Pourquoi Rust et WebAssembly',
-    text: 'Un serveur de calcul d’itinéraire met environ une demi-seconde à répondre : bien trop lent pour suivre la souris. Le calcul se fait donc sur votre ordinateur, sans aller-retour vers un serveur. Le moteur est écrit en Rust et compilé en WebAssembly, un format proche du langage machine que le navigateur exécute presque aussi vite qu’un programme installé. JavaScript pourrait faire le même travail, mais plus lentement et avec de petits à-coups : de temps en temps, il s’arrête pour faire le ménage dans sa mémoire (le « ramasse-miettes »). Le moteur Rust réutilise la même mémoire à chaque calcul, il n’a donc jamais à s’arrêter.',
+    text: 'Le calcul se fait sur votre ordinateur, sans aller-retour vers un serveur. Le moteur est écrit en Rust et compilé en WebAssembly, un format proche du langage machine que le navigateur exécute presque aussi vite qu’un programme installé. JavaScript pourrait faire le même travail, mais plus lentement et avec de petits à-coups : de temps en temps, il s’arrête pour faire le ménage dans sa mémoire (le « ramasse-miettes »). Le moteur Rust réutilise la même mémoire à chaque calcul, il n’a donc jamais à s’arrêter.',
     stats: [
       { value: '30 Ko', label: 'moteur compilé' },
       { value: '539 k', label: 'carrefours' },
