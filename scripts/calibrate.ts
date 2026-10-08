@@ -10,7 +10,7 @@
 import { EDGE_ROAD, loadRoadNetwork, type Network } from '../web/src/engine/network';
 import { loadTransit } from '../web/src/engine/transit';
 import { LANDMARKS } from '../web/src/lib/config';
-import { buildProfile, type Profile, type ProfileOptions } from '../web/src/engine/profile';
+import { buildProfile, DEFAULT_MODEL, type Profile, type ProfileOptions } from '../web/src/engine/profile';
 
 const net = await loadRoadNetwork(new URL('../web/public/data/graph.bin', import.meta.url).href);
 const R = 6378137;
@@ -85,7 +85,7 @@ const effectiveSpeed = (options: ProfileOptions, pool: number[], sources = 6) =>
   return hours ? km / hours : NaN;
 };
 
-const base = { direction: 'departure', bus: false } as const;
+const base = { direction: 'departure', bus: false, model: DEFAULT_MODEL } as const;
 for (const [zone, pool] of [
   ['Paris', paris],
   ['Inner suburbs', suburbs],

@@ -2,6 +2,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import type * as GeoJSON from 'geojson';
 import {
   type ExpressionSpecification,
+  type FilterSpecification,
   type GeoJSONSource,
   type IControl,
   Map as MlMap,
@@ -12,11 +13,11 @@ import {
 // MapLibre's worker, bundled by Vite with its shared chunk (the library's own `new URL` lookup breaks in a bundle)
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { useEffect, useRef } from 'react';
+import { type ContourGrid, contourGrid, isochroneLines, joinSegments } from '../engine/contours';
 import { type Leg, toLegs } from '../engine/legs';
 import { EDGE_BOARD, EDGE_RIDE, FLAG_BUS } from '../engine/network';
-import { WALK_SPEED } from '../engine/profile';
 import { type Result, TravelEngine } from '../engine/travelEngine';
-import { BASEMAP_STYLE, LANDMARKS, type LngLat } from '../lib/config';
+import { BASEMAP_STYLE, LANDMARKS, type LngLat, START } from '../lib/config';
 import { rampCss } from '../lib/colors';
 import { formatMinutes } from '../lib/format';
 import { fromMercator, toMercator } from '../lib/mercator';
@@ -70,6 +71,7 @@ interface MapViewProps {
 }
 
 const PANEL_THROTTLE_MS = 60;
+const CONTOUR_THROTTLE_MS = 100;
 const SETTLE_MS = 350;
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 
@@ -168,8 +170,6 @@ const MapView = ({
     map?: MlMap;
     layer?: NetworkLayer;
     ready: boolean;
-    /** Result of the pinned origin */
-    pinnedResult?: Result;
     /** Latest cursor position, Mercator metres relative to the zone */
     cursor?: [number, number];
     frame: number;
@@ -198,7 +198,7 @@ const MapView = ({
     const map = new MlMap({
       container,
       style: BASEMAP_STYLE,
-      center: live.current.pinned ?? toLngLat([0, 0]),
+      center: live.current.pinned ?? START,
       zoom: 13.4,
       attributionControl: {
         compact: true,
@@ -217,7 +217,6 @@ const MapView = ({
     const originMarker = new Marker({ element: markerElement('origin-marker'), draggable: true });
     originMarker.on('drag', () => {
       const p = originMarker.getLngLat().toArray() as LngLat;
-      c.pinnedResult = undefined;
       live.current.onPin(p);
     });
     const labelEl = markerElement('time-label');
@@ -284,8 +283,47 @@ const MapView = ({
       return true;
     };
 
-    const summary = (r: Result, point: LngLat, contourLimits: number[]): LiveInfo => {
-      const limit = contourLimits.length ? Math.max(...contourLimits) : live.current.scale;
+    // Smooth isochrone lines, from the node times (at most every CONTOUR_THROTTLE_MS)
+    let grid: ContourGrid | undefined;
+    let lastContours = 0;
+    let contourTrailing: ReturnType<typeof setTimeout> | undefined;
+    const drawContours = (dist: Float32Array | undefined, limits: number[], force = false) => {
+      const source = map.getSource<GeoJSONSource>('contours');
+      if (!source) return;
+      const now = performance.now();
+      clearTimeout(contourTrailing);
+      if (!force && now - lastContours < CONTOUR_THROTTLE_MS) {
+        // Once more after the last move, so that the lines match where the cursor stopped
+        contourTrailing = setTimeout(schedule, CONTOUR_THROTTLE_MS);
+
+        return;
+      }
+      lastContours = now;
+      if (!dist || !limits.length) {
+        source.setData(EMPTY);
+
+        return;
+      }
+      grid ??= contourGrid(net, engine.groundScale);
+      const features: GeoJSON.Feature[] = [];
+      isochroneLines(grid, dist, limits, engine.walkSpeed).forEach((segments, i) => {
+        const lines = joinSegments(segments);
+        const minutes = Math.round(limits[i] / 60);
+        features.push({
+          type: 'Feature',
+          properties: { minutes },
+          geometry: { type: 'MultiLineString', coordinates: lines.map((l) => l.map(toLngLat)) },
+        });
+        // One label per isochrone, as in the reference dataviz: at the top of its longest line
+        const longest = lines.reduce<[number, number][]>((a, l) => (l.length > a.length ? l : a), []);
+        const top = longest.reduce<[number, number] | undefined>((a, p) => (!a || p[1] > a[1] ? p : a), undefined);
+        if (top) features.push({ type: 'Feature', properties: { minutes }, geometry: { type: 'Point', coordinates: toLngLat(top) } });
+      });
+      source.setData({ type: 'FeatureCollection', features });
+    };
+
+    const summary = (r: Result, point: LngLat): LiveInfo => {
+      const limit = live.current.scale;
       const mode = engine.profile.mode;
       const landmarks = landmarkXY
         .map(({ name, x, y }) => {
@@ -312,49 +350,71 @@ const MapView = ({
     };
 
     /** One frame of work for the latest cursor position */
+    // One run at a time in the worker: moves made meanwhile collapse into one run from the latest position, and the
+    // map keeps showing the last result until the next one is ready
+    let busy = false;
+    let dirty = false;
+    let shown: Result | undefined;
     const process = () => {
       c.frame = 0;
-      const { scale: s, contours: cs, pinned: pin } = live.current;
-      layer.setStyle({ scale: s, contours: cs });
-      if (pin) {
-        if (!c.pinnedResult) {
-          const [x, y] = toRel(pin);
-          const r = engine.run(x, y, s);
-          c.pinnedResult = r && TravelEngine.pin(r);
-          layer.setTimes(c.pinnedResult?.dist);
-          live.current.onLive(r && summary(r, pin, cs));
-        }
-        const r = c.pinnedResult;
-        const cursor = c.cursor;
-        if (!r || !cursor) return;
-        const at = engine.timeAt(r, cursor[0], cursor[1]);
-        const point = toLngLat(cursor);
-        if (!at || at.seconds > s) {
-          labelEl.textContent = at ? `> ${formatMinutes(s / 60)}` : t.outsideZone;
-          labelEl.style.setProperty('--label-color', '#777');
-          label.setLngLat(point);
-          setRoute(undefined);
-          if (panelDue()) live.current.onTarget(undefined);
-
-          return;
-        }
-        labelEl.textContent = formatMinutes(at.seconds / 60);
-        labelEl.style.setProperty('--label-color', rampCss(at.seconds / s));
-        label.setLngLat(point);
-        const { coords, steps } = routeCoords(r, at.node, cursor, [at.snap.x, at.snap.y]);
-        setRoute(coords, at.seconds);
-        if (panelDue()) {
-          const legs = toLegs(net, steps, engine.profile.mode);
-          if (at.walk > 20) legs.push({ kind: 'walk', label: '', seconds: at.walk, metres: at.walk * WALK_SPEED });
-          live.current.onTarget({ point, seconds: at.seconds, legs });
-        }
+      if (busy) {
+        dirty = true;
 
         return;
       }
-      const cursor = c.cursor ?? [0, 0];
-      const r = engine.run(cursor[0], cursor[1], s);
+      busy = true;
+      const pin = live.current.pinned;
+      const cursor: [number, number] = c.cursor ?? toRel(pin ?? START);
+      engine
+        .run(cursor[0], cursor[1], live.current.scale)
+        .then((r) => {
+          apply(r, cursor);
+          if (shown && shown !== r) engine.recycle(shown);
+          shown = r;
+        })
+        .finally(() => {
+          busy = false;
+          if (dirty) {
+            dirty = false;
+            schedule();
+          }
+        });
+    };
+
+    /** Shows a result: network colors, contours, figures, and the trip to the anchored point */
+    const apply = (r: Result | undefined, cursor: [number, number]) => {
+      const { scale: s, contours: cs, pinned: pin } = live.current;
+      layer.setStyle({ scale: s, contours: [] });
+      // The colors always follow the cursor: from it (departure) or towards it (arrival)
       layer.setTimes(r?.dist);
-      if (panelDue()) live.current.onLive(r && summary(r, toLngLat(cursor), cs));
+      drawContours(r?.dist, cs);
+      // One panel slot per frame, shared by the figures and the trip
+      const due = panelDue();
+      if (due) live.current.onLive(r && summary(r, toLngLat(cursor)));
+      if (!pin) return;
+
+      // The anchored point is the other end of the trip: its time and path are read in the same result
+      const anchored = toRel(pin);
+      const at = r && engine.timeAt(r, anchored[0], anchored[1]);
+      label.setLngLat(pin);
+      if (!label.getElement().isConnected) label.addTo(map);
+      if (!r || !at || at.seconds > s) {
+        labelEl.textContent = at ? `> ${formatMinutes(s / 60)}` : t.outsideZone;
+        labelEl.style.setProperty('--label-color', '#777');
+        setRoute(undefined);
+        if (due) live.current.onTarget(undefined);
+
+        return;
+      }
+      labelEl.textContent = formatMinutes(at.seconds / 60);
+      labelEl.style.setProperty('--label-color', rampCss(at.seconds / s));
+      const { coords, steps } = routeCoords(r, at.node, anchored, [at.snap.x, at.snap.y]);
+      setRoute(coords, at.seconds);
+      if (due) {
+        const legs = toLegs(net, steps, engine.profile.mode);
+        if (at.walk > 20) legs.push({ kind: 'walk', label: '', seconds: at.walk, metres: at.walk * engine.walkSpeed });
+        live.current.onTarget({ point: toLngLat(cursor), seconds: at.seconds, legs });
+      }
     };
     function schedule() {
       if (!c.frame) c.frame = requestAnimationFrame(process);
@@ -363,6 +423,8 @@ const MapView = ({
       const pin = live.current.pinned;
       if (pin) {
         originMarker.setLngLat(pin);
+        // The anchored point is the end the map is not computed from
+        originMarker.getElement().setAttribute('data-label', engine.profile.direction === 'departure' ? t.arrival : t.departure);
         if (!originMarker.getElement().isConnected) originMarker.addTo(map);
         if (c.cursor && !label.getElement().isConnected) label.setLngLat(toLngLat(c.cursor)).addTo(map);
       } else {
@@ -375,18 +437,13 @@ const MapView = ({
 
     map.on('mousemove', (e) => {
       c.cursor = toRel(e.lngLat.toArray() as LngLat);
-      if (live.current.pinned && !label.getElement().isConnected) label.setLngLat(e.lngLat).addTo(map);
       schedule();
       clearTimeout(c.settleTimer);
       const point = e.lngLat.toArray() as LngLat;
       c.settleTimer = setTimeout(() => live.current.onSettle(live.current.pinned ? point : undefined), SETTLE_MS);
     });
-    map.getCanvas().addEventListener('mouseleave', () => {
-      label.remove();
-      clearTimeout(c.settleTimer);
-    });
+    map.getCanvas().addEventListener('mouseleave', () => clearTimeout(c.settleTimer));
     map.on('click', (e) => {
-      c.pinnedResult = undefined;
       live.current.onPin(e.lngLat.toArray() as LngLat);
     });
 
@@ -453,9 +510,8 @@ const MapView = ({
             type: 'circle',
             source: 'rail',
             filter: ['==', ['geometry-type'], 'Point'],
-            minzoom: 12,
             paint: {
-              'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 2.2, 15, 4.5],
+              'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 12, 2.6, 15, 5],
               'circle-color': '#fff',
               'circle-stroke-color': ['get', 'color'],
               'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 12, 1.2, 15, 2],
@@ -469,6 +525,47 @@ const MapView = ({
         map.setPaintProperty('rail-stations', 'circle-opacity', 0);
         map.setPaintProperty('rail-stations', 'circle-stroke-opacity', 0);
       }
+      map.addSource('contours', { type: 'geojson', data: EMPTY });
+      // A multi-line cut into tiles can come back as a LineString: everything but the label points
+      const contourLines: FilterSpecification = ['!=', ['geometry-type'], 'Point'];
+      // White casing under a dark line, so that the isochrone stands out over the colored network
+      map.addLayer(
+        {
+          id: 'contours-casing',
+          type: 'line',
+          source: 'contours',
+          filter: contourLines,
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: { 'line-color': '#fff', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2.5, 15, 3.5], 'line-opacity': 0.9 },
+        },
+        firstSymbol,
+      );
+      map.addLayer(
+        {
+          id: 'contours',
+          type: 'line',
+          source: 'contours',
+          filter: contourLines,
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: { 'line-color': '#1d1d1f', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 1, 15, 1.5] },
+        },
+        firstSymbol,
+      );
+      map.addLayer({
+        id: 'contours-label',
+        type: 'symbol',
+        source: 'contours',
+        filter: ['==', ['geometry-type'], 'Point'],
+        layout: {
+          'text-field': ['concat', ['to-string', ['get', 'minutes']], ' min'],
+          'text-font': ['Source Sans Pro Regular'],
+          'text-size': 14,
+          'text-anchor': 'bottom',
+          'text-offset': [0, -0.2],
+          'text-allow-overlap': true,
+        },
+        paint: { 'text-color': '#111', 'text-halo-color': '#fff', 'text-halo-width': 2.5 },
+      });
       map.addSource('route', { type: 'geojson', data: EMPTY, lineMetrics: true });
       map.addLayer({
         id: 'route-casing',
@@ -484,6 +581,10 @@ const MapView = ({
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': '#1a9850', 'line-width': 5 },
       });
+      // The attribution starts folded: its button only
+      const attribution = container.querySelector('.maplibregl-ctrl-attrib');
+      attribution?.classList.remove('maplibregl-compact-show');
+      attribution?.removeAttribute('open');
       c.ready = true;
       c.refresh();
     });
@@ -498,7 +599,7 @@ const MapView = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engine]);
 
-  // Profile (mode, direction, bus) or bound changed: new geometry, new pinned run
+  // Profile (mode, direction, bus, hour, model) or bound changed: new geometry, new run
   useEffect(() => {
     const c = ctl.current;
     c.layer?.setProfile(engine.profile);
@@ -508,13 +609,11 @@ const MapView = ({
       c.map.setPaintProperty('rail-stations', 'circle-opacity', transit ? 1 : 0);
       c.map.setPaintProperty('rail-stations', 'circle-stroke-opacity', transit ? 1 : 0);
     }
-    c.pinnedResult = undefined;
     if (c.ready) c.refresh();
   }, [engine, profileVersion, scale]);
 
   useEffect(() => {
     const c = ctl.current;
-    c.pinnedResult = undefined;
     if (c.ready) c.refresh();
   }, [pinned]);
 

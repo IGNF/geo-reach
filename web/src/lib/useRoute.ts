@@ -3,7 +3,7 @@ import type { Direction, LngLat, Mode } from './config';
 import { fetchRoute, reverseGeocode, type Route } from './gpf';
 
 /**
- * Géoplateforme route between the pinned origin and the point where the cursor stopped, to compare with the local
+ * Géoplateforme route between the anchored point and the point where the cursor stopped, to compare with the local
  * engine (walk and car only: the GPF has no public transport nor bike profile). The latest request wins.
  */
 export const useGpfRoute = (origin: LngLat | undefined, target: LngLat | undefined, mode: Mode, direction: Direction) => {
@@ -12,7 +12,8 @@ export const useGpfRoute = (origin: LngLat | undefined, target: LngLat | undefin
   useEffect(() => {
     if (!origin || !target || mode === 'transit' || mode === 'bike') return;
     const controller = new AbortController();
-    const [start, end] = direction === 'departure' ? [origin, target] : [target, origin];
+    // Map from the departure: the trip leaves the cursor for the anchored point; from the arrival, the reverse
+    const [start, end] = direction === 'departure' ? [target, origin] : [origin, target];
     fetchRoute(start, end, mode, controller.signal)
       .then((route) => setLatest({ target, route }))
       .catch(() => undefined);

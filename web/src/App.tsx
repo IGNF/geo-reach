@@ -7,7 +7,7 @@ import TripPanel from './components/TripPanel';
 import { loadRoadNetwork } from './engine/network';
 import { loadTransit } from './engine/transit';
 import { TravelEngine } from './engine/travelEngine';
-import { GRAPH_URL, type LngLat, MAX_SCALE, type Mode, TRANSIT_URL } from './lib/config';
+import { contourMinutes, GRAPH_URL, type LngLat, MAX_SCALE, type Mode, TRANSIT_URL } from './lib/config';
 import { insight } from './lib/insights';
 import { useAddress, useGpfRoute } from './lib/useRoute';
 import { readUrlState, urlHash, type ViewState } from './lib/urlState';
@@ -23,20 +23,24 @@ const App = () => {
   const [settled, setSettled] = useState<LngLat>();
   const [focus, setFocus] = useState<{ point: LngLat }>();
   const [notice, setNotice] = useState<string>();
+  const [loadedBytes, setLoadedBytes] = useState({ graph: 0, transit: 0 });
   const [previewOpen, setPreviewOpen] = useState(true);
-  const [previewWidth, setPreviewWidth] = useState(304);
-  const { pinned, mode, direction, bus, hour, scale, contours } = view;
+  const [previewWidth, setPreviewWidth] = useState(320);
+  const { pinned, mode, direction, bus, hour, scale, contours, model } = view;
   const hash = urlHash(view);
-  const contourSeconds = useMemo(() => contours.map((c) => c * 60), [contours]);
+  const contourSeconds = useMemo(() => (contours ? contourMinutes(scale).map((c) => c * 60) : []), [contours, scale]);
 
   useEffect(() => {
     // The transit layer is optional: the app runs on the roads alone without it
-    Promise.all([loadRoadNetwork(GRAPH_URL), loadTransit(TRANSIT_URL).catch(() => undefined)])
+    Promise.all([
+      loadRoadNetwork(GRAPH_URL, (graph) => setLoadedBytes((b) => ({ ...b, graph }))),
+      loadTransit(TRANSIT_URL, (transit) => setLoadedBytes((b) => ({ ...b, transit }))).catch(() => undefined),
+    ])
       .then(async ([roads, transit]) => {
         const net = transit ? transit(roads) : roads;
         setTransitAvailable(!!transit);
         const m = !transit && mode === 'transit' ? 'pedestrian' : mode;
-        setEngine(await TravelEngine.create(net, { mode: m, direction, bus, hour }));
+        setEngine(await TravelEngine.create(net, { mode: m, direction, bus, hour, model }));
       })
       .catch((error: unknown) => console.error(error));
     // Loaded once; the profile follows the view in the effect below
@@ -46,10 +50,10 @@ const App = () => {
   useEffect(() => {
     if (!engine) return;
     const p = engine.profile;
-    if (p.mode === mode && p.direction === direction && p.bus === bus && p.hour === hour) return;
-    engine.setProfile({ mode, direction, bus, hour });
+    if (p.mode === mode && p.direction === direction && p.bus === bus && p.hour === hour && p.model === model) return;
+    engine.setProfile({ mode, direction, bus, hour, model });
     setProfileVersion((v) => v + 1);
-  }, [engine, mode, direction, bus, hour]);
+  }, [engine, mode, direction, bus, hour, model]);
 
   useEffect(() => window.history.replaceState(null, '', hash), [hash]);
 
@@ -83,7 +87,11 @@ const App = () => {
   const targetAddress = useAddress(pinned ? settled : undefined, 0);
   const gpfRoute = useGpfRoute(pinned, settled, mode, direction);
 
-  if (!engine) return <PageLoader label={t.loading} />;
+  if (!engine) {
+    const mb = (loadedBytes.graph + loadedBytes.transit) / 1e6;
+
+    return <PageLoader label={mb > 0 ? t.loadingProgress(mb.toFixed(0)) : t.loading} />;
+  }
   const insightText = live && insight(mode, live, hour);
 
   return (
@@ -129,6 +137,8 @@ const App = () => {
           onBusChange={(b) => update({ bus: b })}
           hour={hour}
           onHourChange={(h) => update({ hour: h })}
+          model={model}
+          onModelChange={(patch) => update({ model: { ...model, ...patch } })}
           direction={direction}
           onDirectionChange={(d) => update({ direction: d })}
           contours={contours}

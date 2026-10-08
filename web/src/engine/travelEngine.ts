@@ -1,23 +1,8 @@
 import wasmUrl from './engine.wasm?url';
+import type { WorkerRequest, WorkerResult } from './engineWorker';
 import { EDGE_BOARD, EDGE_ROAD, FLAG_CYCLEWAY, type Network } from './network';
-import { buildProfile, type Profile, type ProfileOptions, WALK_SPEED } from './profile';
+import { buildProfile, type Profile, type ProfileOptions } from './profile';
 import { type Snap, SnapIndex } from './snap';
-
-/** Exports of crates/engine */
-interface EngineExports {
-  memory: WebAssembly.Memory;
-  reserve: (nodes: number, arcs: number, sources: number) => void;
-  run: (sources: number, maxCost: number) => number;
-  offsets_ptr: () => number;
-  heads_ptr: () => number;
-  costs_ptr: () => number;
-  arc_edge_ptr: () => number;
-  src_nodes_ptr: () => number;
-  src_costs_ptr: () => number;
-  dist_ptr: () => number;
-  pred_node_ptr: () => number;
-  pred_edge_ptr: () => number;
-}
 
 const NONE = 0xffffffff;
 /** Beyond this, the cursor is off the network */
@@ -54,34 +39,45 @@ export class TravelEngine {
   readonly groundScale: number;
 
   readonly net: Network;
-  private readonly wasm: EngineExports;
+  private readonly worker: Worker;
+  private nextId = 0;
+  private pending = new Map<number, (r: WorkerResult) => void>();
 
-  private constructor(net: Network, wasm: EngineExports) {
+  private constructor(net: Network) {
     this.net = net;
-    this.wasm = wasm;
+    this.worker = new Worker(new URL('./engineWorker.ts', import.meta.url), { type: 'module' });
+    this.worker.onmessage = (event: MessageEvent<WorkerResult>) => {
+      this.pending.get(event.data.id)?.(event.data);
+      this.pending.delete(event.data.id);
+    };
+    this.post({ type: 'init', wasmUrl: new URL(wasmUrl, window.location.href).href });
     const lat = 2 * Math.atan(Math.exp(net.origin[1] / 6378137)) - Math.PI / 2;
     this.groundScale = Math.cos(lat);
   }
 
   static async create(net: Network, options: ProfileOptions) {
-    const { instance } = await WebAssembly.instantiateStreaming(fetch(wasmUrl), {});
-    const engine = new TravelEngine(net, instance.exports as unknown as EngineExports);
+    const engine = new TravelEngine(net);
     engine.setProfile(options);
 
     return engine;
   }
 
+  private post(msg: WorkerRequest, transfer: Transferable[] = []) {
+    this.worker.postMessage(msg, transfer);
+  }
+
   setProfile(options: ProfileOptions) {
     const p = buildProfile(this.net, options);
     this.profile = p;
-    const w = this.wasm;
-    w.reserve(this.net.nodeCount, p.heads.length, 2);
-    // Views after `reserve`: it may have grown the memory
-    const mem = w.memory.buffer;
-    new Uint32Array(mem, w.offsets_ptr(), p.offsets.length).set(p.offsets);
-    new Uint32Array(mem, w.heads_ptr(), p.heads.length).set(p.heads);
-    new Float32Array(mem, w.costs_ptr(), p.costs.length).set(p.costs);
-    new Uint32Array(mem, w.arc_edge_ptr(), p.arcEdge.length).set(p.arcEdge);
+    // The worker gets its own copy of the graph (the page keeps the profile for snapping and paths)
+    this.post({
+      type: 'graph',
+      nodes: this.net.nodeCount,
+      offsets: p.offsets,
+      heads: p.heads,
+      costs: p.costs,
+      arcEdge: p.arcEdge,
+    });
     // The roads one can start from depend on the mode only
     const key = `${options.mode}/${options.bus}`;
     const index = this.snapIndexes.get(key) ?? new SnapIndex(this.net, p);
@@ -89,6 +85,11 @@ export class TravelEngine {
     this.snapIndex = index;
 
     return p;
+  }
+
+  /** Metres per second on foot, from the model */
+  get walkSpeed() {
+    return this.profile.model.walkKmh / 3.6;
   }
 
   snap(x: number, y: number) {
@@ -109,39 +110,38 @@ export class TravelEngine {
   }
 
   /**
-   * Shortest times from (or towards) a point, up to `maxSeconds`. The returned arrays are views on the engine
-   * memory, overwritten by the next run: `pin` copies them.
+   * Shortest times from (or towards) a point, up to `maxSeconds`, computed by the worker. Hand the result back with
+   * `recycle` once done with it: its buffers are reused.
    */
-  run(x: number, y: number, maxSeconds: number): Result | undefined {
+  async run(x: number, y: number, maxSeconds: number): Promise<Result | undefined> {
     const snap = this.snap(x, y);
     if (!snap) return undefined;
-    const w = this.wasm;
-    const access = (snap.distance * this.groundScale) / WALK_SPEED;
+    const profile = this.profile;
+    const access = (snap.distance * this.groundScale) / this.walkSpeed;
     const { toA, toB } = this.endCosts(snap);
-    const mem = w.memory.buffer;
-    new Uint32Array(mem, w.src_nodes_ptr(), 2).set([this.net.edgeA[snap.edge], this.net.edgeB[snap.edge]]);
-    new Float32Array(mem, w.src_costs_ptr(), 2).set([access + toA, access + toB]);
-    const t0 = performance.now();
-    const settled = w.run(2, maxSeconds);
-    const runMs = performance.now() - t0;
-    const buffer = w.memory.buffer;
-    const n = this.net.nodeCount;
+    this.nextId += 1;
+    const id = this.nextId;
+    const answer = new Promise<WorkerResult>((resolve) => this.pending.set(id, resolve));
+    this.post({
+      type: 'run',
+      id,
+      sources: [this.net.edgeA[snap.edge], this.net.edgeB[snap.edge]],
+      costs: [access + toA, access + toB],
+      maxCost: maxSeconds,
+    });
+    const r = await answer;
 
-    return {
-      profile: this.profile,
-      dist: new Float32Array(buffer, w.dist_ptr(), n),
-      predNode: new Uint32Array(buffer, w.pred_node_ptr(), n),
-      predEdge: new Uint32Array(buffer, w.pred_edge_ptr(), n),
-      snap,
-      access,
-      settled,
-      runMs,
-    };
+    return { profile, dist: r.dist, predNode: r.predNode, predEdge: r.predEdge, snap, access, settled: r.settled, runMs: r.runMs };
   }
 
-  /** A copy that the next runs leave alone */
-  static pin(r: Result): Result {
-    return { ...r, dist: r.dist.slice(), predNode: r.predNode.slice(), predEdge: r.predEdge.slice() };
+  /** Gives the buffers of a result back to the worker */
+  recycle(r: Result) {
+    if (!r.dist.buffer.byteLength) return;
+    this.post({ type: 'recycle', buffers: [r.dist.buffer, r.predNode.buffer, r.predEdge.buffer] as ArrayBuffer[] }, [
+      r.dist.buffer,
+      r.predNode.buffer,
+      r.predEdge.buffer,
+    ] as ArrayBuffer[]);
   }
 
   /** Seconds between the result's origin and a point, and the edge end the trip goes through */
@@ -150,7 +150,7 @@ export class TravelEngine {
     if (!s) return undefined;
     const { fwd, bwd, direction } = r.profile;
     const [a, b] = [this.net.edgeA[s.edge], this.net.edgeB[s.edge]];
-    const walk = (s.distance * this.groundScale) / WALK_SPEED;
+    const walk = (s.distance * this.groundScale) / this.walkSpeed;
     // Departure: origin … A → point (forwards), origin … B → point (backwards). Arrival: the reverse.
     const viaA = r.dist[a] + (direction === 'departure' ? s.f * fwd[s.edge] : s.f * bwd[s.edge]);
     const viaB = r.dist[b] + (direction === 'departure' ? (1 - s.f) * bwd[s.edge] : (1 - s.f) * fwd[s.edge]);
@@ -218,24 +218,5 @@ export class TravelEngine {
     return m / 1000;
   }
 
-  /** Share (0..1) of the metro, RER and tram stations reached within each duration (seconds) */
-  stationShare(dist: Float32Array, limits: number[]) {
-    const stations = this.net.railStations;
-    if (!stations.length) return limits.map(() => 0);
 
-    return limits.map((limit) => stations.reduce((n, s) => n + (dist[s] <= limit ? 1 : 0), 0) / stations.length);
-  }
-
-  /** Kilometres of streets reached within each duration (seconds), for the panel */
-  reachedKm(dist: Float32Array, limits: number[]) {
-    const { edgeA, edgeB, edgeLength, edgeKind, edgeCount } = this.net;
-    const km = limits.map(() => 0);
-    for (let e = 0; e < edgeCount; e += 1) {
-      if (edgeKind[e] !== EDGE_ROAD) continue;
-      const t = Math.max(dist[edgeA[e]], dist[edgeB[e]]);
-      for (let i = 0; i < limits.length; i += 1) if (t <= limits[i]) km[i] += edgeLength[e];
-    }
-
-    return km.map((m) => m / 1000);
-  }
 }

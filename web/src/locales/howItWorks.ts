@@ -13,6 +13,7 @@ export type StepId =
   | 'profile'
   | 'snap'
   | 'dijkstra'
+  | 'contours'
   | 'layer'
   | 'panel'
   | 'map'
@@ -31,7 +32,7 @@ interface Box {
 const en = {
   title: 'How it works',
   lead:
-    'Every mouse move recomputes the travel time to about a hundred thousand street crossings and redraws them, in a few milliseconds, with no server. Here is how.',
+    'Every mouse move recomputes the travel time to more than half a million street crossings of Île-de-France and redraws them, in your browser, with no server. Here is how.',
   backToMap: 'Back to the map',
   sourceCode: 'Source code',
   diagram: {
@@ -46,6 +47,7 @@ const en = {
       loaded: 'loaded once',
       csr: 'graph arrays',
       sources: '2 start points',
+      contours: 'node times',
       instance: 'runs in',
       times: 'node times',
       path: 'path',
@@ -62,7 +64,7 @@ const en = {
       wfs: {
         label: 'BD TOPO roads',
         detail: 'Géoplateforme WFS',
-        text: 'Every road section of the zone, with its traffic direction, pedestrian and car access, average speed, cycle lanes and street name. Downloaded page by page from the Géoplateforme WFS service.',
+        text: 'Every road section of Île-de-France, with its traffic direction, pedestrian and car access, average speed, cycle lanes and street name. Downloaded page by page from the Géoplateforme WFS service.',
       },
       gtfs: {
         label: 'IDFM timetables',
@@ -83,12 +85,12 @@ const en = {
       },
       graphBin: {
         label: 'graph.bin',
-        detail: '9 MB · 98 k nodes',
-        text: 'A compact binary file: plain arrays of numbers, one after another. The browser reads it as typed arrays straight from the download, with no parsing.',
+        detail: '23 MB · 539 k nodes',
+        text: 'A compact binary file: plain arrays of numbers, one after another (11 MB compressed). The browser reads it as typed arrays straight from the download, with no parsing. Outside Paris and the inner suburbs, footpaths and service roads are left out to keep it light.',
       },
       transitBin: {
         label: 'transit.bin',
-        detail: '4 MB · 401 lines',
+        detail: '11 MB · 1,984 lines',
         text: 'Stations, lines with their colors, waits and ride times hour by hour, and the line shapes. Grafted on the road graph when the page loads: each station is linked to its nearest streets.',
       },
       engineCrate: {
@@ -105,7 +107,7 @@ const en = {
       loaders: {
         label: 'Loaders',
         detail: 'network.ts · transit.ts',
-        text: 'Download the two binary files, read them as typed arrays and merge the transit layer into the road graph.',
+        text: 'Download the two binary files (once: the browser keeps them for the next visits, even offline), read them as typed arrays and merge the transit layer into the road graph.',
         file: 'web/src/engine/network.ts',
       },
       profile: {
@@ -122,9 +124,15 @@ const en = {
       },
       dijkstra: {
         label: 'Dijkstra',
-        detail: 'WebAssembly · 1 to 6 ms',
-        text: 'Starts from the two ends of the snapped street and spreads out until the maximum time. Results are written into buffers that JavaScript reads in place: no copy. Only the crossings reached last time are reset, not the whole network.',
-        file: 'crates/engine/src/lib.rs',
+        detail: 'WebAssembly, in a worker',
+        text: 'Starts from the two ends of the snapped street and spreads out until the maximum time. It runs in a Web Worker, a background thread: even a run over the whole region never freezes the map. The times are handed to the page without being copied, and only the crossings reached last time are reset, not the whole network.',
+        file: 'crates/engine/src/dijkstra.rs',
+      },
+      contours: {
+        label: 'Isochrone lines',
+        detail: '150 m grid',
+        text: 'The times of the streets, and of the transit lines taken (all along their track), are spread on a 150 m grid, at walking pace and never more than 300 m away from them. The lines are traced where the grid crosses each duration: they follow the reached streets, and a metro or RER line draws a tube between its stations rather than circles around them.',
+        file: 'web/src/engine/contours.ts',
       },
       layer: {
         label: 'WebGL layer',
@@ -168,7 +176,7 @@ const en = {
       { title: 'The mouse moves', description: 'The position is only stored; nothing is computed yet.' },
       { title: 'Next frame', description: 'At most one computation per screen refresh, for the latest position, however fast the mouse goes.' },
       { title: 'Snap', description: 'The cursor is attached to the nearest usable street.' },
-      { title: 'Dijkstra in WebAssembly', description: 'Times to the whole network within the maximum time: 1 to 6 ms.' },
+      { title: 'Dijkstra in WebAssembly', description: 'Times to the whole network within the maximum time, in a background thread.' },
       { title: 'Upload', description: 'One number per crossing goes to the graphics card.' },
       { title: 'Draw', description: 'The graphics card colors every piece of street from the times of its two ends.' },
     ],
@@ -178,19 +186,19 @@ const en = {
     text: 'A routing server takes about half a second to answer: far too slow to follow the mouse. So the computation runs on your own computer, with no round trip to a server. The engine is written in Rust and compiled to WebAssembly, a format close to machine code that the browser runs almost as fast as an installed program. JavaScript could do the same work, but more slowly and with small freezes: from time to time it stops to clean up its memory (the garbage collector). The Rust engine reuses the same memory on every computation, so it never pauses.',
     stats: [
       { value: '30 KB', label: 'engine, compiled' },
-      { value: '1–6 ms', label: 'per computation' },
-      { value: '0', label: 'server, request or copy per move' },
-      { value: '98 k', label: 'street crossings' },
+      { value: '539 k', label: 'street crossings' },
+      { value: '1,984', label: 'transit lines' },
+      { value: '0', label: 'server or request per move' },
     ],
     rust: 'The heart of the engine (Rust): spread from the closest node, never beyond the maximum time.',
-    js: 'The page side (TypeScript): write the start points, run, read the times in place.',
+    js: 'The worker side (TypeScript): write the start points, run, hand the times over to the page.',
   },
   limits: {
     title: 'Limits of the proof of concept',
     items: [
       'Transit: average waits on a typical weekday, not the exact timetable.',
       'Car: typical traffic curve, no live traffic, no traffic lights.',
-      'Zone: Paris and the inner suburbs.',
+      'Zone: Île-de-France; footpaths and service roads only in Paris and the inner suburbs.',
     ],
   },
   more: 'Technical documentation',
@@ -199,7 +207,7 @@ const en = {
 const fr: typeof en = {
   title: 'Comment ça marche',
   lead:
-    'Chaque mouvement de souris recalcule le temps de trajet vers une centaine de milliers de carrefours et les redessine, en quelques millisecondes, sans serveur. Voici comment.',
+    'Chaque mouvement de souris recalcule le temps de trajet vers plus d’un demi-million de carrefours d’Île-de-France et les redessine, dans votre navigateur, sans serveur. Voici comment.',
   backToMap: 'Retour à la carte',
   sourceCode: 'Code source',
   diagram: {
@@ -214,6 +222,7 @@ const fr: typeof en = {
       loaded: 'chargé une fois',
       csr: 'tableaux du graphe',
       sources: '2 points de départ',
+      contours: 'temps des nœuds',
       instance: 'tourne dans',
       times: 'temps des nœuds',
       path: 'chemin',
@@ -230,7 +239,7 @@ const fr: typeof en = {
       wfs: {
         label: 'Routes BD TOPO',
         detail: 'WFS Géoplateforme',
-        text: 'Tous les tronçons de route de la zone, avec leur sens de circulation, l’accès piéton et voiture, la vitesse moyenne, les aménagements cyclables et le nom de la rue. Téléchargés page par page depuis le service WFS de la Géoplateforme.',
+        text: 'Tous les tronçons de route d’Île-de-France, avec leur sens de circulation, l’accès piéton et voiture, la vitesse moyenne, les aménagements cyclables et le nom de la rue. Téléchargés page par page depuis le service WFS de la Géoplateforme.',
       },
       gtfs: {
         label: 'Horaires IDFM',
@@ -251,12 +260,12 @@ const fr: typeof en = {
       },
       graphBin: {
         label: 'graph.bin',
-        detail: '9 Mo · 98 k nœuds',
-        text: 'Un fichier binaire compact : de simples tableaux de nombres à la suite. Le navigateur les lit directement comme tableaux typés à la fin du téléchargement, sans analyse.',
+        detail: '23 Mo · 539 k nœuds',
+        text: 'Un fichier binaire compact : de simples tableaux de nombres à la suite (11 Mo compressé). Le navigateur les lit directement comme tableaux typés à la fin du téléchargement, sans analyse. Hors de Paris et de la petite couronne, les chemins et voies de service sont laissés de côté pour l’alléger.',
       },
       transitBin: {
         label: 'transit.bin',
-        detail: '4 Mo · 401 lignes',
+        detail: '11 Mo · 1 984 lignes',
         text: 'Stations, lignes avec leurs couleurs, attentes et temps de trajet heure par heure, et tracés des lignes. Greffé sur le graphe routier au chargement de la page : chaque station est reliée aux rues les plus proches.',
       },
       engineCrate: {
@@ -273,7 +282,7 @@ const fr: typeof en = {
       loaders: {
         label: 'Chargement',
         detail: 'network.ts · transit.ts',
-        text: 'Télécharge les deux fichiers binaires, les lit comme tableaux typés et fusionne la couche transports en commun dans le graphe routier.',
+        text: 'Télécharge les deux fichiers binaires (une seule fois : le navigateur les garde pour les visites suivantes, même hors ligne), les lit comme tableaux typés et fusionne la couche transports en commun dans le graphe routier.',
         file: 'web/src/engine/network.ts',
       },
       profile: {
@@ -290,9 +299,15 @@ const fr: typeof en = {
       },
       dijkstra: {
         label: 'Dijkstra',
-        detail: 'WebAssembly · 1 à 6 ms',
-        text: 'Part des deux extrémités de la rue accrochée et s’étend jusqu’au temps maximum. Les résultats sont écrits dans des tampons que JavaScript lit sur place : aucune copie. Seuls les carrefours atteints la fois précédente sont remis à zéro, pas tout le réseau.',
-        file: 'crates/engine/src/lib.rs',
+        detail: 'WebAssembly, dans un worker',
+        text: 'Part des deux extrémités de la rue accrochée et s’étend jusqu’au temps maximum. Il tourne dans un Web Worker, un fil d’exécution en arrière-plan : même un calcul sur toute la région ne fige jamais la carte. Les temps sont transmis à la page sans copie, et seuls les carrefours atteints la fois précédente sont remis à zéro, pas tout le réseau.',
+        file: 'crates/engine/src/dijkstra.rs',
+      },
+      contours: {
+        label: 'Lignes d’isochrones',
+        detail: 'grille de 150 m',
+        text: 'Les temps des rues, et des lignes de transport empruntées (sur tout leur tracé), sont étalés sur une grille de 150 m, au pas de marche et jamais à plus de 300 m d’elles. Les lignes sont tracées là où la grille franchit chaque durée : elles suivent les rues atteintes, et une ligne de métro ou de RER dessine un tube entre ses stations plutôt que des cercles autour.',
+        file: 'web/src/engine/contours.ts',
       },
       layer: {
         label: 'Couche WebGL',
@@ -336,7 +351,7 @@ const fr: typeof en = {
       { title: 'La souris bouge', description: 'La position est seulement retenue ; rien n’est encore calculé.' },
       { title: 'Image suivante', description: 'Au plus un calcul par rafraîchissement d’écran, pour la dernière position, quelle que soit la vitesse de la souris.' },
       { title: 'Accroche', description: 'Le curseur est rattaché à la rue praticable la plus proche.' },
-      { title: 'Dijkstra en WebAssembly', description: 'Temps vers tout le réseau dans la limite du temps maximum : 1 à 6 ms.' },
+      { title: 'Dijkstra en WebAssembly', description: 'Temps vers tout le réseau dans la limite du temps maximum, en arrière-plan.' },
       { title: 'Envoi', description: 'Un nombre par carrefour part vers la carte graphique.' },
       { title: 'Dessin', description: 'La carte graphique colore chaque bout de rue à partir des temps de ses deux extrémités.' },
     ],
@@ -346,19 +361,19 @@ const fr: typeof en = {
     text: 'Un serveur de calcul d’itinéraire met environ une demi-seconde à répondre : bien trop lent pour suivre la souris. Le calcul se fait donc sur votre ordinateur, sans aller-retour vers un serveur. Le moteur est écrit en Rust et compilé en WebAssembly, un format proche du langage machine que le navigateur exécute presque aussi vite qu’un programme installé. JavaScript pourrait faire le même travail, mais plus lentement et avec de petits à-coups : de temps en temps, il s’arrête pour faire le ménage dans sa mémoire (le « ramasse-miettes »). Le moteur Rust réutilise la même mémoire à chaque calcul, il n’a donc jamais à s’arrêter.',
     stats: [
       { value: '30 Ko', label: 'moteur compilé' },
-      { value: '1–6 ms', label: 'par calcul' },
-      { value: '0', label: 'serveur, requête ou copie par mouvement' },
-      { value: '98 k', label: 'carrefours' },
+      { value: '539 k', label: 'carrefours' },
+      { value: '1 984', label: 'lignes de transport' },
+      { value: '0', label: 'serveur ou requête par mouvement' },
     ],
     rust: 'Le cœur du moteur (Rust) : s’étendre depuis le nœud le plus proche, jamais au-delà du temps maximum.',
-    js: 'Côté page (TypeScript) : écrire les points de départ, lancer, lire les temps sur place.',
+    js: 'Côté worker (TypeScript) : écrire les points de départ, lancer, transmettre les temps à la page.',
   },
   limits: {
     title: 'Limites de la preuve de concept',
     items: [
       'Transports en commun : attentes moyennes un jour de semaine type, pas les horaires exacts.',
       'Voiture : courbe de trafic type, pas de trafic en temps réel ni de feux.',
-      'Zone : Paris et la petite couronne.',
+      'Zone : Île-de-France ; chemins et voies de service seulement à Paris et en petite couronne.',
     ],
   },
   more: 'Documentation technique',

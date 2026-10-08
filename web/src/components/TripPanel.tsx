@@ -15,8 +15,9 @@ interface TripPanelProps {
   onUnpin: () => void;
   live?: LiveInfo;
   target?: TargetInfo;
-  /** Address of the cursor (live) or of the pinned point */
+  /** Address of the cursor (live) or of the anchored point */
   originAddress?: string;
+  /** Address of the point where the cursor stopped */
   targetAddress?: string;
   gpfRoute?: Route;
   /** Minutes */
@@ -98,7 +99,8 @@ const TripPanel = ({
   scale,
   notice,
 }: TripPanelProps) => {
-  const [from, to] = direction === 'departure' ? [originAddress, targetAddress] : [targetAddress, originAddress];
+  // Map from the departure: the cursor is the departure, the anchored point the arrival; and the reverse
+  const [from, to] = direction === 'departure' ? [targetAddress, originAddress] : [originAddress, targetAddress];
 
   return (
     <section className="glass card">
@@ -108,9 +110,6 @@ const TripPanel = ({
           <Typography variant="subtitle1">{t.appName}</Typography>
           <Typography variant="caption">{t.tagline}</Typography>
         </div>
-        <a className="how-link" href={`${import.meta.env.BASE_URL}how-it-works.html`}>
-          {t.howItWorks}
-        </a>
       </header>
       {notice && <Typography variant="error">{notice}</Typography>}
       {pinned ? (
@@ -120,7 +119,7 @@ const TripPanel = ({
             <Button label={t.removePoint} icon={IconX} variant="light" size="xs" onClick={onUnpin} />
           </Stack>
           <Place caption={t.departure} text={from} />
-          <Place caption={t.arrival} text={target ? to : undefined} />
+          <Place caption={t.arrival} text={to} />
           {target ? (
             <>
               <Stack direction="row" gap="xs" align="baseline">

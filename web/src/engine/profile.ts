@@ -18,10 +18,43 @@ import {
   type Network,
 } from './network';
 
-/** 4 km/h, the walking speed of the Géoplateforme route service */
-export const WALK_SPEED = 4 / 3.6;
-/** 15 km/h, a city bike ride */
-const BIKE_SPEED = 15 / 3.6;
+/** Assumptions of the travel time model, set from the interface */
+export interface ModelOptions {
+  /** Walking speed, km/h (4: the Géoplateforme route service) */
+  walkKmh: number;
+  /** Cycling speed on a street, km/h */
+  bikeKmh: number;
+  /** Car: estimated traffic of the hour, or free flow */
+  traffic: 'estimated' | 'free';
+  /** Transit wait: half the interval (average, arriving at random) or the whole interval (worst case: the previous
+   * departure just left) */
+  wait: 'half' | 'full';
+  /** Minutes to get off and out of a station, or to change lines */
+  transferMin: number;
+  /** What-if: transit disrupted (fewer departures, slower rides), roads congested */
+  scenario: Scenario;
+}
+
+export type Scenario = 'normal' | 'disrupted' | 'severe';
+
+/** Demonstration coefficients of the scenarios, not measured data */
+export const SCENARIOS: Record<Scenario, { headway: number; ride: number; carSpeed: number }> = {
+  normal: { headway: 1, ride: 1, carSpeed: 1 },
+  disrupted: { headway: 2, ride: 1.15, carSpeed: 0.75 },
+  severe: { headway: 4, ride: 1.3, carSpeed: 0.55 },
+};
+
+export const DEFAULT_MODEL: ModelOptions = {
+  walkKmh: 4,
+  bikeKmh: 15,
+  traffic: 'estimated',
+  wait: 'half',
+  transferMin: 1.5,
+  scenario: 'normal',
+};
+
+/** Boarding penalty already counted in the waits of transit.bin (crates/gtfs-prep) */
+const BOARD_PENALTY = 60;
 
 /**
  * Estimated traffic: share of the BD TOPO free-flow speed kept at each hour of a weekday, on major roads
@@ -36,8 +69,6 @@ export const TRAFFIC: { major: number[]; local: number[] } = {
 const CAR_PENALTY = { major: 0.5, local: 1.5 };
 /** Per road section, seconds: crossings slow bikes down too */
 const BIKE_PENALTY = 1.5;
-/** Getting off and out of the station */
-const ALIGHT_COST = 30;
 
 export interface ProfileOptions {
   mode: Mode;
@@ -46,6 +77,7 @@ export interface ProfileOptions {
   bus: boolean;
   /** Departure hour (0–23): traffic for cars, service frequency for transit */
   hour: number;
+  model: ModelOptions;
 }
 
 /** Travel costs of one mode and direction, and the graph the engine runs on (compressed rows) */
@@ -60,7 +92,10 @@ export interface Profile extends ProfileOptions {
   arcEdge: Uint32Array;
 }
 
-const edgeCosts = (net: Network, { mode, bus, hour }: ProfileOptions) => {
+const edgeCosts = (net: Network, { mode, bus, hour, model }: ProfileOptions) => {
+  const walkSpeed = model.walkKmh / 3.6;
+  const scenario = SCENARIOS[model.scenario];
+  const bikeSpeed = model.bikeKmh / 3.6;
   const h = ((hour % HOURS) + HOURS) % HOURS;
   const fwd = new Float32Array(net.edgeCount).fill(Number.POSITIVE_INFINITY);
   const bwd = new Float32Array(net.edgeCount).fill(Number.POSITIVE_INFINITY);
@@ -72,23 +107,23 @@ const edgeCosts = (net: Network, { mode, bus, hour }: ProfileOptions) => {
         if (mode === 'car') {
           const imp = net.edgeImportance[e];
           const major = imp > 0 && imp <= 3;
-          const traffic = (major ? TRAFFIC.major : TRAFFIC.local)[h];
+          const traffic = (model.traffic === 'free' ? 1 : (major ? TRAFFIC.major : TRAFFIC.local)[h]) * scenario.carSpeed;
           const t = length / ((net.edgeCarSpeed[e] * traffic) / 3.6) + (major ? CAR_PENALTY.major : CAR_PENALTY.local);
           if (flags & FLAG_CAR_FWD) fwd[e] = t;
           if (flags & FLAG_CAR_BWD) bwd[e] = t;
         } else if (mode === 'bike') {
-          const speed = BIKE_SPEED * (flags & FLAG_CYCLEWAY ? 1.1 : 1) * (flags & FLAG_PATH ? 0.65 : 1);
+          const speed = bikeSpeed * (flags & FLAG_CYCLEWAY ? 1.1 : 1) * (flags & FLAG_PATH ? 0.65 : 1);
           if (flags & FLAG_BIKE_FWD) fwd[e] = length / speed + BIKE_PENALTY;
           if (flags & FLAG_BIKE_BWD) bwd[e] = length / speed + BIKE_PENALTY;
         } else if (flags & FLAG_WALK) {
-          const t = (length / WALK_SPEED) * (flags & FLAG_STAIRS ? 2 : 1);
+          const t = (length / walkSpeed) * (flags & FLAG_STAIRS ? 2 : 1);
           fwd[e] = t;
           bwd[e] = t;
         }
         break;
       case EDGE_LINK:
         if (mode === 'transit' || mode === 'pedestrian') {
-          fwd[e] = length / WALK_SPEED;
+          fwd[e] = length / walkSpeed;
           bwd[e] = fwd[e];
         }
         break;
@@ -97,8 +132,15 @@ const edgeCosts = (net: Network, { mode, bus, hour }: ProfileOptions) => {
         if (net.edgeKind[e] === EDGE_RIDE || net.edgeKind[e] === EDGE_BOARD) {
           // The hour's wait (Infinity: no service) and ride time
           const row = net.edgeHourRow[e];
-          fwd[e] = row >= 0 ? net.hourCosts[row * HOURS + h] : length;
-        } else if (net.edgeKind[e] === EDGE_ALIGHT) fwd[e] = ALIGHT_COST;
+          const cost = row >= 0 ? net.hourCosts[row * HOURS + h] : length;
+          if (net.edgeKind[e] === EDGE_RIDE) fwd[e] = cost * scenario.ride;
+          else {
+            // A boarding costs half the interval plus the penalty: the whole interval (worst case) doubles the wait,
+            // a disruption stretches the interval
+            const wait = (cost - BOARD_PENALTY) * (model.wait === 'full' ? 2 : 1) * scenario.headway;
+            fwd[e] = wait + BOARD_PENALTY;
+          }
+        } else if (net.edgeKind[e] === EDGE_ALIGHT) fwd[e] = model.transferMin * 60;
     }
   }
 

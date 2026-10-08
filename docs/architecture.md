@@ -9,8 +9,8 @@ tiles and two optional Géoplateforme queries made when the cursor stops (route 
 ```mermaid
 flowchart LR
   subgraph prep["Offline, once (developer machine)"]
-    WFS["GPF WFS<br/>BD TOPO troncon_de_route"] -->|scripts/buildGraph.ts| G[graph.bin<br/>~3 MB]
-    GTFS["IDFM GTFS<br/>(transport.data.gouv.fr)"] -->|crates/gtfs-prep| T[transit.bin<br/>~0.4 MB]
+    WFS["GPF WFS<br/>BD TOPO troncon_de_route"] -->|scripts/buildGraph.ts| G[graph.bin<br/>~23 MB, 11 MB gz]
+    GTFS["IDFM GTFS<br/>(transport.data.gouv.fr)"] -->|crates/gtfs-prep| T[transit.bin<br/>~11 MB, 2 MB gz]
     G -. zone origin + bbox .-> T
     RS[crates/engine] -->|scripts/buildEngine.ts<br/>cargo → wasm32| W[engine.wasm]
   end

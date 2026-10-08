@@ -1,6 +1,6 @@
 # geo-reach
 
-**How far can you go in 15 minutes?** Move the mouse over Paris and its inner suburbs: the whole street and transit
+**How far can you go in 15 minutes?** Move the mouse anywhere in Île-de-France: the whole street and transit
 network lights up instantly, from green (close) to red (far), by travel time from the cursor.
 
 **[Open the demo →](https://ignf.github.io/geo-reach/)** (desktop browser recommended)
@@ -17,9 +17,11 @@ timetables. Everything is computed in your browser, live, with no server.
 - **Choose the time of departure**: car times follow a typical weekday traffic curve, transit times follow the
   real service frequency at that hour.
 - **Departure or arrival**: "where can I go from here" or "where can people come from to reach this point".
-- **Isochrones**: draw the 10, 15, 20, 30 or 45 minute fronts.
-- **Read the figures**: area reachable, stations and lines you can board, nearest station, cycle lanes, travel
-  times to well-known places (Châtelet, Gare de Lyon, La Défense…).
+- **Travel time up to**: one duration for the colors and the figures, with contour lines every 10 or 15 min.
+- **Scenarios**: disrupted transit (fewer departures, slower rides) or congested roads, as what-if coefficients.
+- **Adjust the calculation**: walking and cycling speed, traffic, average or worst-case wait, transfer time.
+- **Read the figures**: stations and lines you can board, nearest station, cycle lanes, travel times to well-known
+  places (Châtelet, Gare de Lyon, La Défense…).
 - **Share**: the link keeps the whole view (mode, hour, point, settings).
 
 The interface is in French or English, following the browser language.
@@ -32,7 +34,11 @@ It is a proof of concept, good for comparing places and modes, not for planning 
   exact timetable; changes happen inside the station.
 - **Car**: estimated traffic from a typical congestion curve, no live traffic, no traffic lights.
 - **Walk**: 4 km/h, as the Géoplateforme route service. **Bike**: 15 km/h, a little faster on cycle lanes.
-- **Zone**: Paris and the inner suburbs only.
+- **Zone**: Île-de-France. Full street network in Paris and the inner suburbs; beyond, no footpaths, tracks nor
+  service roads (main roads, streets and station access are kept).
+
+The first visit downloads the network (about 13 MB compressed); the browser then keeps it, so later visits load
+locally.
 
 When the cursor stops, walking and driving times are checked against the Géoplateforme route service, shown in the
 trip panel.
@@ -67,9 +73,13 @@ the repository: no data download, no Rust needed to run the app.
 1. **Once, offline**: the BD TOPO roads (Géoplateforme WFS) and the IDFM timetables are packed into two compact
    binary files.
 2. **At every mouse move**: the cursor is attached to the nearest street, then a shortest path engine written in
-   Rust and compiled to WebAssembly computes the time to the whole network in a few milliseconds.
+   Rust and compiled to WebAssembly computes the time to the whole network, in a background thread (Web Worker) so
+   that the map never freezes.
 3. **Drawing**: a WebGL layer on top of the MapLibre map colors every street on the graphics card; only the new
-   times are sent at each move.
+   times are sent at each move. The isochrone lines are traced on a 150 m grid from the reached streets and transit
+   lines.
+
+The same explanation, with an interactive diagram: [How it works](https://ignf.github.io/geo-reach/how-it-works.html).
 
 Details: [architecture](docs/architecture.md), [engine](docs/engine.md), [rendering](docs/rendering.md),
 [data formats](docs/data-formats.md).

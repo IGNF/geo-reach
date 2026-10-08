@@ -1,9 +1,11 @@
-import { ChipGroup, CopyButton, PreviewPanel, SegmentedSwitch, Slider, Stack, Switch, Typography } from '@ign-junn/design-system';
-import { IconAdjustmentsHorizontal } from '@ign-junn/design-system/icons';
+import { Button, CopyButton, PreviewPanel, SegmentedSwitch, Slider, Stack, Switch, Typography } from '@ign-junn/design-system';
+import { IconAdjustmentsHorizontal, IconInfoCircle } from '@ign-junn/design-system/icons';
 import { RAMP_GRADIENT_CSS } from '../lib/colors';
 import { trafficLevel } from '../lib/insights';
-import { CONTOURS, type Direction, MAX_SCALE, type Mode } from '../lib/config';
+import { contourMinutes, type Direction, MAX_SCALE, type Mode } from '../lib/config';
 import { t } from '../locales';
+import type { ModelOptions } from '../engine/profile';
+import ModelSection from './ModelSection';
 import ModePicker from './ModePicker';
 
 interface SettingsPanelProps {
@@ -14,10 +16,12 @@ interface SettingsPanelProps {
   onBusChange: (bus: boolean) => void;
   hour: number;
   onHourChange: (hour: number) => void;
+  model: ModelOptions;
+  onModelChange: (patch: Partial<ModelOptions>) => void;
   direction: Direction;
   onDirectionChange: (direction: Direction) => void;
-  contours: number[];
-  onContoursChange: (contours: number[]) => void;
+  contours: boolean;
+  onContoursChange: (contours: boolean) => void;
   scale: number;
   onScaleChange: (scale: number) => void;
   shareUrl: string;
@@ -38,6 +42,8 @@ const SettingsPanel = ({
   onBusChange,
   hour,
   onHourChange,
+  model,
+  onModelChange,
   direction,
   onDirectionChange,
   contours,
@@ -68,9 +74,26 @@ const SettingsPanel = ({
       width={width}
       onWidthChange={onWidthChange}
     >
+      <div className="settings-wrap">
       <div className="settings">
       <ModePicker value={mode} onChange={onModeChange} disabled={transitAvailable ? [] : ['transit']} />
       {mode === 'transit' && <Switch label={t.bus} checked={bus} onChange={onBusChange} size="xs" />}
+      {(mode === 'transit' || mode === 'car') && (
+        <Stack gap={4}>
+          <Typography variant="caption">{t.scenario}</Typography>
+          <SegmentedSwitch
+            label={t.scenario}
+            fullWidth
+            value={model.scenario}
+            onChange={(v) => onModelChange({ scenario: v })}
+            options={(['normal', 'disrupted', 'severe'] as const).map((v) => ({ value: v, label: t.scenarios[mode][v] }))}
+          />
+          <Typography variant="hint">
+            {t.scenarioHint[mode][model.scenario]}
+            {model.scenario !== 'normal' && ` · ${t.scenarioNote}`}
+          </Typography>
+        </Stack>
+      )}
       {timed && (
         <Stack gap={4}>
           <Stack direction="row" justify="space-between">
@@ -95,17 +118,31 @@ const SettingsPanel = ({
           <span>{Math.min(scale, max)} min</span>
         </div>
       </Stack>
-      <ChipGroup
-        label={t.isochrones}
-        options={CONTOURS.filter((c) => c <= max).map((c) => ({ value: String(c), label: `${c} min` }))}
-        value={contours.filter((c) => c <= max).map(String)}
-        onChange={(v) => onContoursChange(v.map(Number).slice(-4))}
+      <Switch
+        label={t.contours(contourMinutes(Math.min(scale, max))[0] ?? 10)}
+        description={t.contoursHint}
+        checked={contours}
+        onChange={onContoursChange}
+        size="xs"
       />
       <Stack direction="row" justify="space-between" align="center">
         <Typography variant="caption">{t.mapFrom}</Typography>
         <SegmentedSwitch label={t.mapFrom} options={directions} value={direction} onChange={onDirectionChange} />
       </Stack>
-      <CopyButton value={shareUrl} labels={t.share} variant="button" size="xs" />
+      <ModelSection mode={mode} model={model} onChange={onModelChange} />
+      </div>
+      {/* Fixed at the bottom of the panel, whatever its scroll */}
+      <footer className="settings-footer">
+        <CopyButton value={shareUrl} labels={t.share} variant="button" size="xs" />
+        <Button
+          component="a"
+          href={`${import.meta.env.BASE_URL}how-it-works.html`}
+          label={t.howItWorks}
+          icon={IconInfoCircle}
+          variant="subtle"
+          size="xs"
+        />
+      </footer>
       </div>
     </PreviewPanel>
   );

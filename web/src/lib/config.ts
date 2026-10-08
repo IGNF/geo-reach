@@ -1,12 +1,12 @@
-/** IGN head office, 73 avenue de Paris, Saint-Mandé (GPF geocoding) */
-export const IGN_HQ: LngLat = [2.424573, 48.845726];
-
 export type LngLat = [number, number];
 export type Mode = 'transit' | 'pedestrian' | 'bike' | 'car';
 export type Direction = 'departure' | 'arrival';
 
 /** Longest time the scale offers, per mode, in minutes */
 export const MAX_SCALE: Record<Mode, number> = { transit: 60, pedestrian: 60, bike: 45, car: 45 };
+
+/** Where the map opens and the first run starts: the IGN head office, Saint-Mandé */
+export const START: LngLat = [2.424573, 48.845726];
 
 /** Places whose travel time the panel lists */
 export const LANDMARKS: { name: string; at: LngLat }[] = [
@@ -22,8 +22,12 @@ export const LANDMARKS: { name: string; at: LngLat }[] = [
   { name: 'IGN Saint-Mandé', at: [2.4246, 48.8457] },
 ];
 
-/** Durations the user can draw as fronts, in minutes */
-export const CONTOURS = [10, 15, 20, 30, 45] as const;
+/** Contour lines up to the max time: every 10 min up to 30 min, every 15 min beyond */
+export const contourMinutes = (scale: number) => {
+  const step = scale <= 30 ? 10 : 15;
+
+  return Array.from({ length: Math.floor(scale / step) }, (_, i) => (i + 1) * step);
+};
 
 /** GPF routing resource, to check a local route against the Géoplateforme */
 export const GPF_RESOURCE = 'bdtopo-valhalla';

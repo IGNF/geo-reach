@@ -1,3 +1,5 @@
+import { loadData, type Progress } from '../lib/dataCache';
+
 /**
  * The network the engine runs on: the BD TOPO road sections (graph.bin, built by scripts/buildGraph.ts), and the
  * public transport layer when it is loaded (transit.bin, scripts/buildTransit.ts). Positions are Web Mercator metres
@@ -71,15 +73,16 @@ export interface Network {
   railStations: Uint32Array;
 }
 
-const MAGIC = 0x32465247;
+const MAGIC = 0x33465247;
 
-export const loadRoadNetwork = async (url: string): Promise<Network> => {
-  const buffer = await (await fetch(url)).arrayBuffer();
+/** Reads graph.bin (scripts/buildGraph.ts): interior points are 16 bit deltas, rebuilt here into full geometries */
+export const loadRoadNetwork = async (url: string, onProgress?: Progress): Promise<Network> => {
+  const buffer = await loadData(url, onProgress);
   const view = new DataView(buffer);
   if (view.getUint32(0, true) !== MAGIC) throw new Error('graph.bin: unknown format');
   const nodeCount = view.getUint32(4, true);
   const E = view.getUint32(8, true);
-  const coordCount = view.getUint32(12, true);
+  const pointCount = view.getUint32(12, true);
   const namesBytes = view.getUint32(16, true);
   let offset = 24;
   const f64 = () => {
@@ -96,18 +99,42 @@ export const loadRoadNetwork = async (url: string): Promise<Network> => {
 
     return array;
   };
+  const align = () => {
+    offset = (offset + 3) & ~3;
+  };
   const nodeXY = take(Float32Array, nodeCount * 2);
   const edgeA = take(Uint32Array, E);
   const edgeB = take(Uint32Array, E);
-  const edgeLength = take(Float32Array, E);
-  const coordStart = take(Uint32Array, E + 1);
-  const coords = take(Float32Array, coordCount * 2);
   const edgeName = take(Uint32Array, E);
+  const pointStart = take(Uint32Array, E + 1);
+  const edgeLength = Float32Array.from(take(Uint16Array, E));
   const edgeCarSpeed = take(Uint8Array, E);
   const edgeFlags = take(Uint8Array, E);
   const edgeImportance = take(Uint8Array, E);
-  offset = (offset + 3) & ~3;
+  align();
+  const points = take(Int16Array, pointCount * 2);
+  align();
   const names = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, offset, namesBytes))) as string[];
+
+  // Full geometries: node A, the interior points (deltas from the rounded previous point), node B
+  const coordStart = new Uint32Array(E + 1);
+  for (let e = 0; e < E; e += 1) coordStart[e + 1] = coordStart[e] + 2 + (pointStart[e + 1] - pointStart[e]);
+  const coords = new Float32Array(coordStart[E] * 2);
+  for (let e = 0; e < E; e += 1) {
+    let o = coordStart[e] * 2;
+    const [a, b] = [edgeA[e], edgeB[e]];
+    coords[o++] = nodeXY[a * 2];
+    coords[o++] = nodeXY[a * 2 + 1];
+    let [x, y] = [Math.round(nodeXY[a * 2]), Math.round(nodeXY[a * 2 + 1])];
+    for (let p = pointStart[e]; p < pointStart[e + 1]; p += 1) {
+      x += points[p * 2];
+      y += points[p * 2 + 1];
+      coords[o++] = x;
+      coords[o++] = y;
+    }
+    coords[o++] = nodeXY[b * 2];
+    coords[o] = nodeXY[b * 2 + 1];
+  }
 
   return {
     origin,

@@ -196,13 +196,21 @@ export class NetworkLayer implements CustomLayerInterface {
   setProfile(profile: Profile) {
     const { net } = this;
     const { fwd, bwd, direction } = profile;
-    const geom: number[] = [];
-    const cost: number[] = [];
     const sx = 1 / EARTH;
-    for (let e = 0; e < net.edgeCount; e += 1) {
+    const drawn = (e: number) => {
       const kind = net.edgeKind[e];
-      if (kind !== EDGE_ROAD && kind !== EDGE_RIDE) continue;
-      if (!(fwd[e] < Infinity || bwd[e] < Infinity)) continue;
+
+      return (kind === EDGE_ROAD || kind === EDGE_RIDE) && (fwd[e] < Infinity || bwd[e] < Infinity);
+    };
+    // Typed arrays sized first: over a million segments for the whole region
+    let count = 0;
+    for (let e = 0; e < net.edgeCount; e += 1)
+      if (drawn(e)) count += Math.max(0, net.coordStart[e + 1] - net.coordStart[e] - 1);
+    const geom = new Float32Array(count * 7);
+    const cost = new Float32Array(count * 4);
+    let k = 0;
+    for (let e = 0; e < net.edgeCount; e += 1) {
+      if (!drawn(e)) continue;
       const [s, t] = [net.coordStart[e], net.coordStart[e + 1]];
       if (t - s < 2) continue;
       let total = 0;
@@ -212,18 +220,18 @@ export class NetworkLayer implements CustomLayerInterface {
       const b1 = Math.min(bwd[e], BIG);
       // Departure: reach a point at f from A forwards, from B backwards. Arrival: leave it towards A or B.
       const [fromA, fromB] = direction === 'departure' ? [f1, b1] : [b1, f1];
-      const style = kind === EDGE_RIDE ? (net.edgeFlags[e] & FLAG_BUS ? 0 : 1) : 0;
+      const style = net.edgeKind[e] === EDGE_RIDE ? (net.edgeFlags[e] & FLAG_BUS ? 0 : 1) : 0;
       let along = 0;
-      for (let p = s; p < t - 1; p += 1) {
+      for (let p = s; p < t - 1; p += 1, k += 1) {
         const [x0, y0, x1, y1] = [net.coords[p * 2], net.coords[p * 2 + 1], net.coords[p * 2 + 2], net.coords[p * 2 + 3]];
         const fa = total > 0 ? along / total : 0;
         along += Math.hypot(x1 - x0, y1 - y0);
         const fb = total > 0 ? along / total : 1;
-        geom.push(x0 * sx, -y0 * sx, x1 * sx, -y1 * sx, net.edgeA[e], net.edgeB[e], style);
-        cost.push(fa * fromA, (1 - fa) * fromB, fb * fromA, (1 - fb) * fromB);
+        geom.set([x0 * sx, -y0 * sx, x1 * sx, -y1 * sx, net.edgeA[e], net.edgeB[e], style], k * 7);
+        cost.set([fa * fromA, (1 - fa) * fromB, fb * fromA, (1 - fb) * fromB], k * 4);
       }
     }
-    this.pending = { geom: new Float32Array(geom), cost: new Float32Array(cost), count: cost.length / 4 };
+    this.pending = { geom, cost, count: k };
     this.flush();
   }
 

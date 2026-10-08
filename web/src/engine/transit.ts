@@ -1,3 +1,4 @@
+import { loadData, type Progress } from '../lib/dataCache';
 import {
   HOURS,
   EDGE_ALIGHT,
@@ -13,8 +14,10 @@ import {
 
 /** A station joins the streets through its nearest walkable nodes */
 const LINKS_PER_STATION = 3;
-const MAX_LINK_METRES = 250;
+const MAX_LINK_METRES = 400;
 const GTFS_BUS = 3;
+/** No departure in the hour (u16) */
+const NO_SERVICE = 0xffff;
 
 const css = (rgb: number) => `#${rgb.toString(16).padStart(6, '0')}`;
 
@@ -22,12 +25,10 @@ const css = (rgb: number) => `#${rgb.toString(16).padStart(6, '0')}`;
  * Loads transit.bin (crates/gtfs-prep) and returns how to graft it on the road network: stations and line stops
  * become nodes; boarding (the wait), rides, alighting and walking links become edges.
  */
-export const loadTransit = async (url: string) => {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`transit.bin: HTTP ${res.status}`);
-  const buffer = await res.arrayBuffer();
+export const loadTransit = async (url: string, onProgress?: Progress) => {
+  const buffer = await loadData(url, onProgress);
   const u32 = new Uint32Array(buffer, 0, 8);
-  if (u32[0] !== 0x324e5254) throw new Error('transit.bin: unknown format');
+  if (u32[0] !== 0x334e5254) throw new Error('transit.bin: unknown format');
   const [, stationCount, lineCount, lineStopCount, rideCount, coordCount, stringsBytes] = u32;
   let offset = 32;
   const words = (n: number) => {
@@ -38,10 +39,16 @@ export const loadTransit = async (url: string) => {
   };
   const stations = words(stationCount * 3);
   const lines = words(lineCount * 4);
-  // Line stop: line, station, 24 hourly waits. Ride: from, to, 24 hourly durations.
-  const ROW = 2 + HOURS;
-  const lineStops = words(lineStopCount * ROW);
-  const rides = words(rideCount * ROW);
+  // Line stop: u32 line, u32 station, u16 hourly waits. Ride: u32 from, u32 to, u16 hourly durations.
+  const ROW = 8 + HOURS * 2;
+  const rows = (n: number) => {
+    const view = new DataView(buffer, offset, n * ROW);
+    offset += n * ROW;
+
+    return view;
+  };
+  const lineStops = rows(lineStopCount);
+  const rides = rows(rideCount);
   const rideCoordStart = new Uint32Array(buffer, offset, rideCount + 1);
   offset += (rideCount + 1) * 4;
   const rideCoords = new Float32Array(buffer, offset, coordCount * 2);
@@ -71,10 +78,14 @@ export const loadTransit = async (url: string) => {
         type,
       });
     }
-    const lineStopLine = (i: number) => lineStops.getUint32(i * ROW * 4, true);
-    const lineStopStation = (i: number) => lineStops.getUint32(i * ROW * 4 + 4, true);
+    const lineStopLine = (i: number) => lineStops.getUint32(i * ROW, true);
+    const lineStopStation = (i: number) => lineStops.getUint32(i * ROW + 4, true);
     const hourly = (view: DataView, i: number) =>
-      Array.from({ length: HOURS }, (_, h) => view.getFloat32((i * ROW + 2 + h) * 4, true));
+      Array.from({ length: HOURS }, (_, h) => {
+        const v = view.getUint16(i * ROW + 8 + h * 2, true);
+
+        return v === NO_SERVICE ? Number.POSITIVE_INFINITY : v;
+      });
     for (let i = 0; i < lineStopCount; i += 1) {
       const s = lineStopStation(i);
       nodeXY[lineStopNode(i) * 2] = nodeXY[stationNode(s) * 2];
@@ -101,8 +112,8 @@ export const loadTransit = async (url: string) => {
     const nearestNodes = (x: number, y: number) => {
       const [cx, cy] = [Math.floor(x / CELL), Math.floor(y / CELL)];
       const found: [number, number][] = [];
-      for (let i = cx - 3; i <= cx + 3; i += 1)
-        for (let j = cy - 3; j <= cy + 3; j += 1)
+      for (let i = cx - 4; i <= cx + 4; i += 1)
+        for (let j = cy - 4; j <= cy + 4; j += 1)
           for (const n of buckets.get(`${i},${j}`) ?? [])
             found.push([n, Math.hypot(roads.nodeXY[n * 2] - x, roads.nodeXY[n * 2 + 1] - y)]);
 
@@ -160,7 +171,7 @@ export const loadTransit = async (url: string) => {
       push(lineStopNode(i), station, 0, EDGE_ALIGHT, bus, l);
     }
     for (let r = 0; r < rideCount; r += 1) {
-      const [from, to] = [rides.getUint32(r * ROW * 4, true), rides.getUint32(r * ROW * 4 + 4, true)];
+      const [from, to] = [rides.getUint32(r * ROW, true), rides.getUint32(r * ROW + 4, true)];
       const durations = hourly(rides, r);
       const l = lineStopLine(from);
       const bus = lineList[l].type === GTFS_BUS ? FLAG_BUS : 0;

@@ -74,7 +74,11 @@ body,
   display: flex;
   flex-direction: column;
   gap: 18px;
-  overflow-x: hidden;
+  width: 100%;
+}
+
+.settings > * {
+  min-width: 0;
 }
 
 .brand {
@@ -107,7 +111,7 @@ body,
 /* Travel modes */
 .mode-picker {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -333,4 +337,38 @@ body,
   white-space: nowrap;
   pointer-events: none;
   box-shadow: 0 3px 10px rgb(0 0 0 / 25%);
+}
+
+/* The settings fill the height of the panel, so that the footer sits at its bottom */
+.settings-wrap {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 120px);
+  /* Never wider than the panel, clear of its scrollbar */
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding-right: 12px;
+  overflow-x: hidden;
+}
+
+.settings-wrap * {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.settings-footer {
+  /* At the bottom when there is room, after the last setting otherwise: it never covers them */
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: auto;
+  padding: 16px 0 4px;
+  border-top: 1px solid var(--mantine-color-default-border);
+}
+
+.settings {
+  padding-bottom: 16px;
 }
