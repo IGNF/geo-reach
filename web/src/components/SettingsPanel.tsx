@@ -125,9 +125,10 @@ const SettingsPanel = ({
         onChange={onContoursChange}
         size="xs"
       />
-      <Stack direction="row" justify="space-between" align="center">
+      {/* Under its caption, the whole width: the labels are never cut */}
+      <Stack gap={4}>
         <Typography variant="caption">{t.mapFrom}</Typography>
-        <SegmentedSwitch label={t.mapFrom} options={directions} value={direction} onChange={onDirectionChange} />
+        <SegmentedSwitch label={t.mapFrom} options={directions} value={direction} onChange={onDirectionChange} fullWidth />
       </Stack>
       <ModelSection mode={mode} model={model} onChange={onModelChange} />
       </div>

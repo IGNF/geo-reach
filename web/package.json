@@ -14,7 +14,7 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@ign-junn/design-system": "^0.31.2",
+    "@ign-junn/design-system": "^0.32.0",
     "@mantine/code-highlight": "^9.7.1",
     "@mantine/core": "^9.7.1",
     "@mantine/hooks": "^9.7.1",

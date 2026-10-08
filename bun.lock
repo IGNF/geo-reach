@@ -13,7 +13,7 @@
         "@dnd-kit/modifiers": "^9.0.0",
         "@dnd-kit/sortable": "^10.0.0",
         "@dnd-kit/utilities": "^3.2.2",
-        "@ign-junn/design-system": "^0.31.2",
+        "@ign-junn/design-system": "^0.32.0",
         "@mantine/code-highlight": "^9.7.1",
         "@mantine/core": "^9.7.1",
         "@mantine/hooks": "^9.7.1",
@@ -60,7 +60,7 @@
 
     "@fontsource/open-sans": ["@fontsource/open-sans@5.3.0", "", {}, "sha512-V1bdMlGNyZrJwzrdusshMOw2YR0aqYDL7kOo9dkxUEKl8dFv66A9HLckOOXl572sG/7ohhDQrCrTFGSn9LZcSw=="],
 
-    "@ign-junn/design-system": ["@ign-junn/design-system@0.31.2", "", { "dependencies": { "@fontsource/fira-sans": "^5.3.0", "@fontsource/open-sans": "^5.3.0", "@tabler/icons-react": "^3.48.0", "@xyflow/react": "^12.12.0", "elkjs": "^0.12.0" }, "peerDependencies": { "@dnd-kit/core": "^6.3.1", "@dnd-kit/modifiers": "^9.0.0", "@dnd-kit/sortable": "^10.0.0", "@dnd-kit/utilities": "^3.2.2", "@mantine/code-highlight": "^9.6.2", "@mantine/core": "^9.6.2", "@mantine/hooks": "^9.6.2", "highlight.js": "^11.12.0", "react": "^19.2.8", "react-dom": "^19.2.8", "react-router": "^8.4.0" } }, "sha512-Y8/ZlqxDIJdzSVnL1pkRzaVRjnrnwgB5s5B+44q5tTQo1rGMtvsyogK8xI+H/PN35Etm7//bGppwWpUgGug7wA=="],
+    "@ign-junn/design-system": ["@ign-junn/design-system@0.32.0", "", { "dependencies": { "@fontsource/fira-sans": "^5.3.0", "@fontsource/open-sans": "^5.3.0", "@tabler/icons-react": "^3.48.0", "@xyflow/react": "^12.12.0", "elkjs": "^0.12.0" }, "peerDependencies": { "@dnd-kit/core": "^6.3.1", "@dnd-kit/modifiers": "^9.0.0", "@dnd-kit/sortable": "^10.0.0", "@dnd-kit/utilities": "^3.2.2", "@mantine/code-highlight": "^9.6.2", "@mantine/core": "^9.6.2", "@mantine/hooks": "^9.6.2", "highlight.js": "^11.12.0", "react": "^19.2.8", "react-dom": "^19.2.8", "react-router": "^8.4.0" } }, "sha512-kc2rARLylotNjXBaTA8ksFlhjfm4KxkUP8HW6g+T2RPlLG7pWr6N0gXjHy2nCr22UGq3pXH2SXJeag4EgOPGFw=="],
 
     "@mantine/code-highlight": ["@mantine/code-highlight@9.7.1", "", { "dependencies": { "clsx": "^2.1.1" }, "peerDependencies": { "@mantine/core": "9.7.1", "@mantine/hooks": "9.7.1", "react": "^19.2.0", "react-dom": "^19.2.0" } }, "sha512-iKr+gUauwvW5yrdB6rSNAeKCZqwuzXpb5pwopgymCB9JJs/UI7mfR5vyRkR5NkDgZOUHJU4O1QqzzG3bkroWPA=="],
 

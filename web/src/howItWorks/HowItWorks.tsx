@@ -166,6 +166,7 @@ const HowItWorks = () => {
                 labels={h.diagram.labels}
                 selected={selected}
                 onSelect={(id) => setSelected(id as StepId)}
+                beads={3}
               />
             </div>
             <div className="diagram-detail">
