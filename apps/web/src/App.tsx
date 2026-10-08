@@ -1,15 +1,16 @@
 import { PageLoader } from '@ign-junn/design-system';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import ControlBar from './components/ControlBar';
 import MapView, { type LiveInfo, type TargetInfo } from './components/MapView';
+import SettingsPanel from './components/SettingsPanel';
 import TripPanel from './components/TripPanel';
 import { loadRoadNetwork } from './engine/network';
-import { t } from './locales';
 import { loadTransit } from './engine/transit';
 import { TravelEngine } from './engine/travelEngine';
 import { GRAPH_URL, type LngLat, MAX_SCALE, type Mode, TRANSIT_URL } from './lib/config';
+import { insight } from './lib/insights';
 import { useAddress, useGpfRoute } from './lib/useRoute';
 import { readUrlState, urlHash, type ViewState } from './lib/urlState';
+import { t } from './locales';
 
 const App = () => {
   const [view, setView] = useState<ViewState>(readUrlState);
@@ -19,7 +20,9 @@ const App = () => {
   const [live, setLive] = useState<LiveInfo>();
   const [target, setTarget] = useState<TargetInfo>();
   const [settled, setSettled] = useState<LngLat>();
-  const { pinned, mode, direction, bus, scale, contours } = view;
+  const [focus, setFocus] = useState<{ point: LngLat }>();
+  const [notice, setNotice] = useState<string>();
+  const { pinned, mode, direction, bus, hour, scale, contours } = view;
   const hash = urlHash(view);
   const contourSeconds = useMemo(() => contours.map((c) => c * 60), [contours]);
 
@@ -30,7 +33,7 @@ const App = () => {
         const net = transit ? transit(roads) : roads;
         setTransitAvailable(!!transit);
         const m = !transit && mode === 'transit' ? 'pedestrian' : mode;
-        setEngine(await TravelEngine.create(net, { mode: m, direction, bus }));
+        setEngine(await TravelEngine.create(net, { mode: m, direction, bus, hour }));
       })
       .catch((error: unknown) => console.error(error));
     // Loaded once; the profile follows the view in the effect below
@@ -40,10 +43,10 @@ const App = () => {
   useEffect(() => {
     if (!engine) return;
     const p = engine.profile;
-    if (p.mode === mode && p.direction === direction && p.bus === bus) return;
-    engine.setProfile({ mode, direction, bus });
+    if (p.mode === mode && p.direction === direction && p.bus === bus && p.hour === hour) return;
+    engine.setProfile({ mode, direction, bus, hour });
     setProfileVersion((v) => v + 1);
-  }, [engine, mode, direction, bus]);
+  }, [engine, mode, direction, bus, hour]);
 
   useEffect(() => window.history.replaceState(null, '', hash), [hash]);
 
@@ -56,21 +59,26 @@ const App = () => {
     [update],
   );
   const onModeChange = (m: Mode) => update({ mode: m, scale: Math.min(scale, MAX_SCALE[m]) });
-  const onLocate = () =>
-    navigator.geolocation?.getCurrentPosition((p) => onPin([p.coords.longitude, p.coords.latitude]));
+  const onLocate = useCallback(() => {
+    setNotice(undefined);
+    if (!navigator.geolocation) return setNotice(t.locateFailed);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const point: LngLat = [coords.longitude, coords.latitude];
+        const [minLng, minLat, maxLng, maxLat] = engine?.net.bbox ?? [0, 0, 0, 0];
+        const inside = point[0] >= minLng && point[0] <= maxLng && point[1] >= minLat && point[1] <= maxLat;
+        if (!inside) return setNotice(t.locateOutside);
+        // Only centers the map: the user decides whether to pin a point there
+        setFocus({ point });
+      },
+      () => setNotice(t.locateFailed),
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  }, [engine]);
 
   const originAddress = useAddress(pinned ?? live?.point, pinned ? 0 : 300);
   const targetAddress = useAddress(pinned ? settled : undefined, 0);
   const gpfRoute = useGpfRoute(pinned, settled, mode, direction);
-
-  // As in the reference dataviz: how much of the rail network the point reaches
-  const statLimit = contours.length ? Math.max(...contours) : scale;
-  const statIndex = contours.indexOf(statLimit);
-  const share = live && statIndex >= 0 ? live.stationShare[statIndex] : undefined;
-  const stat =
-    engine?.net.railStations.length && share !== undefined
-      ? t.stationShare(Math.round(share * 100), statLimit, direction, !!pinned)
-      : undefined;
 
   if (!engine) return <PageLoader label={t.loading} />;
 
@@ -86,11 +94,31 @@ const App = () => {
         onLive={setLive}
         onTarget={setTarget}
         onSettle={setSettled}
+        focus={focus}
+        onLocate={onLocate}
       />
-      <div className="panel-slot">
-        <TripPanel
+      <div className="left-slot">
+        <SettingsPanel
+          mode={mode}
+          onModeChange={onModeChange}
+          transitAvailable={transitAvailable}
+          bus={bus}
+          onBusChange={(b) => update({ bus: b })}
+          hour={hour}
+          onHourChange={(h) => update({ hour: h })}
           direction={direction}
           onDirectionChange={(d) => update({ direction: d })}
+          contours={contours}
+          onContoursChange={(c) => update({ contours: c })}
+          scale={scale}
+          onScaleChange={(s) => update({ scale: s })}
+          shareUrl={`${window.location.origin}${window.location.pathname}${hash}`}
+        />
+      </div>
+      <div className="right-slot">
+        <TripPanel
+          mode={mode}
+          direction={direction}
           pinned={!!pinned}
           onUnpin={() => onPin(undefined)}
           live={live}
@@ -99,24 +127,10 @@ const App = () => {
           targetAddress={targetAddress}
           gpfRoute={gpfRoute}
           scale={scale}
-          contours={contours}
+          notice={notice}
         />
       </div>
-      <ControlBar
-        mode={mode}
-        onModeChange={onModeChange}
-        transitAvailable={transitAvailable}
-        bus={bus}
-        onBusChange={(b) => update({ bus: b })}
-        contours={contours}
-        onContoursChange={(c) => update({ contours: c })}
-        scale={scale}
-        onScaleChange={(s) => update({ scale: s })}
-        onLocate={onLocate}
-        onSwap={() => update({ direction: direction === 'departure' ? 'arrival' : 'departure' })}
-        shareUrl={`${window.location.origin}${window.location.pathname}${hash}`}
-        stat={stat}
-      />
+      {live && <div className="insight-bar glass">{insight(mode, live, hour)}</div>}
     </div>
   );
 };

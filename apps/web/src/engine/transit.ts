@@ -1,4 +1,5 @@
 import {
+  HOURS,
   EDGE_ALIGHT,
   EDGE_BOARD,
   EDGE_LINK,
@@ -26,7 +27,7 @@ export const loadTransit = async (url: string) => {
   if (!res.ok) throw new Error(`transit.bin: HTTP ${res.status}`);
   const buffer = await res.arrayBuffer();
   const u32 = new Uint32Array(buffer, 0, 8);
-  if (u32[0] !== 0x314e5254) throw new Error('transit.bin: unknown format');
+  if (u32[0] !== 0x324e5254) throw new Error('transit.bin: unknown format');
   const [, stationCount, lineCount, lineStopCount, rideCount, coordCount, stringsBytes] = u32;
   let offset = 32;
   const words = (n: number) => {
@@ -37,8 +38,10 @@ export const loadTransit = async (url: string) => {
   };
   const stations = words(stationCount * 3);
   const lines = words(lineCount * 4);
-  const lineStops = words(lineStopCount * 3);
-  const rides = words(rideCount * 3);
+  // Line stop: line, station, 24 hourly waits. Ride: from, to, 24 hourly durations.
+  const ROW = 2 + HOURS;
+  const lineStops = words(lineStopCount * ROW);
+  const rides = words(rideCount * ROW);
   const rideCoordStart = new Uint32Array(buffer, offset, rideCount + 1);
   offset += (rideCount + 1) * 4;
   const rideCoords = new Float32Array(buffer, offset, coordCount * 2);
@@ -68,8 +71,10 @@ export const loadTransit = async (url: string) => {
         type,
       });
     }
-    const lineStopLine = (i: number) => lineStops.getUint32(i * 12, true);
-    const lineStopStation = (i: number) => lineStops.getUint32(i * 12 + 4, true);
+    const lineStopLine = (i: number) => lineStops.getUint32(i * ROW * 4, true);
+    const lineStopStation = (i: number) => lineStops.getUint32(i * ROW * 4 + 4, true);
+    const hourly = (view: DataView, i: number) =>
+      Array.from({ length: HOURS }, (_, h) => view.getFloat32((i * ROW + 2 + h) * 4, true));
     for (let i = 0; i < lineStopCount; i += 1) {
       const s = lineStopStation(i);
       nodeXY[lineStopNode(i) * 2] = nodeXY[stationNode(s) * 2];
@@ -113,8 +118,21 @@ export const loadTransit = async (url: string) => {
     const name: number[] = [];
     const geomCounts: number[] = [];
     const geom: number[] = [];
+    const hourRow: number[] = [];
+    const hourCosts: number[] = [];
     const scale = Math.cos(2 * Math.atan(Math.exp(roads.origin[1] / 6378137)) - Math.PI / 2);
-    const push = (ea: number, eb: number, len: number, k: number, f: number, nm: number, pts: number[] = []) => {
+    const push = (
+      ea: number,
+      eb: number,
+      len: number,
+      k: number,
+      f: number,
+      nm: number,
+      pts: number[] = [],
+      hours?: number[],
+    ) => {
+      hourRow.push(hours ? hourCosts.length / HOURS : -1);
+      if (hours) hourCosts.push(...hours);
       a.push(ea);
       b.push(eb);
       length.push(len);
@@ -137,20 +155,22 @@ export const loadTransit = async (url: string) => {
       if (lineList[l].type !== GTFS_BUS) rail.add(stationNode(lineStopStation(i)));
       const bus = lineList[l].type === GTFS_BUS ? FLAG_BUS : 0;
       const station = stationNode(lineStopStation(i));
-      push(station, lineStopNode(i), lineStops.getFloat32(i * 12 + 8, true), EDGE_BOARD, bus, l);
+      const waits = hourly(lineStops, i);
+      push(station, lineStopNode(i), Math.min(...waits), EDGE_BOARD, bus, l, [], waits);
       push(lineStopNode(i), station, 0, EDGE_ALIGHT, bus, l);
     }
     for (let r = 0; r < rideCount; r += 1) {
-      const [from, to] = [rides.getUint32(r * 12, true), rides.getUint32(r * 12 + 4, true)];
+      const [from, to] = [rides.getUint32(r * ROW * 4, true), rides.getUint32(r * ROW * 4 + 4, true)];
+      const durations = hourly(rides, r);
       const l = lineStopLine(from);
       const bus = lineList[l].type === GTFS_BUS ? FLAG_BUS : 0;
       const pts = Array.from(rideCoords.subarray(rideCoordStart[r] * 2, rideCoordStart[r + 1] * 2));
-      push(lineStopNode(from), lineStopNode(to), rides.getFloat32(r * 12 + 8, true), EDGE_RIDE, bus, l, pts);
+      push(lineStopNode(from), lineStopNode(to), durations[8], EDGE_RIDE, bus, l, pts, durations);
     }
 
     const E0 = roads.edgeCount;
     const E = E0 + a.length;
-    const grow = <T extends Uint8Array | Uint32Array | Float32Array>(src: T, extra: number[], Ctor: new (n: number) => T) => {
+    const grow = <T extends Uint8Array | Uint32Array | Int32Array | Float32Array>(src: T, extra: number[], Ctor: new (n: number) => T) => {
       const out = new Ctor(E);
       out.set(src);
       out.set(extra, E0);
@@ -179,6 +199,9 @@ export const loadTransit = async (url: string) => {
       edgeKind,
       edgeFlags: grow(roads.edgeFlags, flags, Uint8Array),
       edgeCarSpeed: grow(roads.edgeCarSpeed, [], Uint8Array),
+      edgeImportance: grow(roads.edgeImportance, [], Uint8Array),
+      edgeHourRow: grow(roads.edgeHourRow, hourRow, Int32Array),
+      hourCosts: Float32Array.from(hourCosts),
       edgeName: grow(roads.edgeName, name, Uint32Array),
       coordStart,
       coords,

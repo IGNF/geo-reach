@@ -3,7 +3,7 @@
  * compact binary file served with the app (apps/web/public/data/graph.bin). Run: `bun scripts/buildGraph.ts`.
  *
  * Layout (little endian, every section 4-byte aligned), read by apps/web/src/engine/graph.ts:
- *   u32 magic 'GRF1', u32 nodeCount, u32 edgeCount, u32 coordCount, u32 namesBytes, u32 pad
+ *   u32 magic 'GRF2', u32 nodeCount, u32 edgeCount, u32 coordCount, u32 namesBytes, u32 pad
  *   f64 originX, originY (Web Mercator metres of the zone centre), f64 minLng, minLat, maxLng, maxLat
  *   f32 nodes[nodeCount * 2]          node positions, Mercator metres relative to the origin
  *   u32 edgeA[E], edgeB[E]            end nodes (geometry runs from A to B)
@@ -12,11 +12,14 @@
  *   f32 coords[coordCount * 2]        geometry points, relative Mercator metres
  *   u32 edgeName[E]                   index in `names`, 0xffffffff without a name
  *   u8  edgeCarSpeed[E]               km/h, 0 where cars cannot go
- *   u8  edgeFlags[E]                  1 car A→B, 2 car B→A, 4 pedestrian, 8 stairs (slow walk)
+ *   u8  edgeFlags[E]                  1 car A→B, 2 car B→A, 4 pedestrian, 8 stairs (slow walk),
+ *                                     16 bike A→B, 32 bike B→A, 64 cycle lane or greenway, 128 path (slow ride)
+ *   u8  edgeImportance[E]             BD TOPO importance, 1 (major) to 6, 0 unknown
  *   utf8 names                        JSON array of street names
  */
 
-const BBOX = { minLng: 2.34, minLat: 48.8, maxLng: 2.51, maxLat: 48.89 };
+/** Paris and the inner suburbs around it */
+const BBOX = { minLng: 2.2, minLat: 48.78, maxLng: 2.52, maxLat: 48.93 };
 const PAGE = 5000;
 const OUT = new URL('../apps/web/public/data/graph.bin', import.meta.url);
 const R = 6378137;
@@ -33,6 +36,12 @@ interface Section {
     vitesse_moyenne_vl: number | null;
     nom_voie_ban_droite: string | null;
     nom_collaboratif_droite: string | null;
+    importance: string | null;
+    amenagement_cyclable_gauche: string | null;
+    amenagement_cyclable_droit: string | null;
+    sens_amenagement_cyclable_gauche: string | null;
+    sens_amenagement_cyclable_droit: string | null;
+    itineraire_vert: boolean | null;
   };
 }
 
@@ -48,7 +57,7 @@ const fetchPage = async (start: number) => {
     STARTINDEX: String(start),
     SORTBY: 'cleabs',
     PROPERTYNAME:
-      'nature,sens_de_circulation,acces_vehicule_leger,acces_pieton,vitesse_moyenne_vl,nom_voie_ban_droite,nom_collaboratif_droite,geometrie',
+      'nature,sens_de_circulation,acces_vehicule_leger,acces_pieton,vitesse_moyenne_vl,nom_voie_ban_droite,nom_collaboratif_droite,importance,amenagement_cyclable_gauche,amenagement_cyclable_droit,sens_amenagement_cyclable_gauche,sens_amenagement_cyclable_droit,itineraire_vert,geometrie',
   });
   const res = await fetch(`https://data.geopf.fr/wfs/ows?${params}`);
   if (!res.ok) throw new Error(`WFS page ${start}: HTTP ${res.status}`);
@@ -69,7 +78,7 @@ const tally = (key: keyof Section['properties']) => {
   for (const s of sections) counts.set(s.properties[key], (counts.get(s.properties[key]) ?? 0) + 1);
   console.log(key, [...counts].sort((a, b) => b[1] - a[1]).slice(0, 12));
 };
-for (const key of ['nature', 'sens_de_circulation', 'acces_vehicule_leger', 'acces_pieton'] as const) tally(key);
+for (const key of ['nature', 'importance'] as const) tally(key);
 
 const origin = [
   R * ((BBOX.minLng + BBOX.maxLng) / 2) * D2R,
@@ -89,6 +98,8 @@ const groundLength = (coords: number[][]) =>
   }, 0);
 
 const NO_PEDESTRIAN = new Set(['Type autoroutier', 'Bretelle']);
+const NO_BIKE = new Set(['Type autoroutier', 'Bretelle', 'Escalier']);
+const PATHS = new Set(['Sentier', 'Chemin', 'Route empierrée']);
 const CAR_ACCESS = new Set(['Libre', 'A péage']);
 
 const nodeIds = new Map<string, number>();
@@ -127,6 +138,7 @@ const coords: number[] = [];
 const edgeName: number[] = [];
 const edgeCarSpeed: number[] = [];
 const edgeFlags: number[] = [];
+const edgeImportance: number[] = [];
 
 for (const s of sections) {
   const line = s.geometry?.coordinates;
@@ -137,8 +149,25 @@ for (const s of sections) {
   const car = CAR_ACCESS.has(p.acces_vehicule_leger ?? '') && speed > 0;
   const forward = car && p.sens_de_circulation !== 'Sens inverse';
   const backward = car && p.sens_de_circulation !== 'Sens direct';
-  const flags = (forward ? 1 : 0) | (backward ? 2 : 0) | (pedestrian ? 4 : 0) | (p.nature === 'Escalier' ? 8 : 0);
-  if (!(flags & 7)) continue;
+  // Bikes: no motorway nor stairs; one-way streets apply, unless a cycle lane runs that way (contraflow lanes)
+  const bike = !NO_BIKE.has(p.nature) && (pedestrian || car);
+  const laneSenses = [p.sens_amenagement_cyclable_gauche, p.sens_amenagement_cyclable_droit];
+  const oneWay = car && (p.sens_de_circulation === 'Sens direct' || p.sens_de_circulation === 'Sens inverse');
+  const bikeForward =
+    bike && (!oneWay || forward || laneSenses.some((v) => v === 'Sens direct' || v === 'Double sens'));
+  const bikeBackward =
+    bike && (!oneWay || backward || laneSenses.some((v) => v === 'Sens inverse' || v === 'Double sens'));
+  const cycleway = !!(p.amenagement_cyclable_gauche || p.amenagement_cyclable_droit || p.itineraire_vert);
+  const flags =
+    (forward ? 1 : 0) |
+    (backward ? 2 : 0) |
+    (pedestrian ? 4 : 0) |
+    (p.nature === 'Escalier' ? 8 : 0) |
+    (bikeForward ? 16 : 0) |
+    (bikeBackward ? 32 : 0) |
+    (cycleway ? 64 : 0) |
+    (PATHS.has(p.nature) && !cycleway ? 128 : 0);
+  if (!(flags & (1 | 2 | 4 | 16 | 32))) continue;
   edgeA.push(nodeOf(line[0]));
   edgeB.push(nodeOf(line[line.length - 1]));
   edgeLength.push(groundLength(line));
@@ -147,6 +176,7 @@ for (const s of sections) {
   edgeName.push(nameOf(p.nom_voie_ban_droite || p.nom_collaboratif_droite));
   edgeCarSpeed.push(car ? speed : 0);
   edgeFlags.push(flags);
+  edgeImportance.push(Number(p.importance) || 0);
 }
 edgeCoordStart.push(coords.length / 2);
 
@@ -154,7 +184,7 @@ const E = edgeA.length;
 const namesBytes = new TextEncoder().encode(JSON.stringify(names));
 const align4 = (n: number) => (n + 3) & ~3;
 const size =
-  24 + 48 + nodes.length * 4 + E * 4 * 3 + (E + 1) * 4 + coords.length * 4 + E * 4 + align4(E * 2) + namesBytes.length;
+  24 + 48 + nodes.length * 4 + E * 4 * 3 + (E + 1) * 4 + coords.length * 4 + E * 4 + align4(E * 3) + namesBytes.length;
 const buffer = new ArrayBuffer(size);
 const view = new DataView(buffer);
 let offset = 0;
@@ -179,7 +209,7 @@ const u8s = (values: number[]) => {
   offset += values.length;
 };
 
-u32(0x31465247);
+u32(0x32465247);
 u32(nodes.length / 2);
 u32(E);
 u32(coords.length / 2);
@@ -200,6 +230,7 @@ f32s(coords);
 u32s(edgeName);
 u8s(edgeCarSpeed);
 u8s(edgeFlags);
+u8s(edgeImportance);
 offset = align4(offset);
 new Uint8Array(buffer, offset, namesBytes.length).set(namesBytes);
 

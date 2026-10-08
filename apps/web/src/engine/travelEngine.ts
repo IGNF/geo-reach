@@ -1,5 +1,5 @@
 import wasmUrl from './engine.wasm?url';
-import { EDGE_ROAD, type Network } from './network';
+import { EDGE_BOARD, EDGE_ROAD, FLAG_CYCLEWAY, type Network } from './network';
 import { buildProfile, type Profile, type ProfileOptions, WALK_SPEED } from './profile';
 import { type Snap, SnapIndex } from './snap';
 
@@ -179,6 +179,71 @@ export class TravelEngine {
     for (let p = s; p < t; p += 1) pts.push([coords[p * 2], coords[p * 2 + 1]]);
 
     return edgeA[edge] === from ? pts : pts.reverse();
+  }
+
+  /** 200 m cell of each road node, to measure reached areas */
+  private nodeCell?: { cell: Int32Array; marks: Uint8Array };
+
+  /** Square kilometres of 200 m cells holding a node reached within `limit` seconds */
+  areaKm2(dist: Float32Array, limit: number) {
+    const CELL = 200;
+    if (!this.nodeCell) {
+      const { nodeXY, nodeCount } = this.net;
+      const cols = Math.ceil(40000 / CELL);
+      const cell = new Int32Array(nodeCount);
+      for (let n = 0; n < nodeCount; n += 1)
+        cell[n] = (Math.floor(nodeXY[n * 2 + 1] / CELL) + cols / 2) * cols + Math.floor(nodeXY[n * 2] / CELL) + cols / 2;
+      this.nodeCell = { cell, marks: new Uint8Array(cols * cols) };
+    }
+    const { cell, marks } = this.nodeCell;
+    let count = 0;
+    const marked: number[] = [];
+    for (let n = 0; n < cell.length; n += 1) {
+      if (!(dist[n] <= limit) || marks[cell[n]]) continue;
+      marks[cell[n]] = 1;
+      marked.push(cell[n]);
+      count += 1;
+    }
+    for (const c of marked) marks[c] = 0;
+
+    return (count * CELL * CELL * this.groundScale * this.groundScale) / 1e6;
+  }
+
+  /** Stations and lines one can board within `limit` seconds (bus lines only when the profile takes them) */
+  reachedTransit(dist: Float32Array, limit: number) {
+    const { net, profile } = this;
+    const stations = new Set<number>();
+    const lines = new Set<number>();
+    for (let e = 0; e < net.edgeCount; e += 1) {
+      if (net.edgeKind[e] !== EDGE_BOARD || !(profile.fwd[e] < Infinity)) continue;
+      if (dist[net.edgeA[e]] <= limit) {
+        stations.add(net.edgeA[e]);
+        lines.add(net.edgeName[e]);
+      }
+    }
+
+    return { stations: stations.size, lines: lines.size };
+  }
+
+  /** The metro, RER or tram station reached first */
+  nearestStation(dist: Float32Array) {
+    let best = -1;
+    for (const s of this.net.railStations) if (best < 0 || dist[s] < dist[best]) best = s;
+
+    return best >= 0 && Number.isFinite(dist[best])
+      ? { name: this.net.stopNames.get(best) ?? '', seconds: dist[best] }
+      : undefined;
+  }
+
+  /** Kilometres of cycle lanes and greenways reached within `limit` seconds */
+  cyclewayKm(dist: Float32Array, limit: number) {
+    const { edgeA, edgeB, edgeLength, edgeKind, edgeFlags, edgeCount } = this.net;
+    let m = 0;
+    for (let e = 0; e < edgeCount; e += 1)
+      if (edgeKind[e] === EDGE_ROAD && edgeFlags[e] & FLAG_CYCLEWAY && Math.max(dist[edgeA[e]], dist[edgeB[e]]) <= limit)
+        m += edgeLength[e];
+
+    return m / 1000;
   }
 
   /** Share (0..1) of the metro, RER and tram stations reached within each duration (seconds) */

@@ -48,7 +48,7 @@ const mergeSteps = (steps: RawStep[]): RouteStep[] =>
 export const fetchRoute = async (
   start: LngLat,
   end: LngLat,
-  mode: Exclude<Mode, 'transit'>,
+  mode: Exclude<Mode, 'transit' | 'bike'>,
   signal?: AbortSignal,
 ): Promise<Route> => {
   const body = await getJson<{

@@ -18,8 +18,16 @@ export const FLAG_CAR_FWD = 1;
 export const FLAG_CAR_BWD = 2;
 export const FLAG_WALK = 4;
 export const FLAG_STAIRS = 8;
-/** Transit edge of a bus line (the others are metro, RER, train and tram) */
+export const FLAG_BIKE_FWD = 16;
+export const FLAG_BIKE_BWD = 32;
+/** Cycle lane, cycle track or greenway */
+export const FLAG_CYCLEWAY = 64;
+/** Unpaved path: slow ride */
+export const FLAG_PATH = 128;
+/** Transit edges only (flags are read by edge kind): a bus line (the others are metro, RER, train and tram) */
 export const FLAG_BUS = 16;
+
+export const HOURS = 24;
 
 export interface Line {
   name: string;
@@ -44,6 +52,12 @@ export interface Network {
   edgeKind: Uint8Array;
   edgeFlags: Uint8Array;
   edgeCarSpeed: Uint8Array;
+  /** BD TOPO importance of roads, 1 (major) to 6, 0 unknown */
+  edgeImportance: Uint8Array;
+  /** Row of hourly costs of each transit boarding and ride in `hourCosts`, -1 for the other edges */
+  edgeHourRow: Int32Array;
+  /** Seconds per hour of the day (24 per row): the wait of a boarding, the duration of a ride */
+  hourCosts: Float32Array;
   /** Street name (roads), line (rides, boardings), 0xffffffff for none */
   edgeName: Uint32Array;
   /** Points of edge e: coordStart[e] .. coordStart[e + 1], none for boardings and alightings */
@@ -57,7 +71,7 @@ export interface Network {
   railStations: Uint32Array;
 }
 
-const MAGIC = 0x31465247;
+const MAGIC = 0x32465247;
 
 export const loadRoadNetwork = async (url: string): Promise<Network> => {
   const buffer = await (await fetch(url)).arrayBuffer();
@@ -91,6 +105,7 @@ export const loadRoadNetwork = async (url: string): Promise<Network> => {
   const edgeName = take(Uint32Array, E);
   const edgeCarSpeed = take(Uint8Array, E);
   const edgeFlags = take(Uint8Array, E);
+  const edgeImportance = take(Uint8Array, E);
   offset = (offset + 3) & ~3;
   const names = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, offset, namesBytes))) as string[];
 
@@ -106,6 +121,9 @@ export const loadRoadNetwork = async (url: string): Promise<Network> => {
     edgeKind: new Uint8Array(E),
     edgeFlags,
     edgeCarSpeed,
+    edgeImportance,
+    edgeHourRow: new Int32Array(E).fill(-1),
+    hourCosts: new Float32Array(0),
     edgeName,
     coordStart,
     coords,

@@ -3,6 +3,7 @@ import type * as GeoJSON from 'geojson';
 import {
   type ExpressionSpecification,
   type GeoJSONSource,
+  type IControl,
   Map as MlMap,
   Marker,
   NavigationControl,
@@ -15,7 +16,7 @@ import { type Leg, toLegs } from '../engine/legs';
 import { EDGE_BOARD, EDGE_RIDE, FLAG_BUS } from '../engine/network';
 import { WALK_SPEED } from '../engine/profile';
 import { type Result, TravelEngine } from '../engine/travelEngine';
-import { BASEMAP_STYLE, type LngLat } from '../lib/config';
+import { BASEMAP_STYLE, LANDMARKS, type LngLat } from '../lib/config';
 import { rampCss } from '../lib/colors';
 import { formatMinutes } from '../lib/format';
 import { fromMercator, toMercator } from '../lib/mercator';
@@ -24,13 +25,20 @@ import { NetworkLayer } from '../map/networkLayer';
 
 setWorkerUrl(maplibreWorkerUrl);
 
-/** What the cursor explores, sent to the panel (throttled) */
+/** What the explored point reaches, sent to the panels (throttled) */
 export interface LiveInfo {
   point: LngLat;
-  /** Kilometres of streets reached, per chosen duration */
-  reachedKm: number[];
-  /** Share of the metro, RER and tram stations reached, per chosen duration */
-  stationShare: number[];
+  /** Seconds: the longest chosen isochrone, else the max time */
+  limit: number;
+  areaKm2: number;
+  /** Travel time to the landmarks, shortest first */
+  landmarks: { name: string; seconds: number }[];
+  /** Transit: stations and lines one can board within the limit */
+  transit?: { stations: number; lines: number };
+  /** Walk: the metro, RER or tram station reached first */
+  nearestStation?: { name: string; seconds: number };
+  /** Bike: kilometres of cycle lanes and greenways within the limit */
+  cyclewayKm?: number;
   runMs: number;
   settled: number;
 }
@@ -56,6 +64,10 @@ interface MapViewProps {
   onTarget: (info: TargetInfo | undefined) => void;
   /** The cursor stopped on a point (pinned mode), to ask the Géoplateforme for its route */
   onSettle: (point: LngLat | undefined) => void;
+  /** The user's position: the map centers on it and marks it (a new object each time) */
+  focus?: { point: LngLat };
+  /** The locate button of the map controls */
+  onLocate: () => void;
 }
 
 const PANEL_THROTTLE_MS = 60;
@@ -96,6 +108,39 @@ const railFeatures = (engine: TravelEngine): GeoJSON.FeatureCollection => {
   return { type: 'FeatureCollection', features };
 };
 
+const LOCATE_ICON =
+  '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2M12 20v2M20 12h2M2 12h2"/></svg>';
+
+/** "My location" button, in the group of the map controls */
+class LocateControl implements IControl {
+  private container?: HTMLDivElement;
+  private readonly onClick: () => void;
+
+  constructor(onClick: () => void) {
+    this.onClick = onClick;
+  }
+
+  onAdd() {
+    const container = document.createElement('div');
+    container.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'locate-button';
+    button.title = t.locate;
+    button.setAttribute('aria-label', t.locate);
+    button.innerHTML = LOCATE_ICON;
+    button.addEventListener('click', this.onClick);
+    container.append(button);
+    this.container = container;
+
+    return container;
+  }
+
+  onRemove() {
+    this.container?.remove();
+  }
+}
+
 const markerElement = (className: string) => {
   const el = document.createElement('div');
   el.className = className;
@@ -113,10 +158,12 @@ const MapView = ({
   onLive,
   onTarget,
   onSettle,
+  focus,
+  onLocate,
 }: MapViewProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const live = useRef({ engine, scale, contours, pinned, onPin, onLive, onTarget, onSettle });
-  live.current = { engine, scale, contours, pinned, onPin, onLive, onTarget, onSettle };
+  const live = useRef({ engine, scale, contours, pinned, onPin, onLive, onTarget, onSettle, onLocate });
+  live.current = { engine, scale, contours, pinned, onPin, onLive, onTarget, onSettle, onLocate };
   // Imperative state of the map, shared by the effects below
   const ctl = useRef<{
     map?: MlMap;
@@ -143,6 +190,11 @@ const MapView = ({
       return [x - ox, y - oy];
     };
     const toLngLat = ([x, y]: [number, number]) => fromMercator([x + ox, y + oy]);
+    const landmarkXY = LANDMARKS.map(({ name, at }) => {
+      const [x, y] = toRel(at);
+
+      return { name, x, y };
+    });
     const c = ctl.current;
     const map = new MlMap({
       container,
@@ -155,7 +207,9 @@ const MapView = ({
       },
       fadeDuration: 0,
     });
-    map.addControl(new NavigationControl({ showCompass: false }), 'top-right');
+    // Bottom corners stack upwards: the locate button, added first, sits under the zoom buttons
+    map.addControl(new LocateControl(() => live.current.onLocate()), 'bottom-right');
+    map.addControl(new NavigationControl({ showCompass: false }), 'bottom-right');
     c.map = map;
     const layer = new NetworkLayer(net);
     layer.setProfile(engine.profile);
@@ -231,13 +285,25 @@ const MapView = ({
       return true;
     };
 
-    const summary = (r: Result, point: LngLat, limits: number[]): LiveInfo => ({
-      point,
-      reachedKm: engine.reachedKm(r.dist, limits),
-      stationShare: engine.stationShare(r.dist, limits),
-      runMs: r.runMs,
-      settled: r.settled,
-    });
+    const summary = (r: Result, point: LngLat, contourLimits: number[]): LiveInfo => {
+      const limit = contourLimits.length ? Math.max(...contourLimits) : live.current.scale;
+      const mode = engine.profile.mode;
+      const landmarks = landmarkXY
+        .map(({ name, x, y }) => ({ name, seconds: engine.timeAt(r, x, y)?.seconds ?? Number.POSITIVE_INFINITY }))
+        .sort((a, b) => a.seconds - b.seconds);
+
+      return {
+        point,
+        limit,
+        areaKm2: engine.areaKm2(r.dist, limit),
+        landmarks,
+        transit: mode === 'transit' ? engine.reachedTransit(r.dist, limit) : undefined,
+        nearestStation: mode === 'pedestrian' ? engine.nearestStation(r.dist) : undefined,
+        cyclewayKm: mode === 'bike' ? engine.cyclewayKm(r.dist, limit) : undefined,
+        runMs: r.runMs,
+        settled: r.settled,
+      };
+    };
 
     /** One frame of work for the latest cursor position */
     const process = () => {
@@ -272,7 +338,7 @@ const MapView = ({
         const { coords, steps } = routeCoords(r, at.node, cursor, [at.snap.x, at.snap.y]);
         setRoute(coords, at.seconds);
         if (panelDue()) {
-          const legs = toLegs(net, steps, engine.profile.mode === 'car');
+          const legs = toLegs(net, steps, engine.profile.mode);
           if (at.walk > 20) legs.push({ kind: 'walk', label: '', seconds: at.walk, metres: at.walk * WALK_SPEED });
           live.current.onTarget({ point, seconds: at.seconds, legs });
         }
@@ -351,6 +417,16 @@ const MapView = ({
         },
       });
       map.addLayer({ id: 'zone-mask', type: 'fill', source: 'zone', paint: { 'fill-color': '#000', 'fill-opacity': 0.12 } });
+      // A light veil over the basemap, so that the network of the chosen mode stands out
+      map.addSource('veil', {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          properties: {},
+          geometry: { type: 'Polygon', coordinates: [[[-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85]]] },
+        },
+      });
+      map.addLayer({ id: 'veil', type: 'fill', source: 'veil', paint: { 'fill-color': '#fff', 'fill-opacity': 0.5 } }, firstSymbol);
       map.addLayer(layer, firstSymbol);
       if (net.lines.length) {
         map.addSource('rail', { type: 'geojson', data: railFeatures(engine) });
@@ -383,7 +459,7 @@ const MapView = ({
         );
       }
       if (net.lines.length && engine.profile.mode !== 'transit') {
-        map.setPaintProperty('rail-lines', 'line-opacity', 0.3);
+        map.setPaintProperty('rail-lines', 'line-opacity', 0);
         map.setPaintProperty('rail-stations', 'circle-opacity', 0);
         map.setPaintProperty('rail-stations', 'circle-stroke-opacity', 0);
       }
@@ -422,7 +498,7 @@ const MapView = ({
     c.layer?.setProfile(engine.profile);
     const transit = engine.profile.mode === 'transit';
     if (c.ready && c.map?.getLayer('rail-lines')) {
-      c.map.setPaintProperty('rail-lines', 'line-opacity', transit ? 1 : 0.3);
+      c.map.setPaintProperty('rail-lines', 'line-opacity', transit ? 1 : 0);
       c.map.setPaintProperty('rail-stations', 'circle-opacity', transit ? 1 : 0);
       c.map.setPaintProperty('rail-stations', 'circle-stroke-opacity', transit ? 1 : 0);
     }
@@ -440,6 +516,15 @@ const MapView = ({
     const c = ctl.current;
     if (c.ready) c.refresh();
   }, [contours]);
+
+  const positionMarker = useRef<Marker>(undefined);
+  useEffect(() => {
+    const map = ctl.current.map;
+    if (!focus || !map) return;
+    positionMarker.current ??= new Marker({ element: markerElement('position-marker') });
+    positionMarker.current.setLngLat(focus.point).addTo(map);
+    map.flyTo({ center: focus.point, zoom: Math.max(map.getZoom(), 14), duration: 1200 });
+  }, [focus]);
 
   return <div ref={containerRef} className="map" />;
 };

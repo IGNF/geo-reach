@@ -1,19 +1,20 @@
 //! Builds the public transport layer of geo-reach from a GTFS feed (Île-de-France Mobilités), for the zone of
-//! graph.bin. Frequency model, as in accessibility studies: on a reference weekday and time window,
+//! graph.bin. Frequency model, as in accessibility studies: on a reference weekday, for each hour of the day,
 //!
 //! - a ride between two consecutive stations of a line takes the median scheduled time;
-//! - boarding a line at a station costs half its interval there (capped), plus a fixed transfer penalty.
+//! - boarding a line at a station costs half its interval there (capped), plus a fixed transfer penalty; with no
+//!   departure in that hour, the line cannot be boarded (infinite wait).
 //!
 //! Platforms are merged into their station (parent_station). Ride geometries come from the GTFS shapes.
 //!
 //! Usage: `cargo run -p gtfs-prep --release -- <feed.zip> <graph.bin> <transit.bin> [YYYYMMDD]`
 //!
 //! Output layout (little endian, 4-byte aligned), read by apps/web/src/engine/transit.ts:
-//!   u32 magic 'TRN1', stationCount, lineCount, lineStopCount, rideCount, coordCount, stringsBytes, pad
+//!   u32 magic 'TRN2', stationCount, lineCount, lineStopCount, rideCount, coordCount, stringsBytes, pad
 //!   stations:  f32 x, y (Mercator metres relative to the graph origin), u32 name (string index)
 //!   lines:     u32 name (string index), u32 color 0xRRGGBB, u32 text color, u32 GTFS route type
-//!   lineStops: u32 line, u32 station, f32 wait (seconds, penalty included)
-//!   rides:     u32 from lineStop, u32 to lineStop, f32 seconds
+//!   lineStops: u32 line, u32 station, f32 wait[24] (seconds per hour of the day, penalty included)
+//!   rides:     u32 from lineStop, u32 to lineStop, f32 seconds[24]
 //!   rideCoordStart: u32[rideCount + 1]
 //!   coords:    f32[coordCount * 2]
 //!   strings:   JSON array
@@ -25,7 +26,7 @@ use std::io::{BufReader, Read};
 
 type Res<T> = Result<T, Box<dyn Error>>;
 
-const WINDOW: (u32, u32) = (7 * 3600, 9 * 3600);
+const HOURS: usize = 24;
 const MAX_WAIT: f32 = 12.0 * 60.0;
 const BOARD_PENALTY: f32 = 60.0;
 const R: f64 = 6378137.0;
@@ -102,7 +103,8 @@ fn hex(c: &str, default: u32) -> u32 {
 
 #[derive(Default)]
 struct Segment {
-    times: Vec<u32>,
+    /// (hour of departure, seconds)
+    times: Vec<(usize, u32)>,
     /// A trip whose shape draws the segment, and the platforms it uses
     shape: String,
     from_pos: (f64, f64),
@@ -117,7 +119,7 @@ fn main() -> Res<()> {
     let zone = Zone::read(&args[2])?;
     let date: u32 = args.get(4).map(|d| d.parse()).transpose()?.unwrap_or(20261013);
     let day = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"][weekday(date)];
-    eprintln!("Reference day {date} ({day}), {}:00–{}:00", WINDOW.0 / 3600, WINDOW.1 / 3600);
+    eprintln!("Reference day {date} ({day}), hour by hour");
     let mut zip = zip::ZipArchive::new(BufReader::new(File::open(&args[1])?))?;
 
     // Stops: platforms of the zone, attached to their station
@@ -188,7 +190,7 @@ fn main() -> Res<()> {
 
     // Stop times: consecutive pairs of the zone, leaving within the window
     let mut segments: HashMap<(String, String, String, String), Segment> = HashMap::new();
-    let mut departures: HashMap<(String, String, String), u32> = HashMap::new();
+    let mut departures: HashMap<(String, String, String), [u32; HOURS]> = HashMap::new();
     let mut previous: Option<(String, u32, String, u32, (f64, f64))> = None;
     let mut rows = 0u64;
     read_csv(&mut zip, "stop_times.txt", |r| {
@@ -208,12 +210,13 @@ fn main() -> Res<()> {
             && ptrip == trip
             && *pseq + 1 == seq
             && *pstation != stop.station
-            && (WINDOW.0..WINDOW.1).contains(pdep)
         {
+            // GTFS times run past 24:00 for the night of the service day
+            let hour = (*pdep / 3600) as usize % HOURS;
             let (route, dir, shape) = trip_info;
-            *departures.entry((route.clone(), dir.clone(), pstation.clone())).or_default() += 1;
+            departures.entry((route.clone(), dir.clone(), pstation.clone())).or_insert([0; HOURS])[hour] += 1;
             let seg = segments.entry((route.clone(), dir.clone(), pstation.clone(), stop.station.clone())).or_default();
-            seg.times.push(arr.saturating_sub(*pdep).max(30));
+            seg.times.push((hour, arr.saturating_sub(*pdep).max(30)));
             if seg.shape.is_empty() {
                 seg.shape = shape.clone();
                 seg.from_pos = *ppos;
@@ -254,11 +257,10 @@ fn main() -> Res<()> {
     let mut line_ids: HashMap<String, u32> = HashMap::new();
     let mut lines: Vec<[u32; 4]> = Vec::new();
     let mut line_stop_ids: HashMap<(String, String, String), u32> = HashMap::new();
-    let mut line_stops: Vec<(u32, u32, f32)> = Vec::new();
-    let mut rides: Vec<(u32, u32, f32)> = Vec::new();
+    let mut line_stops: Vec<(u32, u32, [f32; HOURS])> = Vec::new();
+    let mut rides: Vec<(u32, u32, [f32; HOURS])> = Vec::new();
     let mut ride_coord_start: Vec<u32> = Vec::new();
     let mut coords: Vec<f32> = Vec::new();
-    let window = (WINDOW.1 - WINDOW.0) as f32;
 
     let mut keys: Vec<_> = segments.keys().cloned().collect();
     keys.sort();
@@ -281,16 +283,28 @@ fn main() -> Res<()> {
         let (sa, sb) = (station(from), station(to));
         let mut line_stop = |st: &String, sid: u32| -> u32 {
             *line_stop_ids.entry((route_id.clone(), dir.clone(), st.clone())).or_insert_with(|| {
-                let count = departures.get(&(route_id.clone(), dir.clone(), st.clone())).copied().unwrap_or(1);
-                let wait = (window / count.max(1) as f32 / 2.0).min(MAX_WAIT) + BOARD_PENALTY;
+                let counts = departures.get(&(route_id.clone(), dir.clone(), st.clone())).copied().unwrap_or([0; HOURS]);
+                let wait = counts.map(|n| {
+                    if n == 0 { f32::INFINITY } else { (3600.0 / n as f32 / 2.0).min(MAX_WAIT) + BOARD_PENALTY }
+                });
                 line_stops.push((line, sid, wait));
                 (line_stops.len() - 1) as u32
             })
         };
         let (la, lb) = (line_stop(from, sa), line_stop(to, sb));
-        let mut times = seg.times.clone();
-        times.sort_unstable();
-        rides.push((la, lb, times[times.len() / 2] as f32));
+        let median = |mut v: Vec<u32>| {
+            v.sort_unstable();
+            v[v.len() / 2] as f32
+        };
+        let all = median(seg.times.iter().map(|t| t.1).collect());
+        let mut per_hour = [all; HOURS];
+        for (h, slot) in per_hour.iter_mut().enumerate() {
+            let in_hour: Vec<u32> = seg.times.iter().filter(|t| t.0 == h).map(|t| t.1).collect();
+            if !in_hour.is_empty() {
+                *slot = median(in_hour);
+            }
+        }
+        rides.push((la, lb, per_hour));
 
         // Geometry: the shape between the points nearest to both platforms, else a straight line
         ride_coord_start.push((coords.len() / 2) as u32);
@@ -325,7 +339,7 @@ fn main() -> Res<()> {
     let u32s = |out: &mut Vec<u8>, v: u32| out.extend(v.to_le_bytes());
     let f32s = |out: &mut Vec<u8>, v: f32| out.extend(v.to_le_bytes());
     for v in [
-        0x314e5254,
+        0x324e5254,
         stations.len() as u32,
         lines.len() as u32,
         line_stops.len() as u32,
@@ -349,12 +363,12 @@ fn main() -> Res<()> {
     for (l, s, w) in &line_stops {
         u32s(&mut out, *l);
         u32s(&mut out, *s);
-        f32s(&mut out, *w);
+        w.iter().for_each(|v| f32s(&mut out, *v));
     }
     for (a, b, t) in &rides {
         u32s(&mut out, *a);
         u32s(&mut out, *b);
-        f32s(&mut out, *t);
+        t.iter().for_each(|v| f32s(&mut out, *v));
     }
     for v in &ride_coord_start {
         u32s(&mut out, *v);

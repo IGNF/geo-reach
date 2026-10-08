@@ -1,5 +1,10 @@
 import type { Direction, Mode } from '../lib/config';
 import {
+  FLAG_BIKE_BWD,
+  FLAG_BIKE_FWD,
+  FLAG_CYCLEWAY,
+  FLAG_PATH,
+  HOURS,
   EDGE_ALIGHT,
   EDGE_BOARD,
   EDGE_LINK,
@@ -15,8 +20,18 @@ import {
 
 /** 4 km/h, the walking speed of the Géoplateforme route service */
 export const WALK_SPEED = 4 / 3.6;
-/** BD TOPO average speeds are free-flow ones: city traffic is slower */
-const CAR_FACTOR = 0.7;
+/** 15 km/h, a city bike ride */
+const BIKE_SPEED = 15 / 3.6;
+
+/**
+ * Estimated traffic: share of the BD TOPO free-flow speed kept at each hour of a weekday, on major roads
+ * (importance 1 to 3) and on local streets. A typical Île-de-France congestion curve (morning and evening peaks), not
+ * live traffic.
+ */
+export const TRAFFIC: { major: number[]; local: number[] } = {
+  major: [0.95, 0.95, 0.95, 0.95, 0.95, 0.9, 0.75, 0.5, 0.42, 0.55, 0.65, 0.65, 0.62, 0.65, 0.65, 0.62, 0.55, 0.45, 0.42, 0.55, 0.72, 0.78, 0.85, 0.9],
+  local: [0.9, 0.9, 0.9, 0.9, 0.9, 0.88, 0.8, 0.65, 0.6, 0.68, 0.72, 0.72, 0.7, 0.72, 0.72, 0.7, 0.68, 0.62, 0.6, 0.68, 0.78, 0.82, 0.85, 0.88],
+};
 /** Per road section: crossings, lights */
 const CAR_PENALTY = 3;
 /** Getting off and out of the station */
@@ -27,6 +42,8 @@ export interface ProfileOptions {
   direction: Direction;
   /** Transit: bus lines too */
   bus: boolean;
+  /** Departure hour (0–23): traffic for cars, service frequency for transit */
+  hour: number;
 }
 
 /** Travel costs of one mode and direction, and the graph the engine runs on (compressed rows) */
@@ -41,19 +58,25 @@ export interface Profile extends ProfileOptions {
   arcEdge: Uint32Array;
 }
 
-const edgeCosts = (net: Network, { mode, bus }: ProfileOptions) => {
+const edgeCosts = (net: Network, { mode, bus, hour }: ProfileOptions) => {
+  const h = ((hour % HOURS) + HOURS) % HOURS;
   const fwd = new Float32Array(net.edgeCount).fill(Number.POSITIVE_INFINITY);
   const bwd = new Float32Array(net.edgeCount).fill(Number.POSITIVE_INFINITY);
-  const walking = mode !== 'car';
   for (let e = 0; e < net.edgeCount; e += 1) {
     const flags = net.edgeFlags[e];
     const length = net.edgeLength[e];
     switch (net.edgeKind[e]) {
       case EDGE_ROAD:
         if (mode === 'car') {
-          const t = length / ((net.edgeCarSpeed[e] * CAR_FACTOR) / 3.6) + CAR_PENALTY;
+          const imp = net.edgeImportance[e];
+          const traffic = (imp > 0 && imp <= 3 ? TRAFFIC.major : TRAFFIC.local)[h];
+          const t = length / ((net.edgeCarSpeed[e] * traffic) / 3.6) + CAR_PENALTY;
           if (flags & FLAG_CAR_FWD) fwd[e] = t;
           if (flags & FLAG_CAR_BWD) bwd[e] = t;
+        } else if (mode === 'bike') {
+          const speed = BIKE_SPEED * (flags & FLAG_CYCLEWAY ? 1.1 : 1) * (flags & FLAG_PATH ? 0.65 : 1);
+          if (flags & FLAG_BIKE_FWD) fwd[e] = length / speed;
+          if (flags & FLAG_BIKE_BWD) bwd[e] = length / speed;
         } else if (flags & FLAG_WALK) {
           const t = (length / WALK_SPEED) * (flags & FLAG_STAIRS ? 2 : 1);
           fwd[e] = t;
@@ -61,15 +84,18 @@ const edgeCosts = (net: Network, { mode, bus }: ProfileOptions) => {
         }
         break;
       case EDGE_LINK:
-        if (walking && mode === 'transit') {
+        if (mode === 'transit') {
           fwd[e] = length / WALK_SPEED;
           bwd[e] = fwd[e];
         }
         break;
       default:
         if (mode !== 'transit' || (!bus && flags & FLAG_BUS)) break;
-        if (net.edgeKind[e] === EDGE_RIDE || net.edgeKind[e] === EDGE_BOARD) fwd[e] = length;
-        else if (net.edgeKind[e] === EDGE_ALIGHT) fwd[e] = ALIGHT_COST;
+        if (net.edgeKind[e] === EDGE_RIDE || net.edgeKind[e] === EDGE_BOARD) {
+          // The hour's wait (Infinity: no service) and ride time
+          const row = net.edgeHourRow[e];
+          fwd[e] = row >= 0 ? net.hourCosts[row * HOURS + h] : length;
+        } else if (net.edgeKind[e] === EDGE_ALIGHT) fwd[e] = ALIGHT_COST;
     }
   }
 

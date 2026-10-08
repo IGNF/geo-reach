@@ -68,7 +68,13 @@ uniform sampler2D u_ramp;
 out vec4 color;
 
 void main() {
-  if (!(v_t <= u_scale)) discard;
+  if (!(v_t <= u_scale)) {
+    // Beyond the max time: the glow stops, the lines of the mode's network stay, in grey
+    if (u_soft > 0.5) discard;
+    float a = 0.4 * smoothstep(0.0, 0.45, 1.0 - abs(v_side));
+    color = vec4(vec3(0.55) * a, a);
+    return;
+  }
   vec3 rgb = texture(u_ramp, vec2(clamp(v_t / u_scale, 0.0, 1.0), 0.5)).rgb;
   float edge = 1.0 - abs(v_side);
   float a = u_soft > 0.5 ? u_alpha * edge * edge : u_alpha * smoothstep(0.0, 0.45, edge);
@@ -284,12 +290,12 @@ export class NetworkLayer implements CustomLayerInterface {
 
     // Glow, wider when zoomed out so the colors fill the blocks between streets
     gl.uniform1f(u.u_width, Math.max(10, 46 - (zoom - 12) * 9) * dpr);
-    gl.uniform1f(u.u_alpha, 0.2);
+    gl.uniform1f(u.u_alpha, 0.11);
     gl.uniform1f(u.u_soft, 1);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.instances);
     // Lines
     gl.uniform1f(u.u_width, Math.min(5, Math.max(1.2, (zoom - 11) * 1.1)) * dpr);
-    gl.uniform1f(u.u_alpha, 0.95);
+    gl.uniform1f(u.u_alpha, 0.75);
     gl.uniform1f(u.u_soft, 0);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.instances);
     gl.bindVertexArray(null);

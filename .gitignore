@@ -23,10 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 
-# Local notes
-CLAUDE.md
-.claude
-
 # Rust
 target
 

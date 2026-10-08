@@ -1,8 +1,9 @@
 import { EDGE_ALIGHT, EDGE_BOARD, EDGE_LINK, EDGE_RIDE, type Line, type Network } from './network';
+import type { Mode } from '../lib/config';
 import type { PathStep } from './travelEngine';
 
 export interface Leg {
-  kind: 'walk' | 'drive' | 'wait' | 'ride';
+  kind: 'walk' | 'cycle' | 'drive' | 'wait' | 'ride';
   /** Street name, or line name */
   label: string;
   seconds: number;
@@ -14,7 +15,7 @@ export interface Leg {
 }
 
 /** Path edges grouped into the legs of the trip panel: a street, a wait, a ride on one line */
-export const toLegs = (net: Network, steps: PathStep[], driving: boolean): Leg[] => {
+export const toLegs = (net: Network, steps: PathStep[], mode: Mode): Leg[] => {
   const legs: Leg[] = [];
   for (const { edge, cost } of steps) {
     const kind = net.edgeKind[edge];
@@ -44,7 +45,7 @@ export const toLegs = (net: Network, steps: PathStep[], driving: boolean): Leg[]
       continue;
     }
     const label = kind === EDGE_LINK ? '' : nameId === 0xffffffff ? '' : net.names[nameId];
-    const legKind = driving ? 'drive' : 'walk';
+    const legKind = mode === 'car' ? 'drive' : mode === 'bike' ? 'cycle' : 'walk';
     const last = legs.at(-1);
     if (last?.kind === legKind && (last.label === label || !label || !last.label)) {
       last.seconds += cost;

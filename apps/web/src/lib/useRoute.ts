@@ -4,13 +4,13 @@ import { fetchRoute, reverseGeocode, type Route } from './gpf';
 
 /**
  * Géoplateforme route between the pinned origin and the point where the cursor stopped, to compare with the local
- * engine (walk and car only: the GPF has no public transport). The latest request wins, the older one is aborted.
+ * engine (walk and car only: the GPF has no public transport nor bike profile). The latest request wins.
  */
 export const useGpfRoute = (origin: LngLat | undefined, target: LngLat | undefined, mode: Mode, direction: Direction) => {
   const [latest, setLatest] = useState<{ target: LngLat; route: Route }>();
 
   useEffect(() => {
-    if (!origin || !target || mode === 'transit') return;
+    if (!origin || !target || mode === 'transit' || mode === 'bike') return;
     const controller = new AbortController();
     const [start, end] = direction === 'departure' ? [origin, target] : [target, origin];
     fetchRoute(start, end, mode, controller.signal)

@@ -1,16 +1,17 @@
-import { Button, FloatingPanel, SegmentedSwitch, Stack, Typography } from '@ign-junn/design-system';
-import { IconCar, IconClockHour4, IconWalk, IconX } from '@ign-junn/design-system/icons';
+import { Button, Stack, Typography } from '@ign-junn/design-system';
+import { IconBike, IconCar, IconClockHour4, IconWalk, IconX } from '@ign-junn/design-system/icons';
 import type { Leg } from '../engine/legs';
 import { rampCss } from '../lib/colors';
-import type { Direction } from '../lib/config';
+import type { Mode } from '../lib/config';
 import { formatDistance, formatMinutes, formatStreet } from '../lib/format';
 import type { Route } from '../lib/gpf';
+import { formatKm2 } from '../lib/insights';
 import { t } from '../locales';
 import type { LiveInfo, TargetInfo } from './MapView';
 
 interface TripPanelProps {
-  direction: Direction;
-  onDirectionChange: (direction: Direction) => void;
+  mode: Mode;
+  direction: 'departure' | 'arrival';
   pinned: boolean;
   onUnpin: () => void;
   live?: LiveInfo;
@@ -21,17 +22,12 @@ interface TripPanelProps {
   gpfRoute?: Route;
   /** Minutes */
   scale: number;
-  /** Minutes */
-  contours: number[];
+  /** Message about the last action (e.g. location unavailable) */
+  notice?: string;
 }
 
-const DIRECTIONS = [
-  { value: 'departure' as const, label: t.directions.departure },
-  { value: 'arrival' as const, label: t.directions.arrival },
-];
-
 const Place = ({ caption, text }: { caption: string; text?: string }) => (
-  <Stack gap={2}>
+  <Stack gap={2} style={{ minWidth: 0 }}>
     <Typography variant="caption">{caption}</Typography>
     <Typography variant="subtitle2" truncate>
       {text ? t.near(text) : '…'}
@@ -52,15 +48,9 @@ const LegRow = ({ leg }: { leg: Leg }) => {
         <span className="trip-step-meta">{formatMinutes(leg.seconds / 60)}</span>
       </li>
     );
-  const Icon = leg.kind === 'drive' ? IconCar : leg.kind === 'wait' ? IconClockHour4 : IconWalk;
+  const Icon = { drive: IconCar, cycle: IconBike, wait: IconClockHour4, walk: IconWalk, ride: IconWalk }[leg.kind];
   const text =
-    leg.kind === 'wait'
-      ? t.wait(leg.line?.name ?? '')
-      : leg.label
-        ? formatStreet(leg.label)
-        : leg.kind === 'walk'
-          ? t.walk
-          : t.unnamedRoad;
+    leg.kind === 'wait' ? t.wait(leg.line?.name ?? '') : leg.label ? formatStreet(leg.label) : leg.kind === 'walk' ? t.walk : t.unnamedRoad;
 
   return (
     <li>
@@ -74,9 +64,30 @@ const LegRow = ({ leg }: { leg: Leg }) => {
   );
 };
 
+/** Two or three key figures of the explored point */
+const Tiles = ({ mode, live }: { mode: Mode; live: LiveInfo }) => {
+  const min = Math.round(live.limit / 60);
+  const tiles: [string, string][] = [[`${formatKm2(live.areaKm2)} km²`, t.areaTile(min)]];
+  if (live.transit) tiles.push([String(live.transit.stations), t.stationsTile], [String(live.transit.lines), t.linesTile]);
+  if (mode === 'bike' && live.cyclewayKm !== undefined) tiles.push([String(Math.round(live.cyclewayKm)), t.cyclewayTile]);
+  if (live.nearestStation) tiles.push([formatMinutes(live.nearestStation.seconds / 60), t.nearestTile]);
+
+  return (
+    <div className="tiles">
+      {tiles.map(([value, label]) => (
+        <div key={label} className="tile">
+          <strong>{value}</strong>
+          <span>{label}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/** Right panel: what the explored or pinned point reaches */
 const TripPanel = ({
+  mode,
   direction,
-  onDirectionChange,
   pinned,
   onUnpin,
   live,
@@ -85,40 +96,28 @@ const TripPanel = ({
   targetAddress,
   gpfRoute,
   scale,
-  contours,
+  notice,
 }: TripPanelProps) => {
   const [from, to] = direction === 'departure' ? [originAddress, targetAddress] : [targetAddress, originAddress];
 
   return (
-    <FloatingPanel
-      title={pinned ? t.panelTrip : t.panelExplore}
-      width={340}
-      collapseLabels={t.collapse}
-      footer={
-        <Stack direction="row" gap="xs" justify="space-between">
-          <Typography variant="hint">{t.mapFrom}</Typography>
-          <SegmentedSwitch label={t.mapFrom} options={DIRECTIONS} value={direction} onChange={onDirectionChange} />
-        </Stack>
-      }
-    >
+    <section className="glass preview">
+      {notice && <Typography variant="error">{notice}</Typography>}
       {pinned ? (
         <Stack gap="sm">
-          <Stack direction="row" justify="space-between" align="flex-start" wrap="nowrap">
-            <Stack gap="xs" style={{ minWidth: 0 }}>
-              <Place caption={t.departure} text={from} />
-              <Place caption={t.arrival} text={target ? to : undefined} />
-            </Stack>
+          <Stack direction="row" justify="space-between" align="center" wrap="nowrap">
+            <Typography variant="subtitle1">{t.panelTrip}</Typography>
             <Button label={t.removePoint} icon={IconX} iconOnly variant="subtle" onClick={onUnpin} />
           </Stack>
+          <Place caption={t.departure} text={from} />
+          <Place caption={t.arrival} text={target ? to : undefined} />
           {target ? (
             <>
               <Stack direction="row" gap="xs" align="baseline">
                 <span className="trip-duration" style={{ color: rampCss(target.seconds / 60 / scale) }}>
                   {formatMinutes(target.seconds / 60)}
                 </span>
-                {gpfRoute && (
-                  <Typography variant="hint">{t.gpfDuration(formatMinutes(gpfRoute.duration))}</Typography>
-                )}
+                {gpfRoute && <Typography variant="hint">{t.gpfDuration(formatMinutes(gpfRoute.duration))}</Typography>}
               </Stack>
               <ol className="trip-steps">
                 {target.legs.slice(0, 12).map((leg, i) => (
@@ -129,20 +128,31 @@ const TripPanel = ({
           ) : (
             <Typography variant="hint">{t.tripHint}</Typography>
           )}
+          {live && <Tiles mode={mode} live={live} />}
         </Stack>
       ) : (
         <Stack gap="sm">
+          <Typography variant="subtitle1">{t.panelExplore}</Typography>
           <Place caption={t.fromCursor} text={originAddress} />
-          {live && contours.length > 0 && (
-            <ol className="trip-steps">
-              {contours.map((c, i) => (
-                <li key={c}>
-                  <span className="dot" style={{ background: rampCss(c / scale) }} />
-                  <span className="trip-step-name">{t.within(c)}</span>
-                  <span className="trip-step-meta">{t.streetsKm(Math.round(live.reachedKm[i] ?? 0))}</span>
-                </li>
-              ))}
-            </ol>
+          {live && <Tiles mode={mode} live={live} />}
+          {live && (
+            <Stack gap={6}>
+              <Typography variant="caption">{t.timesTo}</Typography>
+              <ol className="trip-steps">
+                {live.landmarks.slice(0, 6).map((l) => (
+                  <li key={l.name}>
+                    <span
+                      className="dot"
+                      style={{ background: l.seconds <= scale * 60 ? rampCss(l.seconds / 60 / scale) : 'var(--mantine-color-gray-4)' }}
+                    />
+                    <span className="trip-step-name">{l.name}</span>
+                    <span className="trip-step-meta">
+                      {Number.isFinite(l.seconds) ? formatMinutes(l.seconds / 60) : t.unreachable}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </Stack>
           )}
           <Typography variant="hint">{t.exploreHint}</Typography>
           {live && (
@@ -152,7 +162,7 @@ const TripPanel = ({
           )}
         </Stack>
       )}
-    </FloatingPanel>
+    </section>
   );
 };
 
