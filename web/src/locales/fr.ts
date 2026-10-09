@@ -5,6 +5,7 @@ export const fr: Messages = {
   appName: 'geo-reach',
   tagline: 'Accessibilité en temps réel · Géoplateforme',
   howItWorks: 'Comment ça marche',
+  legalNotice: 'Mentions légales',
   loading: 'Chargement du réseau BD TOPO…',
   loadingProgress: (mb) => `Chargement du réseau d’Île-de-France… ${mb} Mo (une seule fois : votre navigateur le garde ensuite)`,
   attribution: 'Réseau © IGN BD TOPO (Licence Ouverte) · Horaires © Île-de-France Mobilités (ODbL)',

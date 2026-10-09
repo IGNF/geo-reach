@@ -35,6 +35,7 @@ const en = {
     'Every mouse move recomputes the travel time to more than half a million street crossings of Île-de-France and redraws them, in your browser, with no server. Here is how.',
   backToMap: 'Back to the map',
   sourceCode: 'Source code',
+  legalNotice: 'Legal notice',
   diagram: {
     title: 'From open data to colors on the screen',
     hint: 'Click a box to read what it does.',
@@ -227,6 +228,7 @@ const fr: typeof en = {
     'Chaque mouvement de souris recalcule le temps de trajet vers plus d’un demi-million de carrefours d’Île-de-France et les redessine, dans votre navigateur, sans serveur. Voici comment.',
   backToMap: 'Retour à la carte',
   sourceCode: 'Code source',
+  legalNotice: 'Mentions légales',
   diagram: {
     title: 'Des données ouvertes aux couleurs à l’écran',
     hint: 'Cliquez sur une boîte pour lire ce qu’elle fait.',

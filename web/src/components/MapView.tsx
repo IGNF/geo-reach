@@ -202,7 +202,7 @@ const MapView = ({
       zoom: 13.4,
       attributionControl: {
         compact: true,
-        customAttribution: t.attribution,
+        customAttribution: [t.attribution, `<a href="${import.meta.env.BASE_URL}legal.html">${t.legalNotice}</a>`],
       },
       fadeDuration: 0,
     });

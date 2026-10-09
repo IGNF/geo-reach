@@ -7,10 +7,14 @@ export default defineConfig({
   plugins: [react()],
   // GitHub Pages serves the app under /geo-reach/ (set by the deploy workflow)
   base: process.env.BASE_PATH ?? '/',
-  // Two pages: the map, and how it works
+  // Three pages: the map, how it works, the legal notice
   build: {
     rollupOptions: {
-      input: { main: resolve(import.meta.dirname, 'index.html'), howItWorks: resolve(import.meta.dirname, 'how-it-works.html') },
+      input: {
+        main: resolve(import.meta.dirname, 'index.html'),
+        howItWorks: resolve(import.meta.dirname, 'how-it-works.html'),
+        legal: resolve(import.meta.dirname, 'legal.html'),
+      },
     },
   },
   // Module workers: ours (travel time field) and MapLibre's

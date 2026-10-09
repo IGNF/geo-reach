@@ -1,12 +1,23 @@
 # geo-reach
 
-**How far can you go in 15 minutes?** Move the mouse anywhere in Île-de-France: the whole street and transit
-network lights up instantly, from green (close) to red (far), by travel time from the cursor.
+### How far can you go in 15 minutes, from anywhere in Île-de-France?
 
-**[Open the demo →](https://ignf.github.io/geo-reach/)** (desktop browser recommended)
+Move the mouse: travel times to the whole region are recomputed **at every move**, on foot, by bike, by car or by
+public transport, and the map lights up from green (close) to red (far).
 
-Built on open data from the [Géoplateforme](https://geoservices.ign.fr/) (IGN) and Île-de-France Mobilités
-timetables. Everything is computed in your browser, live, with no server.
+**[▶ Open the demo](https://ignf.github.io/geo-reach/)** · [How it works](https://ignf.github.io/geo-reach/how-it-works.html)
+· desktop browser recommended
+
+[![geo-reach: travel times by public transport from the cursor, around the Seine in central Paris](docs/screenshot.jpg)](https://ignf.github.io/geo-reach/)
+
+| 540,000 | 711,000 | ~2,000 | 0 |
+|:---:|:---:|:---:|:---:|
+| street crossings | road sections | transit lines | server: everything runs in your browser |
+
+- **Géoplateforme data** (IGN): BD TOPO road network, Plan IGN basemap, geocoding; Île-de-France Mobilités timetables
+  for public transport.
+- **A Rust engine compiled to WebAssembly**, in a background thread: the whole region in a few tens of milliseconds
+  at most, where a routing server would need seconds per map.
 
 ## What you can do
 
@@ -60,6 +71,13 @@ So the **data** comes from the Géoplateforme and the **computation** runs in th
 
 What would let the Géoplateforme serve this directly: a one-to-many service (a matrix of travel times, or
 isochrones as a grid), or a downloadable routing graph.
+
+## Legal notice
+
+Published by the Institut national de l'information géographique et forestière (IGN), 73 avenue de Paris, 94160
+Saint-Mandé, France; hosted by GitHub Pages. A proof of concept, not an official IGN service. No account, no cookie,
+no audience measurement; the coordinates of the points looked at go to the Géoplateforme for addresses and route
+comparison. Full text: [legal notice](https://ignf.github.io/geo-reach/legal.html).
 
 ## Data and licences
 

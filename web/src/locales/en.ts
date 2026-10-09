@@ -3,6 +3,7 @@ export const en = {
   appName: 'geo-reach',
   tagline: 'Real-time accessibility · Géoplateforme',
   howItWorks: 'How it works',
+  legalNotice: 'Legal notice',
   loading: 'Loading the BD TOPO road network…',
   loadingProgress: (mb: string) => `Loading the Île-de-France network… ${mb} MB (once: then kept by your browser)`,
   attribution: 'Network © IGN BD TOPO (Licence Ouverte) · Timetables © Île-de-France Mobilités (ODbL)',

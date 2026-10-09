@@ -139,6 +139,9 @@ const HowItWorks = () => {
             <Link href={REPO} icon={IconBrandGithub}>
               {h.sourceCode}
             </Link>
+            <a className="back-link" href={`${import.meta.env.BASE_URL}legal.html`}>
+              {h.legalNotice}
+            </a>
           </Stack>
           <Typography variant="display">{h.title}</Typography>
           <Typography variant="lead">{h.lead}</Typography>
