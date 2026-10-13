@@ -26,8 +26,11 @@ const css = (rgb: number) => `#${rgb.toString(16).padStart(6, '0')}`;
  * Loads transit.bin (crates/gtfs-prep) and returns how to graft it on the road network: stations and line stops
  * become nodes; boarding (the wait), rides, alighting and walking links become edges.
  */
-export const loadTransit = async (url: string, onProgress?: Progress) => {
-  const buffer = await loadData(url, onProgress);
+export const loadTransit = async (url: string, onProgress?: Progress): Promise<(roads: Network) => Network> =>
+  readTransit(await loadData(url, onProgress));
+
+/** Decodes transit.bin; the returned function grafts it on the road network */
+export const readTransit = (buffer: ArrayBuffer): ((roads: Network) => Network) => {
   const header = new Uint32Array(buffer, 0, 8);
   const [magic, stationCount, lineCount, lineStopCount, rideCount, coordCount, stringsBytes] = header;
   if (magic !== 0x334e5254) throw new Error('transit.bin: unknown format');
@@ -84,31 +87,46 @@ export const loadTransit = async (url: string, onProgress?: Progress) => {
       stopStation.set(lineStopNode(i), stationNode(s));
     }
 
-    // Walkable road nodes, bucketed, to link the stations
+    // Walkable road nodes, bucketed in 100 m cells, to link the stations
     const CELL = 100;
-    const buckets = new Map<string, number[]>();
+    /** Numeric cell key: cells span ±32 000, far beyond the zone */
+    const cellKey = (i: number, j: number): number => (i + 32_768) * 65_536 + (j + 32_768);
+    const buckets = new Map<number, number[]>();
+
     const walkable = new Uint8Array(N);
     for (let e = 0; e < roads.edgeCount; e += 1)
       if (roads.edgeFlags[e] & FLAG_WALK) {
         walkable[roads.edgeA[e]] = 1;
         walkable[roads.edgeB[e]] = 1;
       }
+
     for (let n = 0; n < N; n += 1) {
       if (!walkable[n]) continue;
-      const key = `${Math.floor(roads.nodeXY[n * 2] / CELL)},${Math.floor(roads.nodeXY[n * 2 + 1] / CELL)}`;
-      const bucket = buckets.get(key) ?? [];
-      bucket.push(n);
-      buckets.set(key, bucket);
+
+      const key = cellKey(Math.floor(roads.nodeXY[n * 2] / CELL), Math.floor(roads.nodeXY[n * 2 + 1] / CELL));
+      const bucket = buckets.get(key);
+      if (bucket) bucket.push(n);
+      else buckets.set(key, [n]);
     }
-    const nearestNodes = (x: number, y: number) => {
+
+    /** The few walkable nodes nearest to a point, within 4 cells: [node, Mercator metres], nearest first */
+    const nearestNodes = (x: number, y: number): [number, number][] => {
       const [cx, cy] = [Math.floor(x / CELL), Math.floor(y / CELL)];
-      const found: [number, number][] = [];
+      const nearest: [number, number][] = [];
+
       for (let i = cx - 4; i <= cx + 4; i += 1)
         for (let j = cy - 4; j <= cy + 4; j += 1)
-          for (const n of buckets.get(`${i},${j}`) ?? [])
-            found.push([n, Math.hypot(roads.nodeXY[n * 2] - x, roads.nodeXY[n * 2 + 1] - y)]);
+          for (const n of buckets.get(cellKey(i, j)) ?? []) {
+            const d = Math.hypot(roads.nodeXY[n * 2] - x, roads.nodeXY[n * 2 + 1] - y);
+            if (nearest.length === LINKS_PER_STATION && d >= nearest[LINKS_PER_STATION - 1][1]) continue;
 
-      return found.sort((a, b) => a[1] - b[1]).slice(0, LINKS_PER_STATION);
+            // Kept sorted: a handful of entries
+            const at = nearest.findIndex(([, dn]) => d < dn);
+            nearest.splice(at < 0 ? nearest.length : at, 0, [n, d]);
+            nearest.length = Math.min(nearest.length, LINKS_PER_STATION);
+          }
+
+      return nearest;
     };
 
     // New edges, after the roads

@@ -1,17 +1,17 @@
-import { PageLoader, sizes } from '@ign-junn/design-system';
+import { sizes } from '@ign-junn/design-system';
 import type { CSSProperties, ReactElement } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import CutsPanel from '@/components/CutsPanel';
 import MapView, { type LiveInfo, type TargetInfo } from '@/components/MapView';
 import SettingsPanel from '@/components/SettingsPanel';
+import StartupScreen from '@/components/StartupScreen';
 import TripPanel from '@/components/TripPanel';
-import { closedEdges, type Cut, cutKey, edgesOfCut } from '@/engine/cuts';
-import { loadRoadNetwork } from '@/engine/network';
+import { closedEdges, type Cut, cutKey } from '@/engine/cuts';
 import { DEFAULT_MODEL } from '@/engine/profile';
-import { loadTransit } from '@/engine/transit';
-import { TravelEngine } from '@/engine/travelEngine';
-import { contourMinutes, GRAPH_URL, type LngLat, MAX_SCALE, type Mode, TRANSIT_URL } from '@/lib/config';
+import type { TravelEngine } from '@/engine/travelEngine';
+import { contourMinutes, type LngLat, MAX_SCALE, type Mode } from '@/lib/config';
 import { insight } from '@/lib/insights';
+import { STEP_START, startEngine, type StartupProgress } from '@/lib/startup';
 import { useAddress, useGpfRoute } from '@/lib/useRoute';
 import { readUrlState, urlHash, type ViewState } from '@/lib/urlState';
 import { t } from '@/locales';
@@ -26,7 +26,10 @@ const App = (): ReactElement => {
   const [settled, setSettled] = useState<LngLat>();
   const [focus, setFocus] = useState<{ point: LngLat }>();
   const [notice, setNotice] = useState<string>();
-  const [loadedBytes, setLoadedBytes] = useState({ graph: 0, transit: 0 });
+  const [startup, setStartup] = useState<StartupProgress>({ step: 'download', percent: 0 });
+  /** The first map is drawn: the startup screen fades out, then goes */
+  const [ready, setReady] = useState(false);
+  const [startupGone, setStartupGone] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(true);
   const [previewWidth, setPreviewWidth] = useState(320);
   const [cutMode, setCutMode] = useState(false);
@@ -35,19 +38,11 @@ const App = (): ReactElement => {
   const contourSeconds = useMemo(() => (contours ? contourMinutes(scale).map((c) => c * 60) : []), [contours, scale]);
 
   useEffect(() => {
-    // The transit layer is optional: the app runs on the roads alone without it
-    Promise.all([
-      loadRoadNetwork(GRAPH_URL, (graph) => setLoadedBytes((b) => ({ ...b, graph }))),
-      loadTransit(TRANSIT_URL, (transit) => setLoadedBytes((b) => ({ ...b, transit }))).catch(() => undefined),
-    ])
-      .then(async ([roads, transit]) => {
-        const net = transit ? transit(roads) : roads;
-        setTransitAvailable(!!transit);
-        const m = !transit && mode === 'transit' ? 'pedestrian' : mode;
-        // Cuts of a link made on other data are dropped
-        const valid = cuts.filter((c) => edgesOfCut(net, c).length);
-        if (valid.length !== cuts.length) setView((v) => ({ ...v, cuts: valid }));
-        setEngine(await TravelEngine.create(net, { mode: m, direction, bus, hour, model, closed: closedEdges(net, valid) }));
+    startEngine({ mode, direction, bus, hour, model }, cuts, setStartup)
+      .then((started) => {
+        setTransitAvailable(started.transit);
+        if (started.cuts.length !== cuts.length) setView((v) => ({ ...v, cuts: started.cuts }));
+        setEngine(started.engine);
       })
       .catch((error: unknown) => console.error(error));
     // Loaded once; the profile follows the view in the effect below
@@ -66,6 +61,20 @@ const App = (): ReactElement => {
   }, [engine, mode, direction, bus, hour, model, closed]);
 
   useEffect(() => window.history.replaceState(null, '', hash), [hash]);
+
+  // The startup screen goes once its fade-out is over
+  useEffect(() => {
+    if (!ready) return undefined;
+    const timer = setTimeout(() => setStartupGone(true), 400);
+
+    return () => clearTimeout(timer);
+  }, [ready]);
+
+  const onMapLoad = useCallback(() => setStartup({ step: 'firstRun', percent: STEP_START.firstRun }), []);
+  const onFirstFrame = useCallback(() => {
+    setStartup((s) => ({ ...s, percent: 100 }));
+    setReady(true);
+  }, []);
 
   const update = useCallback((patch: Partial<ViewState>) => setView((v) => ({ ...v, ...patch })), []);
   const onPin = useCallback(
@@ -107,11 +116,8 @@ const App = (): ReactElement => {
   const targetAddress = useAddress(pinned ? settled : undefined, 0);
   const gpfRoute = useGpfRoute(pinned, settled, mode, direction);
 
-  if (!engine) {
-    const mb = (loadedBytes.graph + loadedBytes.transit) / 1e6;
+  if (!engine) return <StartupScreen progress={startup} done={false} />;
 
-    return <PageLoader label={mb > 0 ? t.loadingProgress(mb.toFixed(0)) : t.loading} />;
-  }
   const insightText = live && insight(mode, live, hour);
 
   return (
@@ -136,6 +142,8 @@ const App = (): ReactElement => {
         cutMode={cutMode}
         onCutModeChange={setCutMode}
         onCutToggle={onCutToggle}
+        onMapLoad={onMapLoad}
+        onFirstFrame={onFirstFrame}
       />
       <div className="left-slot">
         <TripPanel
@@ -190,6 +198,7 @@ const App = (): ReactElement => {
         />
       </div>
       {insightText && <div className="insight-bar glass">{insightText}</div>}
+      {!startupGone && <StartupScreen progress={startup} done={ready} />}
     </div>
   );
 };

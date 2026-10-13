@@ -121,9 +121,12 @@ const rebuildGeometries = (
   return { coordStart, coords };
 };
 
-/** Reads graph.bin (scripts/buildGraph.ts) */
-export const loadRoadNetwork = async (url: string, onProgress?: Progress): Promise<Network> => {
-  const buffer = await loadData(url, onProgress);
+/** Downloads (or reads from the browser cache) and decodes graph.bin */
+export const loadRoadNetwork = async (url: string, onProgress?: Progress): Promise<Network> =>
+  readRoadNetwork(await loadData(url, onProgress));
+
+/** Decodes graph.bin (scripts/buildGraph.ts) */
+export const readRoadNetwork = (buffer: ArrayBuffer): Network => {
   const header = new Uint32Array(buffer, 0, 5);
   const [magic, nodeCount, E, pointCount, namesBytes] = header;
   if (magic !== MAGIC) throw new Error('graph.bin: unknown format');

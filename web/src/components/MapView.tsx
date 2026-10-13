@@ -78,6 +78,10 @@ interface MapViewProps {
   cutMode: boolean;
   onCutModeChange: (on: boolean) => void;
   onCutToggle: (cut: Cut) => void;
+  /** The basemap style is loaded: the first computation starts */
+  onMapLoad: () => void;
+  /** The first computed map is on screen: the app is ready */
+  onFirstFrame: () => void;
 }
 
 const PANEL_THROTTLE_MS = 60;
@@ -90,7 +94,15 @@ const railFeatures = (engine: TravelEngine): GeoJSON.FeatureCollection => {
   const [ox, oy] = net.origin;
   const at = (x: number, y: number) => fromMercator([x + ox, y + oy]);
   const features: GeoJSON.Feature[] = [];
+  // A station takes the color of the first rail line boarded there: one pass over the edges
   const stationColor = new Map<number, string>();
+  for (let e = 0; e < net.edgeCount; e += 1) {
+    const station = net.edgeA[e];
+    if (net.edgeKind[e] !== EDGE_BOARD || net.edgeFlags[e] & FLAG_BUS || stationColor.has(station)) continue;
+
+    stationColor.set(station, net.lines[net.edgeName[e]].color);
+  }
+
   for (let e = 0; e < net.edgeCount; e += 1) {
     if (net.edgeKind[e] !== EDGE_RIDE || net.edgeFlags[e] & FLAG_BUS) continue;
     const line = net.lines[net.edgeName[e]];
@@ -103,17 +115,13 @@ const railFeatures = (engine: TravelEngine): GeoJSON.FeatureCollection => {
       geometry: { type: 'LineString', coordinates },
     });
   }
-  for (const s of net.railStations) {
-    // A station takes the color of a line serving it
-    for (let e = 0; e < net.edgeCount && !stationColor.has(s); e += 1)
-      if (net.edgeKind[e] === EDGE_BOARD && net.edgeA[e] === s && !(net.edgeFlags[e] & FLAG_BUS))
-        stationColor.set(s, net.lines[net.edgeName[e]].color);
+
+  for (const s of net.railStations)
     features.push({
       type: 'Feature',
       properties: { color: stationColor.get(s) ?? '#555' },
       geometry: { type: 'Point', coordinates: at(net.nodeXY[s * 2], net.nodeXY[s * 2 + 1]) },
     });
-  }
 
   return { type: 'FeatureCollection', features };
 };
@@ -174,9 +182,27 @@ const MapView = ({
   cutMode,
   onCutModeChange,
   onCutToggle,
+  onMapLoad,
+  onFirstFrame,
 }: MapViewProps): ReactElement => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const props = { engine, scale, contours, pinned, onPin, onLive, onTarget, onSettle, onLocate, cuts, cutMode, onCutModeChange, onCutToggle };
+  const props = {
+    engine,
+    scale,
+    contours,
+    pinned,
+    onPin,
+    onLive,
+    onTarget,
+    onSettle,
+    onLocate,
+    cuts,
+    cutMode,
+    onCutModeChange,
+    onCutToggle,
+    onMapLoad,
+    onFirstFrame,
+  };
   const live = useRef(props);
   live.current = props;
   // Imperative state of the map, shared by the effects below
@@ -359,11 +385,20 @@ const MapView = ({
     };
 
     /** Shows a result: network colors, contours, figures, and the trip to the anchored point */
+    const firstFrame = { done: false };
     const apply = (r: Result | undefined, cursor: [number, number]) => {
       const { scale: s, contours: cs, pinned: pin } = live.current;
       layer.setStyle({ scale: s, contours: [] });
       // The colors always follow the cursor: from it (departure) or towards it (arrival)
       layer.setTimes(r?.dist);
+
+      // The first result drawn (even an empty one, a point off the network): the startup screen can go
+      if (!firstFrame.done) {
+        firstFrame.done = true;
+        map.once('render', () => live.current.onFirstFrame());
+        map.triggerRepaint();
+      }
+
       contourLines.draw(r?.dist, cs);
       // One panel slot per frame, shared by the figures and the trip
       const due = panelDue();
@@ -450,6 +485,7 @@ const MapView = ({
     });
 
     map.on('load', () => {
+      live.current.onMapLoad();
       // Above every road and area of the basemap, under its labels (Plan IGN puts a few labels early in its stack)
       const layers = map.getStyle().layers;
       const lastShape = layers.findLastIndex((l) => l.type === 'line' || l.type === 'fill');

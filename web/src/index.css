@@ -458,3 +458,28 @@ body,
 .settings {
   padding-bottom: 16px;
 }
+
+/* Startup: over the app until the first map is drawn, then fades out */
+.startup {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: var(--mantine-color-body);
+  transition: opacity 400ms ease;
+}
+
+.startup.done {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.startup-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: min(420px, 100%);
+  padding: 22px 24px;
+}

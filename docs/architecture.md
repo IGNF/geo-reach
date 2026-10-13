@@ -46,7 +46,7 @@ flowchart LR
 | `web/src/map/contourLines.ts` | TypeScript | Isochrone lines: requests to their worker, newest first |
 | `web/src/engine/wasm.ts` | TypeScript | Exports of `engine.wasm`, checked at load time |
 | `web/src/components/` | React | Map, settings panel (DS preview panel), trip card, closures panel, mode picker |
-| `web/src/lib/` | TypeScript | Config, GPF clients, URL state, colors, formatting, binary reader, bounds |
+| `web/src/lib/` | TypeScript | Config, GPF clients, URL state, colors, formatting, binary reader, bounds, startup (download → engine, with its progress) |
 | `web/src/locales/` | TypeScript | UI strings (English, French), picked from the browser language |
 
 Two workspaces sit side by side: Bun for JavaScript (`package.json`, `web`) and Cargo for Rust (`Cargo.toml`,

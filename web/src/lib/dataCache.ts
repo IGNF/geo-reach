@@ -6,8 +6,8 @@
 export const DATA_VERSION = '2026-10-13-relief';
 const CACHE = `geo-reach-data-${DATA_VERSION}`;
 
-/** Bytes received so far, for a progress text */
-export type Progress = (bytes: number) => void;
+/** Bytes received so far, and the size of the file when the server tells it (not when it compresses the transfer) */
+export type Progress = (bytes: number, total: number | undefined) => void;
 
 const openCache = async () => {
   try {
@@ -27,12 +27,17 @@ export const loadData = async (url: string, onProgress?: Progress): Promise<Arra
   const hit = await cache?.match(url).catch(() => undefined);
   if (hit) {
     const buffer = await hit.arrayBuffer();
-    onProgress?.(buffer.byteLength);
+    onProgress?.(buffer.byteLength, buffer.byteLength);
 
     return buffer;
   }
   const res = await fetch(url);
   if (!res.ok || !res.body) throw new Error(`${url}: HTTP ${res.status}`);
+
+  // With a compressed transfer, Content-Length counts the compressed bytes, not the ones read
+  const length = Number(res.headers.get('content-length'));
+  const total = !res.headers.get('content-encoding') && length > 0 ? length : undefined;
+
   const chunks: Uint8Array[] = [];
   let received = 0;
   const reader = res.body.getReader();
@@ -41,7 +46,7 @@ export const loadData = async (url: string, onProgress?: Progress): Promise<Arra
     if (done) break;
     chunks.push(value);
     received += value.byteLength;
-    onProgress?.(received);
+    onProgress?.(received, total);
   }
   const bytes = new Uint8Array(received);
   let offset = 0;
