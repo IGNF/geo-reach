@@ -1,7 +1,7 @@
 //! The transit layer written to the region's transit file (TRN3): stations, lines, line stops (a line at a station, with its hourly
 //! wait), rides (between two line stops, with their hourly duration and geometry).
 //!
-//! Layout (little endian, 4-byte aligned), read by web/src/engine/transit.ts:
+//! Layout (little endian, 4-byte aligned), read by web/src/features/routing/transit.ts:
 //!   u32 magic 'TRN3', stationCount, lineCount, lineStopCount, rideCount, coordCount, stringsBytes, pad
 //!   stations:  f32 x, y (Mercator metres relative to the graph origin), u32 name (string index)
 //!   lines:     u32 name (string index), u32 color 0xRRGGBB, u32 text color, u32 GTFS route type
@@ -16,8 +16,29 @@ use crate::HOURS;
 use crate::schedule::{Route, Schedule, Segment};
 use crate::zone::Zone;
 use std::collections::HashMap;
+use std::fmt::Write;
 
 const MAGIC: u32 = 0x334e_5254;
+
+/// A JSON string: quotes, backslashes and control characters escaped (some feeds hold stray control characters, a
+/// Windows apostrophe read as U+0092; Rust's debug escaping writes `\u{92}`, which is not JSON)
+fn json_string(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            c if u32::from(c) < 0x20 || (0x7f..0xa0).contains(&u32::from(c)) => {
+                // Writing to a String cannot fail
+                let _ = write!(out, "\\u{:04x}", u32::from(c));
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
 
 /// An index or a count of the file: the transit file stores them as u32, so beyond 4 billion items the build fails
 /// rather than writing truncated values
@@ -217,7 +238,7 @@ impl TransitLayer {
             "[{}]",
             self.strings
                 .iter()
-                .map(|s| format!("{s:?}"))
+                .map(|s| json_string(s))
                 .collect::<Vec<_>>()
                 .join(",")
         );
@@ -284,6 +305,13 @@ impl TransitLayer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn writes_json_strings() {
+        assert_eq!(json_string("Gare d\u{92}Aix"), "\"Gare d\\u0092Aix\"");
+        assert_eq!(json_string("a \"b\" \\ c"), "\"a \\\"b\\\" \\\\ c\"");
+        assert_eq!(json_string("Côte d’Azur"), "\"Côte d’Azur\"");
+    }
 
     #[test]
     fn waits_half_the_interval_and_none_without_service() {

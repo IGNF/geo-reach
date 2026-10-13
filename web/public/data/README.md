@@ -13,9 +13,9 @@ One pair of files per region, the same for every region:
 | `regions/<id>.bin.gz` | Road network (GRF4: nodes, edges, geometries, climb and descent, street names), gzipped | `bun run data -- <id>` |
 | `regions/<id>.transit.bin.gz` | Public transport (TRN3: stations, lines, hourly waits and ride times), gzipped | `bun run transit -- <id>` |
 
-The region ids, boxes and opening points are in [web/src/lib/regions.ts](../../src/lib/regions.ts); each network
+The region ids, boxes and opening points are in [web/src/features/regions/regions.ts](../../src/features/regions/regions.ts); each network
 covers its region's box plus a 0.25° margin (about 20 km) for the trips that cross its edge. The files are inflated
-by the browser (`web/src/lib/dataCache.ts`): every file stays under the 100 MB a file of GitHub.
+by the browser (`web/src/shared/dataCache.ts`): every file stays under the 100 MB a file of GitHub.
 
 ## Regions
 
@@ -23,20 +23,21 @@ by the browser (`web/src/lib/dataCache.ts`): every file stays under the 100 MB a
 |---|---|---|---|---|
 | Île-de-France | 913 k | 15.6 MB | IDFM: every network | 2.1 MB |
 | Auvergne-Rhône-Alpes | 2.03 M | 40.6 MB | regional aggregate | 1.3 MB |
-| Bourgogne-Franche-Comté | 1.27 M | 24.4 MB | SNCF trains only | 65 KB |
+| Bourgogne-Franche-Comté | 1.27 M | 24.4 MB | SNCF, Divia (Dijon), Ginko (Besançon), Mobigo coaches | 0.2 MB |
 | Bretagne | 1.11 M | 20.6 MB | regional aggregate | 0.8 MB |
 | Centre-Val de Loire | 1.58 M | 28.4 MB | regional aggregate | 0.5 MB |
-| Corse | 63 k | 1.4 MB | none | |
+| Corse | 63 k | 1.4 MB | Chemins de fer de la Corse, Via Strada, Via Bastia, A Berlina, A Citadina | 0.1 MB |
 | Grand Est | 1.30 M | 23.2 MB | regional aggregate | 1.4 MB |
-| Hauts-de-France | 1.35 M | 23.0 MB | SNCF trains only | 44 KB |
+| Hauts-de-France | 1.35 M | 23.0 MB | SNCF, Ilévia (Lille), Transvilles, DK’BUS, Ametis | 0.4 MB |
 | Normandie | 1.04 M | 19.7 MB | regional aggregate (Twisto, Astuce, LiA, Nomad…) | 0.6 MB |
 | Nouvelle-Aquitaine | 2.73 M | 52.5 MB | regional aggregate | 1.3 MB |
-| Occitanie | 1.97 M | 38.8 MB | SNCF trains only | 58 KB |
+| Occitanie | 1.97 M | 38.8 MB | SNCF, Tisséo (Toulouse), TaM (Montpellier), Tango, Sankéo, liO coaches | 0.7 MB |
 | Pays de la Loire | 1.61 M | 29.8 MB | regional aggregate | 1.3 MB |
-| Provence-Alpes-Côte d’Azur | 1.05 M | 20.2 MB | SNCF trains only | 29 KB |
+| Provence-Alpes-Côte d’Azur | 1.05 M | 20.2 MB | SNCF, Aix-Marseille-Provence (RTM…), Lignes d’Azur (Nice), Mistral, Orizo | 1.0 MB |
 
-Sizes of the files as stored (gzipped). Where only the SNCF feed is used, the urban networks (Lille,
-Marseille, Toulouse, Montpellier…) are still to merge in.
+Sizes of the files as stored (gzipped). Where several feeds are listed, gtfs-prep merges them into one layer; a feed
+that has no service on the reference day (an outdated one, like the Corsican railways) is read on the nearest same
+day of the week.
 
 ## Sources and licences
 

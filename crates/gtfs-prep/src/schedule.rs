@@ -70,6 +70,49 @@ struct Platform {
 }
 
 impl Schedule {
+    /// Several feeds of one region (a regional aggregate, or the SNCF trains with the urban networks), read one by one
+    /// and merged. Their ids are prefixed with the feed's index: a `stop_id` "1" exists in many feeds. A station seen
+    /// by two feeds stays two stations, joined through the streets like any change.
+    pub fn read_all(paths: &[String], zone: &Zone, date: u32) -> Self {
+        let mut merged = Schedule {
+            stations: HashMap::new(),
+            routes: HashMap::new(),
+            segments: HashMap::new(),
+            departures: HashMap::new(),
+            shapes: HashMap::new(),
+        };
+        for (i, path) in paths.iter().enumerate() {
+            eprintln!("Feed {}: {path}", i + 1);
+            // A broken feed is left out, the others still make the layer
+            match Self::read(path, zone, date) {
+                Ok(schedule) => merged.absorb(schedule, &format!("{i}:")),
+                Err(error) => eprintln!("  left out: {error}"),
+            }
+        }
+        merged
+    }
+
+    /// Takes the content of another feed in, its ids prefixed
+    fn absorb(&mut self, other: Schedule, prefix: &str) {
+        let id = |s: &str| format!("{prefix}{s}");
+        // Empty shape ids stay empty: no shape
+        let shape_id = |s: &str| if s.is_empty() { String::new() } else { id(s) };
+
+        self.stations.extend(other.stations.into_iter().map(|(k, v)| (id(&k), v)));
+        self.routes.extend(other.routes.into_iter().map(|(k, v)| (id(&k), v)));
+        self.shapes.extend(other.shapes.into_iter().map(|(k, v)| (id(&k), v)));
+        self.departures.extend(
+            other
+                .departures
+                .into_iter()
+                .map(|((route, dir, station), v)| ((id(&route), dir, id(&station)), v)),
+        );
+        self.segments.extend(other.segments.into_iter().map(|((route, dir, from, to), mut seg)| {
+            seg.shape = shape_id(&seg.shape);
+            ((id(&route), dir, id(&from), id(&to)), seg)
+        }));
+    }
+
     pub fn read(path: &str, zone: &Zone, date: u32) -> Res<Self> {
         let mut zip = feed::open(path)?;
         eprintln!(
@@ -77,7 +120,7 @@ impl Schedule {
             feed::weekday_column(date)
         );
         let (platforms, stations) = read_stops(&mut zip, zone)?;
-        let services = read_services(&mut zip, date)?;
+        let services = services_near(&mut zip, date)?;
         let routes = read_routes(&mut zip)?;
         let trips = read_trips(&mut zip, &services)?;
         eprintln!(
@@ -134,6 +177,30 @@ fn read_stops(zip: &mut Archive, zone: &Zone) -> Res<(Platforms, Stations)> {
         }
     })?;
     Ok((platforms, stations))
+}
+
+/// Weeks searched, both ways, for a feed with no service on the reference day
+const WEEKS_AROUND: i64 = 60;
+
+/// Services of the reference day; when the feed has none then (it ended before, or starts after), those of the same
+/// day of the week the nearest in time: an outdated feed still gives its network, said in the log
+fn services_near(zip: &mut Archive, date: u32) -> Res<HashSet<String>> {
+    for week in 0..=WEEKS_AROUND {
+        for sign in [1, -1] {
+            let day = feed::date(feed::days(date) + sign * 7 * week);
+            let services = read_services(zip, day)?;
+            if !services.is_empty() {
+                if day != date {
+                    eprintln!("  no service on {date}: the feed is read on {day}, the same day of the week");
+                }
+                return Ok(services);
+            }
+            if week == 0 {
+                break;
+            }
+        }
+    }
+    Ok(HashSet::new())
 }
 
 /// Services running on the date: the calendar, then its exceptions. Some feeds (regional aggregates) list every

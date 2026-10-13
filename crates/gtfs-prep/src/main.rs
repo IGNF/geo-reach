@@ -9,7 +9,8 @@
 //! Platforms are merged into their station (`parent_station`). Ride geometries come from the GTFS shapes, or go
 //! straight from stop to stop when the feed has none. Usually run by `scripts/buildTransit.ts`.
 //!
-//! Usage: `cargo run -p gtfs-prep --release -- <feed.zip> <roads.bin> <transit.bin> [YYYYMMDD]`
+//! Usage: `cargo run -p gtfs-prep --release -- <roads.bin> <transit.bin> <feed.zip>... [--date YYYYMMDD]`; several
+//! feeds are merged (scripts/buildTransit.ts lists them per region).
 //!
 //! Modules: [`zone`] (the area and its projection), [`feed`] (reading the GTFS zip), [`schedule`] (the trips of the
 //! day, aggregated by line segment and hour), [`layer`] (the output tables and their binary layout).
@@ -38,17 +39,28 @@ fn megabytes(bytes: usize) -> f64 {
 
 fn main() -> Res<()> {
     let args: Vec<String> = std::env::args().collect();
-    let [_, feed_path, graph_path, out_path, rest @ ..] = args.as_slice() else {
-        return Err("usage: gtfs-prep <feed.zip> <roads.bin> <transit.bin> [YYYYMMDD]".into());
+    // `--date YYYYMMDD` anywhere; every other argument is a path
+    let date_at = args.iter().position(|a| a == "--date");
+    let date: u32 = match date_at {
+        Some(i) => args.get(i + 1).ok_or("--date needs a YYYYMMDD value")?.parse()?,
+        None => DEFAULT_DATE,
     };
-    let date: u32 = rest
-        .first()
-        .map(|d| d.parse())
-        .transpose()?
-        .unwrap_or(DEFAULT_DATE);
+    let paths: Vec<String> = args
+        .iter()
+        .enumerate()
+        .skip(1)
+        .filter(|&(i, _)| date_at.is_none_or(|d| i != d && i != d + 1))
+        .map(|(_, a)| a.clone())
+        .collect();
+    let [graph_path, out_path, feeds @ ..] = paths.as_slice() else {
+        return Err("usage: gtfs-prep <roads.bin> <transit.bin> <feed.zip>... [--date YYYYMMDD]".into());
+    };
+    if feeds.is_empty() {
+        return Err("usage: gtfs-prep <roads.bin> <transit.bin> <feed.zip>... [--date YYYYMMDD]".into());
+    }
 
     let zone = zone::Zone::read(graph_path)?;
-    let schedule = schedule::Schedule::read(feed_path, &zone, date)?;
+    let schedule = schedule::Schedule::read_all(feeds, &zone, date);
     let layer = layer::TransitLayer::build(&schedule, &zone);
     let bytes = layer.to_bytes();
     std::fs::write(out_path, &bytes)?;
