@@ -2,13 +2,13 @@
  * Times the work the page does after each engine run (contours, figures), for a mode and a max time, from the IGN
  * head office: finds what makes the map lag on long runs. Run: `bun scripts/benchFrame.ts [mode] [minutes]`.
  */
-import { contourGrid, isochroneLines, joinSegments } from '@/engine/contours';
-import { buildProfile, DEFAULT_MODEL } from '@/engine/profile';
-import { SnapIndex } from '@/engine/snap';
-import { isEngine } from '@/engine/wasm';
+import { contourGrid, isochroneLines, joinSegments } from '@/features/map/contours';
+import { buildProfile, DEFAULT_MODEL } from '@/features/routing/profile';
+import { SnapIndex } from '@/features/routing/snap';
+import { isEngine } from '@/features/routing/wasm';
 import { loadRegion } from './regionData';
-import type { Mode } from '@/lib/config';
-import { contourMinutes } from '@/lib/config';
+import type { Mode } from '@/shared/config';
+import { contourMinutes } from '@/shared/config';
 
 const MODES: readonly Mode[] = ['transit', 'pedestrian', 'bike', 'car'];
 const arg = process.argv[2] ?? 'car';
@@ -20,7 +20,7 @@ const profile = buildProfile(net, { mode, direction: 'departure', bus: false, ho
 
 // The engine, as the worker runs it
 const { instance } = await WebAssembly.instantiate(
-  await Bun.file(new URL('../web/src/engine/engine.wasm', import.meta.url)).arrayBuffer(),
+  await Bun.file(new URL('../web/src/features/routing/engine.wasm', import.meta.url)).arrayBuffer(),
   {},
 );
 const w = instance.exports;

@@ -1,0 +1,532 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+:root {
+  --glass-bg: color-mix(in srgb, var(--mantine-color-body) 86%, transparent);
+  --glass-border: color-mix(in srgb, var(--mantine-color-default-border) 70%, transparent);
+  --glass-shadow: 0 10px 30px rgb(15 23 42 / 14%), 0 1px 3px rgb(15 23 42 / 8%);
+  --accent: #1a9850;
+}
+
+.app {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+
+.app > .map {
+  /* Beats `.maplibregl-map { position: relative }` */
+  position: absolute;
+  inset: 0 var(--preview-width, 0) 0 0;
+}
+
+.map .maplibregl-canvas {
+  cursor: crosshair;
+}
+
+/* Floating panels */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(14px) saturate(1.4);
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  box-shadow: var(--glass-shadow);
+}
+
+.left-slot {
+  position: absolute;
+  top: 16px;
+  bottom: 16px;
+  left: 16px;
+  width: 340px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.left-slot > * {
+  pointer-events: auto;
+  max-height: 100%;
+  overflow-y: auto;
+}
+
+/* The DS preview panel, docked to the right edge, as high as the window */
+.right-slot {
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: 3;
+  display: flex;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 18px;
+}
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+}
+
+.settings > * {
+  min-width: 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.how-link {
+  margin-left: auto;
+  align-self: flex-start;
+  font-size: var(--mantine-font-size-xs);
+  color: var(--mantine-color-anchor);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.how-link:hover {
+  text-decoration: underline;
+}
+
+.brand-dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: conic-gradient(from 200deg, #1a9850, #fee08b, #d73027, #1a9850);
+  box-shadow: inset 0 0 0 3px rgb(255 255 255 / 60%);
+}
+
+/* Travel modes */
+.mode-picker {
+  display: grid;
+  /* Two by two: room for the labels in a narrow panel */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mode-tile {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 8px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--mantine-color-default-border) 35%, transparent);
+  color: var(--mantine-color-text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    transform 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.mode-tile:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.mode-tile[aria-checked='true'] {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 6px 16px rgb(26 152 80 / 35%);
+}
+
+.mode-tile:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* The marks of the hour slider need room under it and on its ends */
+.settings .mantine-Slider-root:has(.mantine-Slider-markLabel) {
+  margin: 0 12px 20px;
+}
+
+.legend-ramp {
+  height: 8px;
+  border-radius: 4px;
+}
+
+.tile {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--mantine-color-default-border) 30%, transparent);
+}
+
+.trip-relief {
+  display: inline-flex;
+  gap: 8px;
+  margin-left: auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--mantine-color-dimmed);
+  white-space: nowrap;
+}
+
+.trip-relief > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.trip-duration {
+  font-size: 38px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  transition: color 160ms ease;
+}
+
+.trip-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 13px;
+}
+
+.trip-steps li {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.trip-steps li:has(.line-badge) {
+  grid-template-columns: auto 1fr auto;
+}
+
+.trip-step-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trip-step-meta {
+  color: var(--mantine-color-dimmed);
+  font-variant-numeric: tabular-nums;
+}
+
+.line-badge {
+  min-width: 26px;
+  padding: 0 5px;
+  border-radius: 6px;
+  font: 700 11px/18px system-ui, sans-serif;
+  text-align: center;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+/* Address search, at the top of the left column: the field alone */
+.address-search {
+  flex-shrink: 0;
+}
+
+/* Another region loading, over the current map */
+.region-loading {
+  position: absolute;
+  top: 16px;
+  left: calc((100% - var(--preview-width, 0px)) / 2 + 178px);
+  transform: translateX(-50%);
+  width: min(320px, calc(100% - 32px));
+  padding: 10px 16px;
+  z-index: 4;
+  animation: rise 160ms ease-out;
+}
+
+/* What matters for the chosen mode, at the bottom */
+.insight-bar {
+  position: absolute;
+  left: calc((100% - var(--preview-width, 0px)) / 2 + 178px);
+  bottom: 24px;
+  transform: translateX(-50%);
+  max-width: calc(100% - var(--preview-width, 0px) - 400px);
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  z-index: 2;
+}
+
+@media (max-width: 1100px) {
+  .insight-bar {
+    max-width: calc(100% - 32px);
+    bottom: 90px;
+  }
+}
+
+.map-button {
+  display: grid;
+  place-items: center;
+}
+
+.tilt-label {
+  font: 700 11px/1 system-ui, sans-serif;
+}
+
+/* Tilt button while the map is tilted */
+.maplibregl-ctrl-group .map-button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.map.cutting .maplibregl-canvas {
+  cursor: cell;
+}
+
+/* What a click does in cut mode, next to the cursor */
+.cut-tip {
+  padding: 3px 9px;
+  border-radius: 10px;
+  background: #1d1d1f;
+  color: #fff;
+  border-left: 4px solid #e03131;
+  font: 600 12px/1.4 system-ui, sans-serif;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 25%);
+}
+
+.cut-tip.reopen {
+  border-left-color: #2f9e44;
+}
+
+/* The same trip in each mode: the fastest in green, the map's mode outlined */
+.mode-comparison {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mode-comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+  gap: 6px;
+}
+
+.mode-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--mantine-color-default-border) 30%, transparent);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.mode-choice:hover {
+  background: color-mix(in srgb, var(--mantine-color-default-border) 60%, transparent);
+}
+
+.mode-choice strong {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mode-choice.current {
+  border-color: var(--mantine-color-default-border);
+  background: var(--mantine-color-body);
+}
+
+.mode-choice.fastest strong {
+  color: var(--accent);
+}
+
+.mode-comparison[aria-busy='true'] strong {
+  opacity: 0.5;
+}
+
+.cuts-panel {
+  flex-shrink: 0;
+  animation: rise 160ms ease-out;
+}
+
+/* "3 stations of 84 lose more than 5 min" */
+.cut-impact {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, #e03131 8%, transparent);
+}
+
+.cut-impact p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.cut-impact strong {
+  font-size: 22px;
+  color: #e03131;
+  font-variant-numeric: tabular-nums;
+}
+
+.trip-steps li.cut-delay {
+  grid-template-columns: 1fr auto;
+}
+
+.cut-delay .trip-step-meta {
+  color: #e03131;
+  font-weight: 600;
+}
+
+.cuts-icon {
+  color: #e03131;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* Clicked point: a pulsing dot with its role */
+.origin-marker {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 0 rgb(26 152 80 / 55%);
+  animation: pulse 1.8s ease-out infinite;
+  cursor: grab;
+}
+
+.origin-marker::after {
+  content: attr(data-label);
+  position: absolute;
+  top: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 8px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font: 600 11px/1.6 system-ui, sans-serif;
+  white-space: nowrap;
+}
+
+@keyframes pulse {
+  to {
+    box-shadow: 0 0 0 22px rgb(26 152 80 / 0%);
+  }
+}
+
+/* The user's position ("My location") */
+.position-marker {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #1a73e8;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 6px rgb(26 115 232 / 25%);
+  pointer-events: none;
+}
+
+/* Travel time under the cursor */
+.time-label {
+  --label-color: #1a9850;
+  padding: 3px 9px;
+  border-radius: 10px;
+  background: #1d1d1f;
+  color: #fff;
+  border-left: 4px solid var(--label-color);
+  font: 700 13px/1.4 system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 25%);
+}
+
+/* The settings fill the height of the panel, so that the footer sits at its bottom */
+.settings-wrap {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 120px);
+  /* Never wider than the panel, clear of its scrollbar */
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding-right: 12px;
+  overflow-x: hidden;
+}
+
+.settings-wrap * {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.settings-footer {
+  /* At the bottom when there is room, after the last setting otherwise: it never covers them */
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: auto;
+  padding: 16px 0 4px;
+  border-top: 1px solid var(--mantine-color-default-border);
+}
+
+.settings {
+  padding-bottom: 16px;
+}
+
+/* Startup: over the app until the first map is drawn, then fades out */
+.startup {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: var(--mantine-color-body);
+  transition: opacity 400ms ease;
+}
+
+.startup.done {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.startup-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: min(420px, 100%);
+  padding: 22px 24px;
+}

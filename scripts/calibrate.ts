@@ -7,10 +7,10 @@
  * Reference speeds for Paris (orders of magnitude): car 13–15 km/h at peak hours, 17–20 km/h during the day,
  * 25–30 km/h at night, faster in the suburbs; bike 12–14 km/h door to door; walk 4 km/h.
  */
-import { EDGE_ROAD, type Network } from '@/engine/network';
+import { EDGE_ROAD, type Network } from '@/features/routing/network';
 import { loadRegion, loadRoads } from './regionData';
-import { LANDMARKS } from '@/lib/config';
-import { buildProfile, DEFAULT_MODEL, type Profile, type ProfileOptions } from '@/engine/profile';
+import { LANDMARKS } from '@/shared/config';
+import { buildProfile, DEFAULT_MODEL, type Profile, type ProfileOptions } from '@/features/routing/profile';
 
 const net = await loadRoads();
 const R = 6378137;

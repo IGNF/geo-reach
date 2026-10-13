@@ -1,6 +1,6 @@
 # Travel time engine
 
-Code: `crates/engine/src/lib.rs` (Rust, WebAssembly) and `web/src/engine/*.ts` (graph building, snapping, paths).
+Code: `crates/engine/src/lib.rs` (Rust, WebAssembly) and `web/src/features/routing/` (networks, profiles, snapping, the engine workers).
 
 ## Graph model
 

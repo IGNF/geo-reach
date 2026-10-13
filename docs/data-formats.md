@@ -1,14 +1,14 @@
 # Data formats
 
 Each region has two files, `web/public/data/regions/<id>.bin.gz` (roads, GRF4) and `<id>.transit.bin.gz` (public
-transport, TRN3), gzipped and inflated by the browser (`web/src/lib/dataCache.ts`). Inflated, both are little endian,
+transport, TRN3), gzipped and inflated by the browser (`web/src/shared/dataCache.ts`). Inflated, both are little endian,
 every section 4-byte aligned, so the browser reads them as typed array views on the `ArrayBuffer` (no parsing, no
 copy). Positions are `f32` Web Mercator metres relative to the region's origin, stored in its road file. File by
 file: `web/public/data/README.md`.
 
 ## Road network (GRF4, `<id>.bin.gz`)
 
-Written by `scripts/buildGraph.ts`, read by `web/src/engine/network.ts` (`readRoadNetwork`), which rebuilds the full
+Written by `scripts/buildGraph.ts`, read by `web/src/features/routing/network.ts` (`readRoadNetwork`), which rebuilds the full
 geometries (`coords`, `coordStart`) once at load. Each file covers its region's box plus a 0.25° margin (about 20 km),
 for the trips crossing its edge, and has its own origin at the centre of that box.
 
@@ -55,9 +55,12 @@ dropped.
 ## Public transport (TRN3, `<id>.transit.bin.gz`)
 
 Written by `crates/gtfs-prep` (run by `scripts/buildTransit.ts` on the feed of `scripts/transitFeeds.ts`), read by
-`web/src/engine/transit.ts` (`readTransit`). `gtfs-prep` takes feeds without `calendar.txt` or `shapes.txt` (the
-rides then go straight from stop to stop), and turns the extended GTFS route types into the basic ones (ferries go
-with the buses).
+`web/src/features/routing/transit.ts` (`readTransit`). A region can have several feeds (the SNCF trains with the urban
+networks): `gtfs-prep` reads them one by one and merges them, each feed's ids prefixed with its index. It takes feeds
+without `calendar.txt` or `shapes.txt` (the rides then go straight from stop to stop), values padded with spaces,
+stray control characters in the names (written as JSON escapes), and turns the extended GTFS route types into the
+basic ones (ferries go with the buses). A feed with no service on the reference day is read on the nearest same day
+of the week (logged).
 
 | Section | Type | Content |
 |---|---|---|
@@ -88,13 +91,13 @@ chosen hour of departure.
 ## engine.wasm
 
 Built by `bun run engine` (`scripts/buildEngine.ts`): `cargo build -p engine --target wasm32-unknown-unknown
---release`, copied to `web/src/engine/engine.wasm` and imported by Vite as an asset URL. The file is versioned
+--release`, copied to `web/src/features/routing/engine.wasm` and imported by Vite as an asset URL. The file is versioned
 so that the app builds without Rust.
 
 ## Rebuilding
 
 ```sh
-bun run data -- occitanie      # roads: WFS read tile by tile, about a minute (the ids are in web/src/lib/regions.ts)
+bun run data -- occitanie      # roads: WFS read tile by tile, about a minute (the ids are in web/src/features/regions/regions.ts)
 bun run transit -- occitanie   # public transport: gtfs-prep on the region's feed, needs cargo
 ```
 
@@ -104,5 +107,5 @@ these tools.
 
 ## In the browser
 
-The files are kept in the Cache Storage of the browser (`web/src/lib/dataCache.ts`): only the first visit downloads
+The files are kept in the Cache Storage of the browser (`web/src/shared/dataCache.ts`): only the first visit downloads
 them. Bump `DATA_VERSION` there when the files change.

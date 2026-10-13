@@ -1,6 +1,6 @@
 # Rendering
 
-Code: `web/src/map/networkLayer.ts`, a MapLibre [custom layer](https://maplibre.org/maplibre-gl-js/docs/API/interfaces/CustomLayerInterface/)
+Code: `web/src/features/map/networkLayer.ts`, a MapLibre [custom layer](https://maplibre.org/maplibre-gl-js/docs/API/interfaces/CustomLayerInterface/)
 that draws with WebGL 2 straight into the map canvas, between the basemap shapes and its labels.
 
 ## Why a custom layer
@@ -18,7 +18,7 @@ and a move only uploads one float per node.
 | `a_nodes` (instanced) | node A, node B of the edge, style (1 = rail line, drawn wider) | on profile change |
 | `a_cost` (instanced) | cost to reach the segment start / end from A and from B | on profile change |
 | `u_times` texture (`R32F`, 2048 × n) | time of every node, seconds | every run |
-| `u_ramp` texture (256 × 1) | color ramp, `lib/colors.ts` | once |
+| `u_ramp` texture (256 × 1) | color ramp, `shared/colors.ts` | once |
 
 Each road or ride segment is one instance: `drawArraysInstanced(TRIANGLES, 0, 6, segments)`.
 
@@ -50,9 +50,9 @@ Blending is premultiplied (`ONE, ONE_MINUS_SRC_ALPHA`), depth test off.
 
 ## 3D views
 
-- **3D buildings** (the default view): a second custom layer (`map/buildingGlLayer.ts`), drawn under the network
-  with a depth test. A worker (`engine/buildingWorker.ts`) downloads the BD TOPO vector tiles of the Géoplateforme
-  (zoom 15, layer `batiment`) and extrudes them (`engine/buildingMesh.ts`): one wall quad per edge, shaded by the
+- **3D buildings** (the default view): a second custom layer (`features/buildings/buildingGlLayer.ts`), drawn under the network
+  with a depth test. A worker (`features/buildings/building.worker.ts`) downloads the BD TOPO vector tiles of the Géoplateforme
+  (zoom 15, layer `batiment`) and extrudes them (`features/buildings/buildingMesh.ts`): one wall quad per edge, shaded by the
   direction it faces, and a flat roof triangulated with earcut, at the BD TOPO `hauteur`. Each building is then
   joined once to its nearest street (`TravelEngine.anchor`: the two ends of the street and the seconds from each,
   walk included), in an RGBA32F texture per tile; the vertex shader reads the times of those two nodes in the

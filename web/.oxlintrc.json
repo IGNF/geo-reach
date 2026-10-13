@@ -18,6 +18,19 @@
     "typescript/no-explicit-any": "error",
     "eslint/prefer-const": "error",
     "eslint/no-var": "error",
-    "import/no-relative-parent-imports": "error"
+    "import/no-relative-parent-imports": "error",
+    "eslint/no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": [
+              "@/features/*/*"
+            ],
+            "message": "Import a feature through its public API: @/features/<name> (index.ts)."
+          }
+        ]
+      }
+    ]
   }
 }

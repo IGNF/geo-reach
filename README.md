@@ -10,9 +10,9 @@ public transport, and the map lights up from green (close) to red (far).
 
 [![geo-reach: travel times by public transport from the cursor, around the Seine in central Paris](docs/screenshot.jpg)](https://ignf.github.io/geo-reach/)
 
-| 13 | 18 M | 12 | 0 |
+| 13 | 18 M | 14,000 | 0 |
 |:---:|:---:|:---:|:---:|
-| regions of metropolitan France | road sections | regions with public transport | server: everything runs in your browser |
+| regions of metropolitan France | road sections | public transport lines | server: everything runs in your browser |
 
 - **Géoplateforme data** (IGN): BD TOPO road network and buildings, Plan IGN basemap, hillshade, geocoding; public
   transport timetables from transport.data.gouv.fr (Île-de-France Mobilités, regional aggregates, SNCF).
@@ -60,12 +60,12 @@ It is a proof of concept, good for comparing places and modes, not for planning 
   BD TOPO roads. The Géoplateforme route service ignores them, so its walking times differ on hills.
 - **Zone**: the 13 regions of metropolitan France, one network each. The region follows the map: move the view into
   another region (or use "My location") and its network loads in the background, the map staying where it is. Full street network in the main city centres; beyond, no footpaths, tracks nor service roads (main
-  roads, streets and station access are kept). Public transport: every network in Île-de-France and in the seven
-  regions with a GTFS aggregate (Normandy, Brittany, Pays de la Loire, Centre-Val de Loire, Grand Est,
-  Nouvelle-Aquitaine, Auvergne-Rhône-Alpes); trains only (SNCF) in four others; none in Corsica. Details by region:
-  [web/public/data/README.md](web/public/data/README.md).
+  roads, streets and station access are kept). Public transport in every region: the
+  regional GTFS aggregate where there is one (seven regions), elsewhere the SNCF trains merged with the main urban
+  networks (Lille, Marseille, Nice, Toulouse, Montpellier, Dijon…) and the regional coaches; Île-de-France
+  Mobilités in Île-de-France. Details by region: [web/public/data/README.md](web/public/data/README.md).
 
-The first visit downloads the network (about 13 MB compressed); the browser then keeps it, so later visits load
+The first visit downloads the network of the region in view (2 to 54 MB compressed, 18 MB for Île-de-France); the browser then keeps it, so later visits load
 locally.
 
 When the cursor stops, walking and driving times are checked against the Géoplateforme route service, shown in the
@@ -121,10 +121,10 @@ bun run typecheck  # strict TypeScript: the app and the scripts
 bun run lint       # also: explicit types on exports, const over let, no `../` imports
 ```
 
-Imports inside the app go through the `@/` alias (`@/engine/network` for `web/src/engine/network.ts`), set in
+Imports inside the app go through the `@/` alias (`@/engine/network` for `web/src/features/routing/network.ts`), set in
 `web/tsconfig.app.json`, `web/vite.config.ts`, and `web/tsconfig.json` + `scripts/tsconfig.json` for Bun.
 
-The prepared data (`web/public/data/*.bin`) and the compiled engine (`web/src/engine/engine.wasm`) are in
+The prepared data (`web/public/data/*.bin`) and the compiled engine (`web/src/features/routing/engine.wasm`) are in
 the repository: no data download, no Rust needed to run the app.
 
 ### How it works, in short
@@ -151,6 +151,11 @@ Details: [architecture](docs/architecture.md), [engine](docs/engine.md), [render
 
 ```
 web/                 React + MapLibre app (Vite), UI built with @ign-junn/design-system
+  src/app/           entry point, root component, view state in the URL
+  src/features/      one folder per feature (routing, map, buildings, cuts, trip, settings, search, regions),
+                     reached through its index.ts
+  src/shared/        generic code (config, formatting, WebGL helpers, Géoplateforme client, ui/)
+  src/pages/         how it works, legal notice
 crates/engine/       travel time engine in Rust, compiled to WebAssembly
 crates/gtfs-prep/    Rust tool: GTFS timetables → public transport layer of a region
 scripts/             region networks (roads, public transport), engine build
@@ -181,7 +186,7 @@ bun run transit -- all           # every region's public transport
 
 Without an id, `bun run data` builds Île-de-France. Every region follows the same scheme, Île-de-France included.
 
-The regions are listed in `web/src/lib/regions.ts` (box, opening point), the city centres kept in full in
+The regions are listed in `web/src/features/regions/regions.ts` (box, opening point), the city centres kept in full in
 `scripts/denseAreas.ts`, the reference day of the timetables in `crates/gtfs-prep`. Away from the city centres the
 WFS filters the paths and service roads out itself; a region takes about a minute (one to three million sections).
 The GTFS feeds are listed in `scripts/transitFeeds.ts` and cached in `.cache/gtfs/`. The region files are stored

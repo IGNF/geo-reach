@@ -2,7 +2,7 @@
  * Builds the routing graph of a region from the BD TOPO road sections of the Géoplateforme (WFS), once, into a compact
  * gzipped binary file served with the app, web/public/data/regions/<id>.bin.gz: the region's box plus a margin, for
  * the trips that cross its edge.
- * Run: `bun scripts/buildGraph.ts [region id]` (Île-de-France by default; the ids are in web/src/lib/regions.ts).
+ * Run: `bun scripts/buildGraph.ts [region id]` (Île-de-France by default; the ids are in web/src/features/regions/regions.ts).
  *
  * The region is downloaded tile by tile (short WFS requests: deep paging over a million objects is slow), cached
  * gzipped in .cache/bdtopo-z/ (delete it to download again); sections crossing tiles are kept once. To stay light at
@@ -16,7 +16,7 @@
  * Slopes come from the Z of the BD TOPO sections (road surface, draped on the RGE ALTI, decimetres): each edge keeps
  * its total climb and descent from A to B, counted with a hysteresis that ignores small bumps of the terrain model.
  *
- * Layout (little endian, every section 4-byte aligned), read by web/src/engine/network.ts:
+ * Layout (little endian, every section 4-byte aligned), read by web/src/features/routing/network.ts:
  *   u32 magic 'GRF4', u32 nodeCount, u32 edgeCount, u32 pointCount, u32 namesBytes, u32 pad
  *   f64 originX, originY (Web Mercator metres of the zone centre), f64 minLng, minLat, maxLng, maxLat
  *   f32 nodes[nodeCount * 2]          node positions, Mercator metres relative to the origin
@@ -33,7 +33,7 @@
  *   utf8 names                        JSON array of street names
  */
 import { existsSync, mkdirSync } from 'node:fs';
-import { DEFAULT_REGION, regionById } from '@/lib/regions';
+import { DEFAULT_REGION, regionById } from '@/features/regions/regions';
 import { DENSE_AREAS } from './denseAreas';
 
 const REGION = regionById(process.argv[2] ?? DEFAULT_REGION);

@@ -1,4 +1,4 @@
-import type { LngLatBox } from '@/lib/regions';
+import type { LngLatBox } from '@/features/regions/regions';
 
 /**
  * City centres where the whole BD TOPO network is kept (footpaths, stairs, service roads): walking there goes through

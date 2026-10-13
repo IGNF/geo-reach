@@ -1,6 +1,6 @@
-import { type Network, readRoadNetwork } from '@/engine/network';
-import { readTransit } from '@/engine/transit';
-import { DEFAULT_REGION } from '@/lib/regions';
+import { type Network, readRoadNetwork } from '@/features/routing/network';
+import { readTransit } from '@/features/routing/transit';
+import { DEFAULT_REGION } from '@/features/regions/regions';
 
 const file = (name: string): URL => new URL(`../web/public/data/regions/${name}`, import.meta.url);
 

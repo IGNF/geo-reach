@@ -11,7 +11,7 @@ flowchart LR
   subgraph prep["Offline, once (developer machine)"]
     WFS["GPF WFS<br/>BD TOPO troncon_de_route"] -->|scripts/buildGraph.ts| G["regions/&lt;id&gt;.bin.gz<br/>13 regions, 1 to 52 MB"]
     Z["BD TOPO heights (Z)<br/>RGE ALTI"] -->|climb, descent| G
-    GTFS["GTFS feeds<br/>(transport.data.gouv.fr)"] -->|scripts/buildTransit.ts<br/>crates/gtfs-prep| T["regions/&lt;id&gt;.transit.bin.gz<br/>12 regions"]
+    GTFS["GTFS feeds<br/>(transport.data.gouv.fr)"] -->|scripts/buildTransit.ts<br/>crates/gtfs-prep| T["regions/&lt;id&gt;.transit.bin.gz<br/>13 regions, 14,000 lines"]
     G -. zone origin + bbox .-> T
     RS[crates/engine] -->|scripts/buildEngine.ts<br/>cargo → wasm32| W[engine.wasm]
   end
@@ -26,7 +26,7 @@ flowchart LR
     R -->|same node times| BG[buildingGlLayer.ts<br/>3D buildings]
     E -->|path| UI[TripPanel / labels]
     UI -.cursor stops.-> GPF["GPF itineraire<br/>+ reverse geocoding"]
-    BT["GPF BD TOPO vector tiles<br/>batiment, zoom 15"] -->|buildingWorker.ts<br/>extruded| BG
+    BT["GPF BD TOPO vector tiles<br/>batiment, zoom 15"] -->|building.worker.ts<br/>extruded| BG
   end
 
   G --> L
@@ -36,22 +36,38 @@ flowchart LR
 
 ## Layout
 
+The app follows a feature-based layout: each feature holds its components, its logic and its workers, and the rest
+of the app reaches it only through its public API (`features/<name>/index.ts`, enforced by the linter). Within a
+feature, files import each other relatively; across features, through `@/features/<name>`; generic code lives in
+`shared/`. Dependencies run one way: `app` → features → `routing` and `shared`, with no cycle.
+
+```
+web/src/
+  app/                  entry point, root component (App.tsx), global styles, view state in the URL
+  features/
+    routing/            networks (read, grafted), per-mode profiles, snapping, the WASM engine and its workers
+    map/                MapLibre map, network layer (WebGL), isochrone lines and their worker, camera
+    buildings/          3D buildings: tiles extruded in a worker, WebGL layer colored by the node times
+    cuts/               closed sections: model, map layer, panel
+    trip/               trip panel, legs, mode comparison, Géoplateforme route and addresses
+    settings/           settings panel, mode picker, model of the travel times
+    search/             address search
+    regions/            the 13 regions, startup (download, decode, engine) and its screen
+  shared/               config, formatting, colors, projection, bounds, WebGL helpers, binary reader, data cache,
+                        Géoplateforme client, ui/ (Brand, LineBadge)
+  pages/                how-it-works/, legal/: the other pages of the site
+  locales/              UI strings (English, French), picked from the browser language
+```
+
+Workers are named `*.worker.ts`. The UI is built with `@ign-junn/design-system` (`Box`, `Stack`, `Grid`,
+`Typography`…); plain HTML only where it has no equivalent (MapLibre controls, colors computed from the data).
+
 | Path | Language | Role |
 |---|---|---|
 | `scripts/buildGraph.ts` | TypeScript (Bun) | Downloads the BD TOPO road sections of a region from the GPF WFS and writes its road file |
-| `scripts/buildTransit.ts`, `crates/gtfs-prep` | TypeScript (Bun), Rust (native) | Downloads a region's GTFS feed and writes its transit file, aligned on the origin of its road file |
+| `scripts/buildTransit.ts`, `crates/gtfs-prep` | TypeScript (Bun), Rust (native) | Downloads a region's GTFS feeds and writes its transit file, aligned on the origin of its road file |
 | `crates/engine` | Rust → WebAssembly | Bounded multi-source Dijkstra, ~180 lines, no dependencies |
-| `scripts/buildEngine.ts` | TypeScript (Bun) | `cargo build --target wasm32-unknown-unknown`, copies the result to `web/src/engine/engine.wasm` |
-| `web/src/engine/` | TypeScript | Loads the binaries, builds the per-mode graph, drives the WASM engine, rebuilds paths |
-| `web/src/map/networkLayer.ts` | TypeScript + GLSL | MapLibre custom layer that draws the network colored by time |
-| `web/src/map/cutLayer.ts` | TypeScript | Closed sections on the map, and the section under the cursor in cut mode |
-| `web/src/map/buildingGlLayer.ts` | TypeScript + GLSL | 3D buildings drawn by the GPU, colored from the network's node times |
-| `web/src/engine/buildingMesh.ts`, `buildingWorker.ts` | TypeScript | BD TOPO tiles to building meshes (walls, earcut roofs), in a worker |
-| `web/src/map/contourLines.ts` | TypeScript | Isochrone lines: requests to their worker, newest first |
-| `web/src/engine/wasm.ts` | TypeScript | Exports of `engine.wasm`, checked at load time |
-| `web/src/components/` | React | Map, settings panel (DS preview panel), trip card, closures panel, mode picker |
-| `web/src/lib/` | TypeScript | Config, GPF clients, URL state, colors, formatting, binary reader, bounds, startup (download → engine, with its progress) |
-| `web/src/locales/` | TypeScript | UI strings (English, French), picked from the browser language |
+| `scripts/buildEngine.ts` | TypeScript (Bun) | `cargo build --target wasm32-unknown-unknown`, copies the result to `web/src/features/routing/engine.wasm` |
 
 Two workspaces sit side by side: Bun for JavaScript (`package.json`, `web`) and Cargo for Rust (`Cargo.toml`,
 `crates/*`). A *crate* is a Rust package.
@@ -97,7 +113,7 @@ all. After `SETTLE_MS` without movement, `useGpfRoute` asks the Géoplateforme r
 
 ## Modes and directions
 
-A *profile* (`web/src/engine/profile.ts`) is one combination of mode (`pedestrian`, `bike`, `car`,
+A *profile* (`web/src/features/routing/profile.ts`) is one combination of mode (`pedestrian`, `bike`, `car`,
 `transit`), direction (`departure`, `arrival`), hour of departure (traffic, service frequency) and bus on/off. Switching profile rebuilds the cost arrays and the CSR graph in
 JS (a few tens of ms), writes them into the WASM memory, and re-uploads the GPU geometry. Snap indexes are cached per
 mode.
@@ -108,7 +124,7 @@ mode.
 
 ## State and sharing
 
-The view (`mode/direction/scale/contours/bus/lng,lat/hour/model/cuts`) lives in the URL hash (`lib/urlState.ts`): a copied link
+The view (`mode/direction/scale/contours/bus/lng,lat/hour/model/cuts`) lives in the URL hash (`app/urlState.ts`): a copied link
 opens the same view. No other persistence.
 
 ## More
