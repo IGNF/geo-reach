@@ -23,8 +23,10 @@ flowchart LR
     E -->|with closures: run all open too| B[baseline worker]
     B -->|delayed stations| UI
     E -->|node times| R[networkLayer.ts<br/>WebGL custom layer]
+    R -->|same node times| BG[buildingGlLayer.ts<br/>3D buildings]
     E -->|path| UI[TripPanel / labels]
     UI -.cursor stops.-> GPF["GPF itineraire<br/>+ reverse geocoding"]
+    BT["GPF BD TOPO vector tiles<br/>batiment, zoom 15"] -->|buildingWorker.ts<br/>extruded| BG
   end
 
   G --> L
@@ -43,6 +45,8 @@ flowchart LR
 | `web/src/engine/` | TypeScript | Loads the binaries, builds the per-mode graph, drives the WASM engine, rebuilds paths |
 | `web/src/map/networkLayer.ts` | TypeScript + GLSL | MapLibre custom layer that draws the network colored by time |
 | `web/src/map/cutLayer.ts` | TypeScript | Closed sections on the map, and the section under the cursor in cut mode |
+| `web/src/map/buildingGlLayer.ts` | TypeScript + GLSL | 3D buildings drawn by the GPU, colored from the network's node times |
+| `web/src/engine/buildingMesh.ts`, `buildingWorker.ts` | TypeScript | BD TOPO tiles to building meshes (walls, earcut roofs), in a worker |
 | `web/src/map/contourLines.ts` | TypeScript | Isochrone lines: requests to their worker, newest first |
 | `web/src/engine/wasm.ts` | TypeScript | Exports of `engine.wasm`, checked at load time |
 | `web/src/components/` | React | Map, settings panel (DS preview panel), trip card, closures panel, mode picker |

@@ -50,12 +50,15 @@ Blending is premultiplied (`ONE, ONE_MINUS_SRC_ALPHA`), depth test off.
 
 ## 3D views
 
-- **3D buildings** (the default view): a MapLibre `fill-extrusion` layer on the BD TOPO vector tiles of the Géoplateforme (`batiment`,
-  from zoom 15, `hauteur`), under the network layer so the streets stay visible. Their color comes from a feature
-  state `t`. The middle of each building is indexed once, when its tile loads; 120 ms after the last result (or a
-  move, or a tile loaded), each building in view takes the travel time of the street nearest to its middle
-  (`TravelEngine.timeAt`), and only the buildings whose time moved by 10 s or more are sent to MapLibre. Never at
-  every move, no geometry query, no clearing in between (it made the buildings flash grey, tile by tile).
+- **3D buildings** (the default view): a second custom layer (`map/buildingGlLayer.ts`), drawn under the network
+  with a depth test. A worker (`engine/buildingWorker.ts`) downloads the BD TOPO vector tiles of the Géoplateforme
+  (zoom 15, layer `batiment`) and extrudes them (`engine/buildingMesh.ts`): one wall quad per edge, shaded by the
+  direction it faces, and a flat roof triangulated with earcut, at the BD TOPO `hauteur`. Each building is then
+  joined once to its nearest street (`TravelEngine.anchor`: the two ends of the street and the seconds from each,
+  walk included), in an RGBA32F texture per tile; the vertex shader reads the times of those two nodes in the
+  network's time texture, so the buildings follow the cursor at every move with no work on the page. Anchors are
+  computed again when the profile changes (about 5 ms a tile); at most 24 tiles around the centre of the view, 48
+  kept on the graphics card (about 1.5 MB a tile).
 - The cursor keeps pointing at the ground: the map that follows the mouse and the cuts work the same in 3D. The
   custom layer has no depth test: the streets are drawn in their order, which reads well at a 45° tilt.
 

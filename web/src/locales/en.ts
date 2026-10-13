@@ -9,7 +9,7 @@ export const en = {
     label: 'View',
     options: { flat: '2D', buildings: '3D' },
     hints: {
-      buildings: 'The BD TOPO buildings take the color of their travel time when the cursor stops (zoomed in).',
+      buildings: 'The BD TOPO buildings take the color of their travel time, like the streets (zoomed in).',
     },
   },
   startup: {

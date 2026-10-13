@@ -11,9 +11,44 @@ import type { Profile } from '@/engine/profile';
  * Two passes: a wide, soft glow that reads as a heat map, then the crisp lines.
  */
 
-const TEX_WIDTH = 2048;
+/** Width of the node times texture: node n is at (n % TEX_WIDTH, n / TEX_WIDTH) */
+export const TEX_WIDTH = 2048;
 const BIG = 1e9;
 const EARTH = 2 * Math.PI * 6378137;
+
+/** Where the zone sits in the 0..1 Mercator world: positions are drawn relative to it */
+export const zoneOrigin = (net: Network): { tx: number; ty: number } => ({
+  tx: 0.5 + net.origin[0] / EARTH,
+  ty: 0.5 - net.origin[1] / EARTH,
+});
+
+/**
+ * MapLibre's Mercator 0..1 to clip space matrix, moved to the zone origin: the large offset is applied here in 64-bit
+ * floats, so that the 32-bit positions relative to the zone keep their precision
+ */
+export const zoneMatrix = (args: CustomRenderMethodInput, net: Network): Float32Array => {
+  const m = args.defaultProjectionData.mainMatrix;
+  const { tx, ty } = zoneOrigin(net);
+  const matrix = new Float32Array(16);
+  for (let i = 0; i < 16; i += 1) matrix[i] = m[i];
+  for (let i = 0; i < 4; i += 1) matrix[12 + i] = m[i] * tx + m[4 + i] * ty + m[12 + i];
+
+  return matrix;
+};
+
+/** Ramp texture of the travel time colors, 256 × 1 */
+export const rampTexture = (gl: WebGL2RenderingContext): WebGLTexture => {
+  const ramp = new Uint8Array(256 * 4);
+  for (let i = 0; i < 256; i += 1) ramp.set([RAMP_LUT[i * 3], RAMP_LUT[i * 3 + 1], RAMP_LUT[i * 3 + 2], 255], i * 4);
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, ramp);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+
+  return tex;
+};
 
 const VERTEX = `#version 300 es
 in vec2 a_corner;
@@ -189,14 +224,7 @@ export class NetworkLayer implements CustomLayerInterface {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, TEX_WIDTH, this.texHeight, 0, gl.RED, gl.FLOAT, this.times);
     for (const p of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, p, gl.NEAREST);
 
-    const ramp = new Uint8Array(256 * 4);
-    for (let i = 0; i < 256; i += 1) ramp.set([RAMP_LUT[i * 3], RAMP_LUT[i * 3 + 1], RAMP_LUT[i * 3 + 2], 255], i * 4);
-    this.rampTex = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, this.rampTex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, ramp);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    this.rampTex = rampTexture(gl);
     this.flush();
   }
 
@@ -255,6 +283,16 @@ export class NetworkLayer implements CustomLayerInterface {
     this.map?.triggerRepaint();
   }
 
+  /** The node times of the shown result, for the buildings drawn from them; undefined before the first result */
+  get timesTexture(): WebGLTexture | undefined {
+    return this.hasTimes ? this.timesTex : undefined;
+  }
+
+  /** Longest time shown, seconds */
+  get maxTime(): number {
+    return this.style.scale;
+  }
+
   setStyle(style: NetworkStyle): void {
     this.style = style;
     this.map?.triggerRepaint();
@@ -274,15 +312,7 @@ export class NetworkLayer implements CustomLayerInterface {
 
   render(gl: WebGL2RenderingContext, args: CustomRenderMethodInput): void {
     if (!this.program || !this.instances || !this.hasTimes || !this.map) return;
-    // Relative to the zone centre: the model matrix carries the large offset in double precision
-    // Mercator 0..1 to clip space, in 64 bit floats
-    const m = args.defaultProjectionData.mainMatrix;
-    const [ox, oy] = this.net.origin;
-    const tx = 0.5 + ox / EARTH;
-    const ty = 0.5 - oy / EARTH;
-    const matrix = new Float32Array(16);
-    for (let i = 0; i < 16; i += 1) matrix[i] = m[i];
-    for (let i = 0; i < 4; i += 1) matrix[12 + i] = m[i] * tx + m[4 + i] * ty + m[12 + i];
+    const matrix = zoneMatrix(args, this.net);
 
     const dpr = window.devicePixelRatio || 1;
     const zoom = this.map.getZoom();

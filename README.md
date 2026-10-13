@@ -25,7 +25,7 @@ public transport, and the map lights up from green (close) to red (far).
 - **Click to pin a point**: then hover a destination to see the time, the route drawn on the map and the trip
   step by step (streets, waits, metro or bus lines).
 - **See it in 3D** (the default view): the map is tilted and the BD TOPO buildings stand up, each colored by its
-  travel time once the cursor stops; "2D" flattens it. The 45° button of the map controls tilts or flattens it too.
+  travel time and following the cursor like the streets; "2D" flattens it. The 45° button of the map controls tilts or flattens it too.
 - **Choose how you travel**: walk, bike, car or public transport (metro, RER, tram, with or without buses).
 - **Choose the time of departure**: car times follow a typical weekday traffic curve, transit times follow the
   real service frequency at that hour.
@@ -127,7 +127,9 @@ the repository: no data download, no Rust needed to run the app.
 3. **Drawing**: a WebGL layer on top of the MapLibre map colors every street on the graphics card; only the new
    times are sent at each move. The isochrone lines are traced on a 150 m grid from the reached streets and transit
    lines.
-4. **Closures** (what-if): the closed edges become impassable; a second worker runs the same computation with
+4. **3D buildings**: a worker extrudes the BD TOPO buildings of the Géoplateforme vector tiles; each one is joined
+   to its nearest street, and the graphics card colors it from the same times as the streets, at every move.
+5. **Closures** (what-if): the closed edges become impassable; a second worker runs the same computation with
    everything open, and the two are compared station by station.
 
 The same explanation, with an interactive diagram: [How it works](https://ignf.github.io/geo-reach/how-it-works.html).

@@ -17,8 +17,9 @@ export type StepId =
   | 'dijkstra'
   | 'contours'
   | 'layer'
+  | 'buildings'
+  | 'buildingTiles'
   | 'panel'
-  | 'map'
   | 'tiles'
   | 'route'
   | 'geocode';
@@ -43,7 +44,7 @@ const en = {
     hint: 'Click a box to read what it does.',
     label: 'Pipeline of geo-reach',
     labels: { zoomIn: 'Zoom in', zoomOut: 'Zoom out', fit: 'Fit', reset: 'Reset the layout' },
-    groups: { offline: 'Prepared once, offline', browser: 'In your browser, at every mouse move', gpf: 'Géoplateforme' },
+    groups: { offline: 'Prepared once, offline', browser: 'In your browser, at every mouse move' },
     edges: {
       zone: 'zone',
       cargo: 'cargo build',
@@ -54,9 +55,13 @@ const en = {
       instance: 'runs in',
       times: 'node times',
       path: 'path',
-      stop: 'cursor stops',
+      stop: 'when the cursor stops',
+      address: 'addresses',
       slopes: 'climb, descent',
       closed: 'closed edges',
+      sameTimes: 'same node times',
+      basemap: 'basemap',
+      extruded: 'extruded in a worker',
     },
     legend: {
       primary: 'IGN / Géoplateforme',
@@ -156,21 +161,27 @@ const en = {
         text: 'The geometry of the streets is sent to the graphics card once. At each move, only the time of each crossing is sent (one number per crossing); the graphics card works out the color of every piece of street, then draws a wide glow (the heat map) and thin lines on top.',
         file: 'web/src/map/networkLayer.ts',
       },
+      buildings: {
+        label: '3D buildings',
+        detail: 'colored on the GPU',
+        text: 'The BD TOPO buildings, extruded to their height by a worker (walls shaded by the direction they face, flat roofs). Each building is joined once to its nearest street; the graphics card then reads the times of that street in the same texture as the network, so the buildings follow the cursor at every move, at no cost on the page.',
+        file: 'web/src/map/buildingGlLayer.ts',
+      },
       panel: {
         label: 'Trip panel',
         detail: 'path, legs, figures',
         text: 'With a pinned point, the path to the cursor is read back from the last computation (no new Dijkstra): streets, waits and lines become the legs of the trip. The figures (area, stations, cycle lanes, stations delayed by closures) come from the same result.',
         file: 'web/src/engine/legs.ts',
       },
-      map: {
-        label: 'MapLibre map',
-        detail: 'vector basemap',
-        text: 'MapLibre GL draws the basemap and hosts the custom WebGL layer between the streets of the basemap and its labels.',
-      },
       tiles: {
         label: 'Plan IGN',
         detail: 'vector tiles',
-        text: 'The basemap: Plan IGN vector tiles from the Géoplateforme, grey style.',
+        text: 'The basemap: Plan IGN vector tiles from the Géoplateforme, grey style, with the IGN hillshade (RGE ALTI). MapLibre GL draws it and hosts our WebGL layers between its streets and its labels.',
+      },
+      buildingTiles: {
+        label: 'BD TOPO tiles',
+        detail: 'buildings and heights',
+        text: 'The BD TOPO vector tiles of the Géoplateforme, from zoom 15: the outline and the height of every building. Only the tiles around the view are downloaded.',
       },
       route: {
         label: 'Route service',
@@ -233,6 +244,7 @@ const en = {
       'Car: typical traffic curve, no live traffic, no traffic lights.',
       'Zone: Île-de-France; footpaths and service roads only in Paris and the inner suburbs.',
       'Closures: an express train that skips the closed stations still runs; the Géoplateforme route ignores closures.',
+      'Buildings: each one takes the time of the street nearest to its middle, not of its actual entrance.',
     ],
   },
   more: 'Technical documentation',
@@ -250,7 +262,7 @@ const fr: typeof en = {
     hint: 'Cliquez sur une boîte pour lire ce qu’elle fait.',
     label: 'Chaîne de traitement de geo-reach',
     labels: { zoomIn: 'Zoomer', zoomOut: 'Dézoomer', fit: 'Ajuster', reset: 'Rétablir la disposition' },
-    groups: { offline: 'Préparé une fois, hors ligne', browser: 'Dans votre navigateur, à chaque mouvement', gpf: 'Géoplateforme' },
+    groups: { offline: 'Préparé une fois, hors ligne', browser: 'Dans votre navigateur, à chaque mouvement' },
     edges: {
       zone: 'zone',
       cargo: 'cargo build',
@@ -261,9 +273,13 @@ const fr: typeof en = {
       instance: 'tourne dans',
       times: 'temps des nœuds',
       path: 'chemin',
-      stop: 'curseur arrêté',
+      stop: 'quand le curseur s’arrête',
+      address: 'adresses',
       slopes: 'montée, descente',
       closed: 'arêtes fermées',
+      sameTimes: 'mêmes temps des nœuds',
+      basemap: 'fond de carte',
+      extruded: 'extrudées dans un worker',
     },
     legend: {
       primary: 'IGN / Géoplateforme',
@@ -363,21 +379,27 @@ const fr: typeof en = {
         text: 'La géométrie des rues est envoyée une fois à la carte graphique. À chaque mouvement, seul le temps de chaque carrefour est envoyé (un nombre par carrefour) ; la carte graphique calcule la couleur de chaque bout de rue, puis dessine un halo large (la carte de chaleur) et des lignes fines par-dessus.',
         file: 'web/src/map/networkLayer.ts',
       },
+      buildings: {
+        label: 'Bâtiments 3D',
+        detail: 'colorés sur le GPU',
+        text: 'Les bâtiments BD TOPO, extrudés à leur hauteur par un worker (façades ombrées selon leur orientation, toits plats). Chaque bâtiment est rattaché une fois à sa rue la plus proche ; la carte graphique lit ensuite les temps de cette rue dans la même texture que le réseau : les bâtiments suivent le curseur à chaque mouvement, sans coût pour la page.',
+        file: 'web/src/map/buildingGlLayer.ts',
+      },
       panel: {
         label: 'Panneau de trajet',
         detail: 'chemin, étapes, chiffres',
         text: 'Avec un point fixé, le chemin jusqu’au curseur est relu dans le dernier calcul (pas de nouveau Dijkstra) : rues, attentes et lignes deviennent les étapes du trajet. Les chiffres (surface, stations, pistes cyclables, stations retardées par les coupures) viennent du même résultat.',
         file: 'web/src/engine/legs.ts',
       },
-      map: {
-        label: 'Carte MapLibre',
-        detail: 'fond vectoriel',
-        text: 'MapLibre GL dessine le fond de carte et accueille la couche WebGL sur mesure, entre les rues du fond et ses étiquettes.',
-      },
       tiles: {
         label: 'Plan IGN',
         detail: 'tuiles vectorielles',
-        text: 'Le fond de carte : tuiles vectorielles Plan IGN de la Géoplateforme, style gris.',
+        text: 'Le fond de carte : tuiles vectorielles Plan IGN de la Géoplateforme, style gris, avec l’estompage IGN (RGE ALTI). MapLibre GL le dessine et accueille nos couches WebGL entre ses rues et ses étiquettes.',
+      },
+      buildingTiles: {
+        label: 'Tuiles BD TOPO',
+        detail: 'bâtiments et hauteurs',
+        text: 'Les tuiles vectorielles BD TOPO de la Géoplateforme, à partir du zoom 15 : le contour et la hauteur de chaque bâtiment. Seules les tuiles autour de la vue sont téléchargées.',
       },
       route: {
         label: 'Calcul d’itinéraire',
@@ -440,6 +462,7 @@ const fr: typeof en = {
       'Voiture : courbe de trafic type, pas de trafic en temps réel ni de feux.',
       'Zone : Île-de-France ; chemins et voies de service seulement à Paris et en petite couronne.',
       'Coupures : un train direct qui ne dessert pas les stations coupées circule toujours ; l’itinéraire Géoplateforme ignore les coupures.',
+      'Bâtiments : chacun prend le temps de la rue la plus proche de son centre, pas celui de sa véritable entrée.',
     ],
   },
   more: 'Documentation technique',

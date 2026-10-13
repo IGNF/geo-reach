@@ -22,7 +22,7 @@ import { rampCss } from '@/lib/colors';
 import { formatMinutes } from '@/lib/format';
 import { fromMercator, toMercator } from '@/lib/mercator';
 import { t } from '@/locales';
-import { BuildingLayer, BUILDINGS_MIN_ZOOM } from '@/map/buildingLayer';
+import { BuildingGlLayer, BUILDINGS_MIN_ZOOM } from '@/map/buildingGlLayer';
 import { CutLayer } from '@/map/cutLayer';
 import { ContourLines } from '@/map/contourLines';
 import { NetworkLayer } from '@/map/networkLayer';
@@ -229,7 +229,7 @@ const MapView = ({
   const ctl = useRef<{
     map?: MlMap;
     layer?: NetworkLayer;
-    buildings?: BuildingLayer;
+    buildings?: BuildingGlLayer;
     ready: boolean;
     /** Latest cursor position, Mercator metres relative to the zone */
     cursor?: [number, number];
@@ -293,7 +293,7 @@ const MapView = ({
     map.once('load', showTilt);
     c.map = map;
     const layer = new NetworkLayer(net);
-    const buildings = new BuildingLayer(map, engine);
+    const buildings = new BuildingGlLayer(engine, layer);
     buildings.setVisible(live.current.perspective === 'buildings');
     c.buildings = buildings;
     layer.setProfile(engine.profile);
@@ -427,8 +427,8 @@ const MapView = ({
       const { scale: s, contours: cs, pinned: pin } = live.current;
       layer.setStyle({ scale: s, contours: [] });
       // The colors always follow the cursor: from it (departure) or towards it (arrival)
+      // The buildings read the same times: they follow the cursor too
       layer.setTimes(r?.dist);
-      buildings.colorFrom(() => runs.shown);
 
       // The first result drawn (even an empty one, a point off the network): the startup screen can go
       if (!firstFrame.done) {
@@ -513,13 +513,6 @@ const MapView = ({
       c.settleTimer = setTimeout(() => live.current.onSettle(live.current.pinned ? point : undefined), SETTLE_MS);
     });
     map.getCanvas().addEventListener('mouseleave', () => clearTimeout(c.settleTimer));
-    // New buildings in view, or their tiles just loaded: colored from the result shown
-    map.on('moveend', () => buildings.colorFrom(() => runs.shown));
-    map.on('sourcedata', (e) => {
-      if (e.sourceId !== 'bdtopo' || !e.tile) return;
-      buildings.indexTiles();
-      buildings.colorFrom(() => runs.shown);
-    });
     map.on('click', (e) => {
       if (!live.current.cutMode) return live.current.onPin(e.lngLat.toArray());
       const { hovered } = cutLayer;
@@ -585,7 +578,7 @@ const MapView = ({
       map.addLayer({ id: 'hillshade', type: 'raster', source: 'hillshade', paint: { 'raster-opacity': 0.55 } }, firstSymbol);
       map.addLayer(layer, firstSymbol);
       // Under the network: the colored streets stay visible across the buildings
-      buildings.addLayer(layer.id, live.current.scale);
+      map.addLayer(buildings, layer.id);
       if (net.lines.length) {
         map.addSource('rail', { type: 'geojson', data: railFeatures(engine) });
         map.addLayer(
@@ -697,10 +690,12 @@ const MapView = ({
   useEffect(() => {
     const c = ctl.current;
     c.layer?.setProfile(engine.profile);
-    c.buildings?.setScale(scale);
     if (c.ready && c.map) styleGroundLayers(c.map, engine.profile.mode);
     if (c.ready) c.refresh();
   }, [engine, profileVersion, scale]);
+
+  // New profile (mode, cuts…): the buildings join their streets again; not when only the max time changes
+  useEffect(() => ctl.current.buildings?.setProfile(), [engine, profileVersion]);
 
   // Flat or 3D: the map tilts and the buildings stand up
   useEffect(() => {

@@ -79,6 +79,17 @@ export interface CutImpact {
   delays: { name: string; seconds: number }[];
 }
 
+/** A point joined to the network: the ends of its street and the seconds from each to the point */
+export interface Anchor {
+  a: number;
+  b: number;
+  toA: number;
+  toB: number;
+  snap: Snap;
+  /** Seconds walked from the street to the point */
+  walk: number;
+}
+
 /** Time from the origin of a result to a point, and how the trip reaches it */
 export interface TimeAt {
   seconds: number;
@@ -247,20 +258,33 @@ export class TravelEngine {
     };
   }
 
-  /** Seconds between the result's origin and a point, and the edge end the trip goes through */
-  timeAt(r: Result, x: number, y: number): TimeAt | undefined {
+  /**
+   * How a point joins the network of a profile: the two ends of its nearest street, and the seconds from each end to
+   * the point (along the street, then the walk to the point). Its time is then min(t(a) + toA, t(b) + toB).
+   */
+  anchor(x: number, y: number, profile: Profile = this.profile): Anchor | undefined {
     const s = this.snap(x, y);
     if (!s) return undefined;
-    const { fwd, bwd, direction } = r.profile;
-    const [a, b] = [this.net.edgeA[s.edge], this.net.edgeB[s.edge]];
-    const walk = (s.distance * this.groundScale) / this.walkSpeed;
-    // Departure: origin … A → point (forwards), origin … B → point (backwards). Arrival: the reverse.
-    const viaA = r.dist[a] + (direction === 'departure' ? part(s.f, fwd[s.edge]) : part(s.f, bwd[s.edge]));
-    const viaB = r.dist[b] + (direction === 'departure' ? part(1 - s.f, bwd[s.edge]) : part(1 - s.f, fwd[s.edge]));
-    const node = viaA <= viaB ? a : b;
-    const seconds = Math.min(viaA, viaB) + walk;
 
-    return Number.isFinite(seconds) ? { seconds, node, snap: s, walk } : undefined;
+    const { fwd, bwd, direction } = profile;
+    const walk = (s.distance * this.groundScale) / this.walkSpeed;
+    // Departure: A → point goes forwards along the edge, B → point backwards. Arrival: the reverse.
+    const toA = (direction === 'departure' ? part(s.f, fwd[s.edge]) : part(s.f, bwd[s.edge])) + walk;
+    const toB = (direction === 'departure' ? part(1 - s.f, bwd[s.edge]) : part(1 - s.f, fwd[s.edge])) + walk;
+
+    return { a: this.net.edgeA[s.edge], b: this.net.edgeB[s.edge], toA, toB, snap: s, walk };
+  }
+
+  /** Seconds between the result's origin and a point, and the edge end the trip goes through */
+  timeAt(r: Result, x: number, y: number): TimeAt | undefined {
+    const at = this.anchor(x, y, r.profile);
+    if (!at) return undefined;
+
+    const viaA = r.dist[at.a] + at.toA;
+    const viaB = r.dist[at.b] + at.toB;
+    const seconds = Math.min(viaA, viaB);
+
+    return Number.isFinite(seconds) ? { seconds, node: viaA <= viaB ? at.a : at.b, snap: at.snap, walk: at.walk } : undefined;
   }
 
   /** Edges from the origin to `node`, in travel order */

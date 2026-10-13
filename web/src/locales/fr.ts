@@ -11,7 +11,7 @@ export const fr: Messages = {
     label: 'Vue',
     options: { flat: '2D', buildings: '3D' },
     hints: {
-      buildings: 'Les bâtiments BD TOPO prennent la couleur de leur temps de trajet quand le curseur s’arrête (vue rapprochée).',
+      buildings: 'Les bâtiments BD TOPO prennent la couleur de leur temps de trajet, comme les rues (vue rapprochée).',
     },
   },
   startup: {

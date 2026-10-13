@@ -18,8 +18,11 @@
     "@mantine/code-highlight": "^9.7.1",
     "@mantine/core": "^9.7.1",
     "@mantine/hooks": "^9.7.1",
+    "@mapbox/vector-tile": "3.0.0",
+    "earcut": "3.2.4",
     "highlight.js": "^11.12.0",
     "maplibre-gl": "^6.13.0",
+    "pbf": "5.1.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router": "^8.4.0"
