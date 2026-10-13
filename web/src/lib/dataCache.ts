@@ -1,5 +1,5 @@
 /**
- * The prepared data (graph.bin, transit.bin) is computed on in the browser, so every visitor downloads it once. It is
+ * The prepared data (the network files of the regions) is computed on in the browser, so every visitor downloads it once. It is
  * then kept in the Cache Storage of the browser: later visits read it locally, even offline. Bump DATA_VERSION when
  * the files change, so that browsers drop their copy.
  */

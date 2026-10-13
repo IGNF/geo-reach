@@ -4,7 +4,8 @@ Code: `crates/engine/src/lib.rs` (Rust, WebAssembly) and `web/src/engine/*.ts` (
 
 ## Graph model
 
-The network is one graph made of road nodes plus, when `transit.bin` is loaded, transit nodes appended after them.
+The network is one graph made of road nodes plus, when the region has a transit file, transit nodes appended after
+them.
 
 ```mermaid
 flowchart LR
@@ -72,7 +73,7 @@ node, the time to reach the point.
 **Closed sections** (`cuts.ts`, a what-if set from the map): a metro, RER, train or tram line between two neighbouring
 stations (its rides both ways), or one BD TOPO road section (every mode). Their edges get `Infinity` both ways, so they
 leave the CSR and the snap index; the engine itself is unchanged. Rebuilding the profile takes about 120 ms for the
-whole region. In the URL a cut is `r<line>.<station>.<station>` (transit.bin indexes) or `s<edge>` (graph.bin index):
+whole region. In the URL a cut is `r<line>.<station>.<station>` (indexes of the region's transit file) or `s<edge>` (index in its road file):
 a link stays valid as long as the data files do. An express ride that skips the closed stations is not cut.
 
 While sections are closed, `TravelEngine` keeps a **baseline**: the same profile with everything open, in a second
@@ -139,6 +140,6 @@ consecutive streets of the same name, one wait per boarding, one ride per line (
 
 ## Coordinates
 
-Everything is stored in Web Mercator metres **relative to the centre of the zone** (`origin` in `graph.bin`). With
+Everything is stored in Web Mercator metres **relative to the centre of the zone** (`origin` in the region's road file). With
 absolute Mercator values (~260 000 m, ~6 250 000 m) a 32 bit float has a step of about 0.5 m; relative to the centre,
 it stays under a millimetre. Ground distances use the scale factor `cos(latitude)` of the zone centre.

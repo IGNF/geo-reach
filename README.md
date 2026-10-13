@@ -1,8 +1,8 @@
 # geo-reach
 
-### How far can you go in 15 minutes, from anywhere in Île-de-France?
+### How far can you go in 15 minutes, from anywhere in France?
 
-Move the mouse: travel times to the whole region are recomputed **at every move**, on foot, by bike, by car or by
+Move the mouse: travel times to the whole region in view are recomputed **at every move**, on foot, by bike, by car or by
 public transport, and the map lights up from green (close) to red (far).
 
 **[▶ Open the demo](https://ignf.github.io/geo-reach/)** · [How it works](https://ignf.github.io/geo-reach/how-it-works.html)
@@ -10,12 +10,12 @@ public transport, and the map lights up from green (close) to red (far).
 
 [![geo-reach: travel times by public transport from the cursor, around the Seine in central Paris](docs/screenshot.jpg)](https://ignf.github.io/geo-reach/)
 
-| 540,000 | 711,000 | ~2,000 | 0 |
+| 13 | 18 M | 12 | 0 |
 |:---:|:---:|:---:|:---:|
-| street crossings | road sections | transit lines | server: everything runs in your browser |
+| regions of metropolitan France | road sections | regions with public transport | server: everything runs in your browser |
 
-- **Géoplateforme data** (IGN): BD TOPO road network, Plan IGN basemap, geocoding; Île-de-France Mobilités timetables
-  for public transport.
+- **Géoplateforme data** (IGN): BD TOPO road network and buildings, Plan IGN basemap, hillshade, geocoding; public
+  transport timetables from transport.data.gouv.fr (Île-de-France Mobilités, regional aggregates, SNCF).
 - **A Rust engine compiled to WebAssembly**, in a background thread: the whole region in a few tens of milliseconds
   at most, where a routing server would need seconds per map.
 
@@ -25,7 +25,8 @@ public transport, and the map lights up from green (close) to red (far).
 - **Click to pin a point**: then hover a destination to see the time, the route drawn on the map and the trip
   step by step (streets, waits, metro or bus lines).
 - **See it in 3D** (the default view): the map is tilted and the BD TOPO buildings stand up, each colored by its
-  travel time and following the cursor like the streets; "2D" flattens it. The 45° button of the map controls tilts or flattens it too.
+  travel time and following the cursor like the streets; "2D" flattens it. The 45° button of the map controls tilts
+  or flattens it too.
 - **Choose how you travel**: walk, bike, car or public transport (metro, RER, tram, with or without buses).
 - **Choose the time of departure**: car times follow a typical weekday traffic curve, transit times follow the
   real service frequency at that hour.
@@ -99,9 +100,10 @@ comparison. Full text: [legal notice](https://ignf.github.io/geo-reach/legal.htm
 |---|---|---|
 | Road network and buildings (BD TOPO), basemap (Plan IGN), hillshade (RGE ALTI) | IGN, Géoplateforme | Licence Ouverte Etalab 2.0 |
 | Addresses near a point | Géoplateforme reverse geocoding | Licence Ouverte Etalab 2.0 |
-| Public transport timetables | [Île-de-France Mobilités GTFS](https://transport.data.gouv.fr/datasets/reseaux-urbains-et-interurbains-dile-de-france-mobilites-idfm) | ODbL |
+| Public transport timetables | [Île-de-France Mobilités](https://transport.data.gouv.fr/datasets/reseaux-urbains-et-interurbains-dile-de-france-mobilites-idfm), regional aggregates and SNCF feed on [transport.data.gouv.fr](https://transport.data.gouv.fr) | per feed, mostly ODbL or Licence Ouverte |
 
-`transit.bin` is a database derived from the IDFM timetables, under the same ODbL licence.
+The transit files are databases derived from these timetables, under the licence of their feed. Region by region:
+[web/public/data/README.md](web/public/data/README.md).
 
 ## For developers
 
@@ -148,8 +150,9 @@ Details: [architecture](docs/architecture.md), [engine](docs/engine.md), [render
 ```
 web/                 React + MapLibre app (Vite), UI built with @ign-junn/design-system
 crates/engine/       travel time engine in Rust, compiled to WebAssembly
-crates/gtfs-prep/    Rust tool: GTFS timetables → public transport layer (transit.bin)
-scripts/             road network preparation (graph.bin, one file per region), engine build
+crates/gtfs-prep/    Rust tool: GTFS timetables → public transport layer of a region
+scripts/             region networks (roads, public transport), engine build
+web/public/data/     the network files, one pair per region (see its README)
 docs/                technical documentation
 ```
 
@@ -169,19 +172,18 @@ cargo clippy --workspace --all-targets   # pedantic lints, set in Cargo.toml
 ### Rebuild the data
 
 ```sh
-bun run data                                        # BD TOPO road network of Île-de-France → web/public/data/graph.bin
-bun run data -- bretagne                            # another region → web/public/data/regions/bretagne.bin.gz
-bun scripts/buildTransit.ts bretagne                # its public transport (GTFS feeds in scripts/transitFeeds.ts)
-mkdir -p .cache/gtfs
-curl -L -o .cache/gtfs/idfm.zip https://www.data.gouv.fr/api/1/datasets/r/413988ed-d340-467b-8be2-7b999fcd207a
-cargo run -p gtfs-prep --release -- .cache/gtfs/idfm.zip web/public/data/graph.bin web/public/data/transit.bin
+bun run data -- bretagne         # BD TOPO roads of a region → web/public/data/regions/bretagne.bin.gz
+bun run transit -- bretagne      # its public transport → regions/bretagne.transit.bin.gz (needs cargo)
+bun run transit -- all           # every region's public transport
 ```
+
+Without an id, `bun run data` builds Île-de-France. Every region follows the same scheme, Île-de-France included.
 
 The regions are listed in `web/src/lib/regions.ts` (box, opening point), the city centres kept in full in
 `scripts/denseAreas.ts`, the reference day of the timetables in `crates/gtfs-prep`. Away from the city centres the
 WFS filters the paths and service roads out itself; a region takes about a minute (one to three million sections).
-The region files are stored gzipped (20 to 45 MB each, under the 100 MB a file of GitHub); the browser inflates
-them.
+The GTFS feeds are listed in `scripts/transitFeeds.ts` and cached in `.cache/gtfs/`. The region files are stored
+gzipped (1 to 52 MB each, under the 100 MB a file of GitHub); the browser inflates them.
 
 ### Deployment
 

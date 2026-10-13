@@ -23,17 +23,17 @@ const NO_SERVICE = 0xffff;
 const css = (rgb: number) => `#${rgb.toString(16).padStart(6, '0')}`;
 
 /**
- * Loads transit.bin (crates/gtfs-prep) and returns how to graft it on the road network: stations and line stops
+ * Loads a transit file, TRN3 (crates/gtfs-prep), and returns how to graft it on the road network: stations and line stops
  * become nodes; boarding (the wait), rides, alighting and walking links become edges.
  */
 export const loadTransit = async (url: string, onProgress?: Progress): Promise<(roads: Network) => Network> =>
   readTransit(await loadData(url, onProgress));
 
-/** Decodes transit.bin; the returned function grafts it on the road network */
+/** Decodes a transit file; the returned function grafts it on the road network */
 export const readTransit = (buffer: ArrayBuffer): ((roads: Network) => Network) => {
   const header = new Uint32Array(buffer, 0, 8);
   const [magic, stationCount, lineCount, lineStopCount, rideCount, coordCount, stringsBytes] = header;
-  if (magic !== 0x334e5254) throw new Error('transit.bin: unknown format');
+  if (magic !== 0x334e5254) throw new Error('transit file: not TRN3');
 
   // Line stop: u32 line, u32 station, u16 hourly waits. Ride: u32 from, u32 to, u16 hourly durations.
   const ROW = 8 + HOURS * 2;

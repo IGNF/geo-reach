@@ -18,8 +18,8 @@ export interface Region {
 }
 
 /**
- * The 13 regions of metropolitan France, one network file each (web/public/data/regions/<id>.bin). Île-de-France
- * keeps its own files (graph.bin, transit.bin): its box is the one transit.bin was built on.
+ * The 13 regions of metropolitan France, each with its network files: web/public/data/regions/<id>.bin.gz (roads,
+ * scripts/buildGraph.ts) and <id>.transit.bin.gz (public transport, scripts/buildTransit.ts).
  */
 export const REGIONS: readonly Region[] = [
   { id: 'ile-de-france', name: 'Île-de-France', bbox: [1.44, 48.12, 3.56, 49.24], start: [2.424573, 48.845726], transit: 'networks' },
@@ -42,16 +42,12 @@ export const DEFAULT_REGION = 'ile-de-france';
 /** Served with the app (the build scripts import this file too, without Vite: no base URL there) */
 const DATA = `${import.meta.env?.BASE_URL ?? '/'}data/`;
 
-/** Road network of a region: Île-de-France keeps its historical file, the others are gzipped (lib/dataCache.ts) */
-export const graphUrl = (region: Region): string =>
-  region.id === DEFAULT_REGION ? `${DATA}graph.bin` : `${DATA}regions/${region.id}.bin.gz`;
+/** Road network of a region, gzipped (inflated by lib/dataCache.ts) */
+export const graphUrl = (region: Region): string => `${DATA}regions/${region.id}.bin.gz`;
 
-/** Public transport layer of a region, when it has one (scripts/buildTransit.ts; IDFM apart) */
-export const transitUrl = (region: Region): string | undefined => {
-  if (!region.transit) return undefined;
-
-  return region.id === DEFAULT_REGION ? `${DATA}transit.bin` : `${DATA}regions/${region.id}.transit.bin.gz`;
-};
+/** Public transport layer of a region, when it has one */
+export const transitUrl = (region: Region): string | undefined =>
+  region.transit ? `${DATA}regions/${region.id}.transit.bin.gz` : undefined;
 
 export const regionById = (id: string | undefined): Region =>
   REGIONS.find((r) => r.id === id) ?? REGIONS.find((r) => r.id === DEFAULT_REGION) ?? REGIONS[0];

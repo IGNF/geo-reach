@@ -1,4 +1,4 @@
-//! The transit layer written to transit.bin: stations, lines, line stops (a line at a station, with its hourly
+//! The transit layer written to the region's transit file (TRN3): stations, lines, line stops (a line at a station, with its hourly
 //! wait), rides (between two line stops, with their hourly duration and geometry).
 //!
 //! Layout (little endian, 4-byte aligned), read by web/src/engine/transit.ts:
@@ -19,10 +19,10 @@ use std::collections::HashMap;
 
 const MAGIC: u32 = 0x334e_5254;
 
-/// An index or a count of the file: transit.bin stores them as u32, so beyond 4 billion items the build fails
+/// An index or a count of the file: the transit file stores them as u32, so beyond 4 billion items the build fails
 /// rather than writing truncated values
 fn u32_of(n: usize) -> u32 {
-    u32::try_from(n).expect("transit.bin: more than u32::MAX items")
+    u32::try_from(n).expect("transit file: more than u32::MAX items")
 }
 /// No departure in the hour
 const NO_SERVICE: u16 = u16::MAX;

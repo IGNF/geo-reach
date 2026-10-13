@@ -5,8 +5,8 @@ interface TypedArrayCtor<T> {
 }
 
 /**
- * Reads a binary file block after block (graph.bin, transit.bin). Typed arrays are views on the downloaded buffer:
- * nothing is copied nor parsed.
+ * Reads a binary file block after block (the road and transit files of the regions). Typed arrays are views on the
+ * downloaded buffer: nothing is copied nor parsed.
  */
 export class BinaryReader {
   private readonly buffer: ArrayBuffer;

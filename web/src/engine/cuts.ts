@@ -5,7 +5,7 @@ import { EDGE_RIDE, EDGE_ROAD, FLAG_BUS, type Line, type Network } from '@/engin
  * BD TOPO road section (every mode). Their edges become impassable, the engine routes around them.
  */
 export type Cut =
-  /** Stations as numbered in transit.bin (node − firstStation), a < b */
+  /** Stations as numbered in the region's transit file (node − firstStation), a < b */
   | { kind: 'rail'; line: number; a: number; b: number }
   | { kind: 'road'; edge: number };
 

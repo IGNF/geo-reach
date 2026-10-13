@@ -20,6 +20,7 @@ export type StepId =
   | 'buildings'
   | 'buildingTiles'
   | 'panel'
+  | 'compare'
   | 'tiles'
   | 'route'
   | 'geocode';
@@ -35,7 +36,7 @@ interface Box {
 const en = {
   title: 'How it works',
   lead:
-    'Every mouse move recomputes the travel time to more than half a million street crossings of Île-de-France and redraws them, in your browser, with no server. Here is how.',
+    'Every mouse move recomputes the travel time to the street crossings of the region in view, up to a few million, and redraws them, in your browser, with no server. All of metropolitan France, one region at a time. Here is how.',
   backToMap: 'Back to the map',
   sourceCode: 'Source code',
   legalNotice: 'Legal notice',
@@ -57,6 +58,8 @@ const en = {
       path: 'path',
       stop: 'when the cursor stops',
       address: 'addresses',
+      networkCopy: 'network copy',
+      fourModes: 'same trip, 4 modes',
       slopes: 'climb, descent',
       closed: 'closed edges',
       sameTimes: 'same node times',
@@ -74,12 +77,12 @@ const en = {
       wfs: {
         label: 'BD TOPO roads',
         detail: 'Géoplateforme WFS',
-        text: 'Every road section of Île-de-France, with its traffic direction, pedestrian and car access, average speed, cycle lanes and street name. Downloaded page by page from the Géoplateforme WFS service.',
+        text: 'Every road section of metropolitan France, region by region, with its traffic direction, pedestrian and car access, average speed, cycle lanes and street name. Downloaded tile by tile from the Géoplateforme WFS service; away from the main city centres the service itself leaves out the footpaths and service roads.',
       },
       gtfs: {
-        label: 'IDFM timetables',
+        label: 'Timetables',
         detail: 'GTFS, transport.data.gouv.fr',
-        text: 'The Île-de-France Mobilités timetables: every metro, RER, tram and bus trip of the region, in the GTFS standard format.',
+        text: 'The public transport timetables in the GTFS standard format: Île-de-France Mobilités, the regional aggregates of the urban and interurban networks (seven regions), and the SNCF trains where there is no aggregate yet.',
       },
       relief: {
         label: 'BD TOPO heights',
@@ -94,19 +97,19 @@ const en = {
       },
       gtfsPrep: {
         label: 'gtfs-prep',
-        detail: 'Rust, native',
-        text: 'Reads the timetables of the whole region and keeps, for a reference weekday and for each hour, the median ride time between two stations and the average wait (half the time between two departures).',
+        detail: 'Rust, region by region',
+        text: 'Run by buildTransit.ts for each region on its feed, aligned on its road network. Reads the timetables of the region and keeps, for a reference weekday and for each hour, the median ride time between two stations and the average wait (half the time between two departures).',
         file: 'crates/gtfs-prep/src/main.rs',
       },
       graphBin: {
-        label: 'graph.bin',
-        detail: '26 MB · 539 k nodes',
-        text: 'A compact binary file: plain arrays of numbers, one after another (12 MB compressed), climb and descent included. The browser reads it as typed arrays straight from the download, with no parsing. Outside Paris and the inner suburbs, footpaths and service roads are left out to keep it light.',
+        label: 'Road networks',
+        detail: '13 regions · 18 M edges',
+        text: 'One compact binary file per region: plain arrays of numbers, one after another, climb and descent included, gzipped (1 to 52 MB). The browser reads them as typed arrays straight from the download, with no parsing. Each region reaches about 20 km beyond its edge, for the trips that cross it.',
       },
       transitBin: {
-        label: 'transit.bin',
-        detail: '11 MB · 1,984 lines',
-        text: 'Stations, lines with their colors, waits and ride times hour by hour, and the line shapes. Grafted on the road graph when the page loads: each station is linked to its nearest streets.',
+        label: 'Transport layers',
+        detail: '12 regions',
+        text: 'Per region, the stations, lines with their colors, waits and ride times hour by hour, and the line shapes. Grafted on the road graph when the page loads: each station is linked to its nearest streets.',
       },
       engineCrate: {
         label: 'crates/engine',
@@ -122,7 +125,7 @@ const en = {
       loaders: {
         label: 'Loaders',
         detail: 'network.ts · transit.ts',
-        text: 'Download the two binary files (once: the browser keeps them for the next visits, even offline), read them as typed arrays and merge the transit layer into the road graph.',
+        text: 'Download the files of the region in view (once: the browser keeps them for the next visits, even offline), inflate them, read them as typed arrays and merge the transit layer into the road graph. When the view moves into another region, its files load in the background while the map stays, then the new network takes over at the same place.',
         file: 'web/src/engine/network.ts',
       },
       profile: {
@@ -140,7 +143,7 @@ const en = {
       snap: {
         label: 'Snap',
         detail: 'cursor → nearest street',
-        text: 'The cursor can be in a park or on a roof. A grid of 80 m cells finds the nearest street the mode can use, and where along it the cursor falls. The walk to that street is added to the trip.',
+        text: 'The cursor can be in a park or on a roof. A grid of 80 m cells finds the nearest street the mode can use, and where along it the cursor falls. The walk to that street is added to the trip. Only the streets one can leave and come back to count: a one-way street into a dead end, or a car street inside a pedestrian zone, would lead nowhere.',
         file: 'web/src/engine/snap.ts',
       },
       dijkstra: {
@@ -172,6 +175,12 @@ const en = {
         detail: 'path, legs, figures',
         text: 'With a pinned point, the path to the cursor is read back from the last computation (no new Dijkstra): streets, waits and lines become the legs of the trip. The figures (area, stations, cycle lanes, stations delayed by closures) come from the same result.',
         file: 'web/src/engine/legs.ts',
+      },
+      compare: {
+        label: 'Mode comparison',
+        detail: 'a worker of its own',
+        text: 'Once the cursor stops on a destination, the same trip on foot, by bike, by car and by public transport. This worker prepares the network of each mode once for the current settings, then each trip is a Dijkstra that stops at its destination: the map that follows the mouse never waits for it.',
+        file: 'web/src/engine/compareWorker.ts',
       },
       tiles: {
         label: 'Plan IGN',
@@ -230,8 +239,8 @@ const en = {
     text: 'The computation runs on your own computer, with no round trip to a server. The engine is written in Rust and compiled to WebAssembly, a format close to machine code that the browser runs almost as fast as an installed program. JavaScript could do the same work, but more slowly and with small freezes: from time to time it stops to clean up its memory (the garbage collector). The Rust engine reuses the same memory on every computation, so it never pauses.',
     stats: [
       { value: '30 KB', label: 'engine, compiled' },
-      { value: '539 k', label: 'street crossings' },
-      { value: '1,984', label: 'transit lines' },
+      { value: '13', label: 'regions' },
+      { value: '18 M', label: 'road edges' },
       { value: '0', label: 'server or request per move' },
     ],
     rust: 'The heart of the engine (Rust): spread from the closest node, never beyond the maximum time.',
@@ -253,7 +262,7 @@ const en = {
 const fr: typeof en = {
   title: 'Comment ça marche',
   lead:
-    'Chaque mouvement de souris recalcule le temps de trajet vers plus d’un demi-million de carrefours d’Île-de-France et les redessine, dans votre navigateur, sans serveur. Voici comment.',
+    'Chaque mouvement de souris recalcule le temps de trajet vers les carrefours de la région affichée, jusqu’à quelques millions, et les redessine, dans votre navigateur, sans serveur. Toute la France métropolitaine, une région à la fois. Voici comment.',
   backToMap: 'Retour à la carte',
   sourceCode: 'Code source',
   legalNotice: 'Mentions légales',
@@ -275,6 +284,8 @@ const fr: typeof en = {
       path: 'chemin',
       stop: 'quand le curseur s’arrête',
       address: 'adresses',
+      networkCopy: 'copie du réseau',
+      fourModes: 'même trajet, 4 modes',
       slopes: 'montée, descente',
       closed: 'arêtes fermées',
       sameTimes: 'mêmes temps des nœuds',
@@ -292,12 +303,12 @@ const fr: typeof en = {
       wfs: {
         label: 'Routes BD TOPO',
         detail: 'WFS Géoplateforme',
-        text: 'Tous les tronçons de route d’Île-de-France, avec leur sens de circulation, l’accès piéton et voiture, la vitesse moyenne, les aménagements cyclables et le nom de la rue. Téléchargés page par page depuis le service WFS de la Géoplateforme.',
+        text: 'Tous les tronçons de route de France métropolitaine, région par région, avec leur sens de circulation, l’accès piéton et voiture, la vitesse moyenne, les aménagements cyclables et le nom de la rue. Téléchargés tuile par tuile depuis le service WFS de la Géoplateforme ; hors des principaux centres-villes, le service écarte lui-même chemins et voies de service.',
       },
       gtfs: {
-        label: 'Horaires IDFM',
+        label: 'Horaires',
         detail: 'GTFS, transport.data.gouv.fr',
-        text: 'Les horaires d’Île-de-France Mobilités : toutes les courses de métro, RER, tram et bus de la région, au format standard GTFS.',
+        text: 'Les horaires de transports en commun au format standard GTFS : Île-de-France Mobilités, les agrégats régionaux des réseaux urbains et interurbains (sept régions), et les trains SNCF là où il n’y a pas encore d’agrégat.',
       },
       relief: {
         label: 'Altitudes BD TOPO',
@@ -312,19 +323,19 @@ const fr: typeof en = {
       },
       gtfsPrep: {
         label: 'gtfs-prep',
-        detail: 'Rust, natif',
-        text: 'Lit les horaires de toute la région et garde, pour un jour de semaine de référence et pour chaque heure, le temps de trajet médian entre deux stations et l’attente moyenne (la moitié du temps entre deux départs).',
+        detail: 'Rust, région par région',
+        text: 'Lancé par buildTransit.ts pour chaque région sur son flux, aligné sur son réseau routier. Lit les horaires de la région et garde, pour un jour de semaine de référence et pour chaque heure, le temps de trajet médian entre deux stations et l’attente moyenne (la moitié du temps entre deux départs).',
         file: 'crates/gtfs-prep/src/main.rs',
       },
       graphBin: {
-        label: 'graph.bin',
-        detail: '26 Mo · 539 k nœuds',
-        text: 'Un fichier binaire compact : de simples tableaux de nombres à la suite (12 Mo compressé), montées et descentes comprises. Le navigateur les lit directement comme tableaux typés à la fin du téléchargement, sans analyse. Hors de Paris et de la petite couronne, les chemins et voies de service sont laissés de côté pour l’alléger.',
+        label: 'Réseaux routiers',
+        detail: '13 régions · 18 M arêtes',
+        text: 'Un fichier binaire compact par région : de simples tableaux de nombres à la suite, montées et descentes comprises, compressés (1 à 52 Mo). Le navigateur les lit directement comme tableaux typés à la fin du téléchargement, sans analyse. Chaque région déborde d’environ 20 km, pour les trajets qui passent sa frontière.',
       },
       transitBin: {
-        label: 'transit.bin',
-        detail: '11 Mo · 1 984 lignes',
-        text: 'Stations, lignes avec leurs couleurs, attentes et temps de trajet heure par heure, et tracés des lignes. Greffé sur le graphe routier au chargement de la page : chaque station est reliée aux rues les plus proches.',
+        label: 'Couches transports',
+        detail: '12 régions',
+        text: 'Par région, les stations, les lignes avec leurs couleurs, attentes et temps de trajet heure par heure, et tracés des lignes. Greffé sur le graphe routier au chargement de la page : chaque station est reliée aux rues les plus proches.',
       },
       engineCrate: {
         label: 'crates/engine',
@@ -340,7 +351,7 @@ const fr: typeof en = {
       loaders: {
         label: 'Chargement',
         detail: 'network.ts · transit.ts',
-        text: 'Télécharge les deux fichiers binaires (une seule fois : le navigateur les garde pour les visites suivantes, même hors ligne), les lit comme tableaux typés et fusionne la couche transports en commun dans le graphe routier.',
+        text: 'Télécharge les fichiers de la région affichée (une seule fois : le navigateur les garde pour les visites suivantes, même hors ligne), les décompresse, les lit comme tableaux typés et fusionne la couche transports en commun dans le graphe routier. Quand la vue passe dans une autre région, ses fichiers se chargent en arrière-plan, la carte restant affichée, puis le nouveau réseau prend le relais au même endroit.',
         file: 'web/src/engine/network.ts',
       },
       profile: {
@@ -358,7 +369,7 @@ const fr: typeof en = {
       snap: {
         label: 'Accroche',
         detail: 'curseur → rue la plus proche',
-        text: 'Le curseur peut être dans un parc ou sur un toit. Une grille de cases de 80 m trouve la rue praticable la plus proche, et l’endroit de la rue où tombe le curseur. La marche jusqu’à cette rue est ajoutée au trajet.',
+        text: 'Le curseur peut être dans un parc ou sur un toit. Une grille de cases de 80 m trouve la rue praticable la plus proche, et l’endroit de la rue où tombe le curseur. La marche jusqu’à cette rue est ajoutée au trajet. Seules comptent les rues d’où l’on peut repartir et revenir : un sens unique sans issue, ou une rue voiture au milieu d’une zone piétonne, ne mèneraient nulle part.',
         file: 'web/src/engine/snap.ts',
       },
       dijkstra: {
@@ -390,6 +401,12 @@ const fr: typeof en = {
         detail: 'chemin, étapes, chiffres',
         text: 'Avec un point fixé, le chemin jusqu’au curseur est relu dans le dernier calcul (pas de nouveau Dijkstra) : rues, attentes et lignes deviennent les étapes du trajet. Les chiffres (surface, stations, pistes cyclables, stations retardées par les coupures) viennent du même résultat.',
         file: 'web/src/engine/legs.ts',
+      },
+      compare: {
+        label: 'Comparaison des modes',
+        detail: 'un worker dédié',
+        text: 'Quand le curseur s’arrête sur une destination, le même trajet à pied, à vélo, en voiture et en transports en commun. Ce worker prépare une fois le réseau de chaque mode pour les réglages en cours, puis chaque trajet est un Dijkstra qui s’arrête à sa destination : la carte qui suit la souris ne l’attend jamais.',
+        file: 'web/src/engine/compareWorker.ts',
       },
       tiles: {
         label: 'Plan IGN',
@@ -448,8 +465,8 @@ const fr: typeof en = {
     text: 'Le calcul se fait sur votre ordinateur, sans aller-retour vers un serveur. Le moteur est écrit en Rust et compilé en WebAssembly, un format proche du langage machine que le navigateur exécute presque aussi vite qu’un programme installé. JavaScript pourrait faire le même travail, mais plus lentement et avec de petits à-coups : de temps en temps, il s’arrête pour faire le ménage dans sa mémoire (le « ramasse-miettes »). Le moteur Rust réutilise la même mémoire à chaque calcul, il n’a donc jamais à s’arrêter.',
     stats: [
       { value: '30 Ko', label: 'moteur compilé' },
-      { value: '539 k', label: 'carrefours' },
-      { value: '1 984', label: 'lignes de transport' },
+      { value: '13', label: 'régions' },
+      { value: '18 M', label: 'tronçons de route' },
       { value: '0', label: 'serveur ou requête par mouvement' },
     ],
     rust: 'Le cœur du moteur (Rust) : s’étendre depuis le nœud le plus proche, jamais au-delà du temps maximum.',

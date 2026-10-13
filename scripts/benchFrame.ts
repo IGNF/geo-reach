@@ -3,11 +3,10 @@
  * head office: finds what makes the map lag on long runs. Run: `bun scripts/benchFrame.ts [mode] [minutes]`.
  */
 import { contourGrid, isochroneLines, joinSegments } from '@/engine/contours';
-import { loadRoadNetwork } from '@/engine/network';
 import { buildProfile, DEFAULT_MODEL } from '@/engine/profile';
 import { SnapIndex } from '@/engine/snap';
 import { isEngine } from '@/engine/wasm';
-import { loadTransit } from '@/engine/transit';
+import { loadRegion } from './regionData';
 import type { Mode } from '@/lib/config';
 import { contourMinutes } from '@/lib/config';
 
@@ -16,10 +15,7 @@ const arg = process.argv[2] ?? 'car';
 const mode = MODES.find((m) => m === arg);
 if (!mode) throw new Error(`mode: one of ${MODES.join(', ')}`);
 const minutes = Number(process.argv[3] ?? 30);
-const data = (file: string) => new URL(`../web/public/data/${file}`, import.meta.url).href;
-
-const roads = await loadRoadNetwork(data('graph.bin'));
-const net = (await loadTransit(data('transit.bin')))(roads);
+const net = await loadRegion();
 const profile = buildProfile(net, { mode, direction: 'departure', bus: false, hour: Number(process.argv[4] ?? 8), model: DEFAULT_MODEL, closed: new Uint32Array(0) });
 
 // The engine, as the worker runs it

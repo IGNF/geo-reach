@@ -9,9 +9,9 @@ tiles and two optional Géoplateforme queries made when the cursor stops (route 
 ```mermaid
 flowchart LR
   subgraph prep["Offline, once (developer machine)"]
-    WFS["GPF WFS<br/>BD TOPO troncon_de_route"] -->|scripts/buildGraph.ts| G[graph.bin<br/>~26 MB, 12 MB gz]
+    WFS["GPF WFS<br/>BD TOPO troncon_de_route"] -->|scripts/buildGraph.ts| G["regions/&lt;id&gt;.bin.gz<br/>13 regions, 1 to 52 MB"]
     Z["BD TOPO heights (Z)<br/>RGE ALTI"] -->|climb, descent| G
-    GTFS["IDFM GTFS<br/>(transport.data.gouv.fr)"] -->|crates/gtfs-prep| T[transit.bin<br/>~11 MB, 2 MB gz]
+    GTFS["GTFS feeds<br/>(transport.data.gouv.fr)"] -->|scripts/buildTransit.ts<br/>crates/gtfs-prep| T["regions/&lt;id&gt;.transit.bin.gz<br/>12 regions"]
     G -. zone origin + bbox .-> T
     RS[crates/engine] -->|scripts/buildEngine.ts<br/>cargo → wasm32| W[engine.wasm]
   end
@@ -38,8 +38,8 @@ flowchart LR
 
 | Path | Language | Role |
 |---|---|---|
-| `scripts/buildGraph.ts` | TypeScript (Bun) | Downloads the BD TOPO road sections of the zone from the GPF WFS and writes `graph.bin` |
-| `crates/gtfs-prep` | Rust (native) | Reads the IDFM GTFS zip and writes `transit.bin`, aligned on the origin of `graph.bin` |
+| `scripts/buildGraph.ts` | TypeScript (Bun) | Downloads the BD TOPO road sections of a region from the GPF WFS and writes its road file |
+| `scripts/buildTransit.ts`, `crates/gtfs-prep` | TypeScript (Bun), Rust (native) | Downloads a region's GTFS feed and writes its transit file, aligned on the origin of its road file |
 | `crates/engine` | Rust → WebAssembly | Bounded multi-source Dijkstra, ~180 lines, no dependencies |
 | `scripts/buildEngine.ts` | TypeScript (Bun) | `cargo build --target wasm32-unknown-unknown`, copies the result to `web/src/engine/engine.wasm` |
 | `web/src/engine/` | TypeScript | Loads the binaries, builds the per-mode graph, drives the WASM engine, rebuilds paths |
@@ -115,4 +115,4 @@ opens the same view. No other persistence.
 
 - [Engine](engine.md): graph model, costs, Dijkstra, snapping, paths.
 - [Rendering](rendering.md): the WebGL layer and its shader.
-- [Data formats](data-formats.md): `graph.bin` and `transit.bin`, byte by byte, and how to rebuild them.
+- [Data formats](data-formats.md): the road and transit files of the regions, byte by byte, and how to rebuild them.

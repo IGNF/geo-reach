@@ -1,8 +1,7 @@
 /**
  * Builds the routing graph of a region from the BD TOPO road sections of the Géoplateforme (WFS), once, into a compact
- * binary file served with the app: web/public/data/graph.bin for Île-de-France (the box its transit.bin was built on),
- * web/public/data/regions/<id>.bin.gz for the others (gzipped), with a margin beyond the region for the trips that
- * cross its edge.
+ * gzipped binary file served with the app, web/public/data/regions/<id>.bin.gz: the region's box plus a margin, for
+ * the trips that cross its edge.
  * Run: `bun scripts/buildGraph.ts [region id]` (Île-de-France by default; the ids are in web/src/lib/regions.ts).
  *
  * The region is downloaded tile by tile (short WFS requests: deep paging over a million objects is slow), cached
@@ -39,9 +38,8 @@ import { DENSE_AREAS } from './denseAreas';
 
 const REGION = regionById(process.argv[2] ?? DEFAULT_REGION);
 if (process.argv[2] && REGION.id !== process.argv[2]) throw new Error(`Unknown region: ${process.argv[2]}`);
-const IDF = REGION.id === DEFAULT_REGION;
-/** Beyond the region, degrees (about 20 km): trips crossing its edge; none for Île-de-France (its transit.bin box) */
-const MARGIN = IDF ? 0 : 0.25;
+/** Beyond the region, degrees (about 20 km): the trips crossing its edge */
+const MARGIN = 0.25;
 
 interface Box {
   minLng: number;
@@ -60,8 +58,8 @@ const TILE = { lng: 0.1, lat: 0.08 };
 const SIMPLIFY_METRES = 3;
 /** Pages with their Z (bdtopo/ held 2D pages, before slopes) */
 const CACHE = new URL('../.cache/bdtopo-z/', import.meta.url);
-/** Gzipped for the other regions: every file under the 100 MB of GitHub, half the download */
-const OUT = new URL(IDF ? '../web/public/data/graph.bin' : `../web/public/data/regions/${REGION.id}.bin.gz`, import.meta.url);
+/** Gzipped: every file under the 100 MB of GitHub, half the download */
+const OUT = new URL(`../web/public/data/regions/${REGION.id}.bin.gz`, import.meta.url);
 /** Server-side filter of the tiles away from the city centres: what addSection would drop anyway */
 const OUTER_FILTER = "nature NOT IN ('Sentier','Chemin','Escalier','Route empierrée') AND importance <> '6'";
 /** Climb or descent counted only once the terrain has moved this much from the last turning point, metres */
@@ -537,7 +535,7 @@ put(points, Int16Array);
 offset = align4(offset);
 new Uint8Array(buffer, offset, namesBytes.length).set(namesBytes);
 
-await Bun.write(OUT, IDF ? buffer : Bun.gzipSync(new Uint8Array(buffer), { level: 9 }));
+await Bun.write(OUT, Bun.gzipSync(new Uint8Array(buffer), { level: 9 }));
 console.log(
   `${REGION.id}: ${nodes.length / 2} nodes, ${E} edges, ${points.length / 2} interior points, ${names.length} names, ${(size / 1e6).toFixed(1)} MB`,
 );

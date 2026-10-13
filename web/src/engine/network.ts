@@ -2,8 +2,8 @@ import { BinaryReader } from '@/lib/binaryReader';
 import { loadData, type Progress } from '@/lib/dataCache';
 
 /**
- * The network the engine runs on: the BD TOPO road sections (graph.bin, built by scripts/buildGraph.ts), and the
- * public transport layer when it is loaded (transit.bin, scripts/buildTransit.ts). Positions are Web Mercator metres
+ * The network the engine runs on: the BD TOPO road sections of a region (GRF4 file, scripts/buildGraph.ts), and its
+ * public transport layer when it has one (TRN3 file, scripts/buildTransit.ts). Positions are Web Mercator metres
  * relative to the zone origin, so that they fit in 32 bit floats.
  */
 
@@ -75,7 +75,7 @@ export interface Network {
   stopNames: Map<number, string>;
   /** Station nodes served by a metro, RER, train or tram line */
   railStations: Uint32Array;
-  /** First station node: stations are numbered from it in transit.bin order (the road node count) */
+  /** First station node: stations are numbered from it in the transit file's order (the road node count) */
   firstStation: number;
   /** Station node of each line stop node */
   stopStation: Map<number, number>;
@@ -121,15 +121,15 @@ const rebuildGeometries = (
   return { coordStart, coords };
 };
 
-/** Downloads (or reads from the browser cache) and decodes graph.bin */
+/** Downloads (or reads from the browser cache) and decodes a road network file */
 export const loadRoadNetwork = async (url: string, onProgress?: Progress): Promise<Network> =>
   readRoadNetwork(await loadData(url, onProgress));
 
-/** Decodes graph.bin (scripts/buildGraph.ts) */
+/** Decodes a road network file, GRF4 (scripts/buildGraph.ts) */
 export const readRoadNetwork = (buffer: ArrayBuffer): Network => {
   const header = new Uint32Array(buffer, 0, 5);
   const [magic, nodeCount, E, pointCount, namesBytes] = header;
-  if (magic !== MAGIC) throw new Error('graph.bin: unknown format');
+  if (magic !== MAGIC) throw new Error('road network file: not GRF4');
 
   const file = new BinaryReader(buffer, 24);
   const origin: [number, number] = [file.float64(), file.float64()];

@@ -1,7 +1,7 @@
 /**
- * The public transport timetables (GTFS) of each region, on transport.data.gouv.fr: the regional aggregate of the
- * urban and interurban networks where there is one; elsewhere the national SNCF feed (TER, Intercités, TGV), which
- * gtfs-prep cuts to the region. Île-de-France has its own (IDFM), built apart into transit.bin.
+ * The public transport timetables (GTFS) of each region, on transport.data.gouv.fr: Île-de-France Mobilités, the
+ * regional aggregate of the urban and interurban networks where there is one, elsewhere the national SNCF feed (TER,
+ * Intercités, TGV), which gtfs-prep cuts to the region.
  */
 const SNCF = 'https://www.data.gouv.fr/api/1/datasets/r/9ae758ec-cd7a-40cd-a890-bb3963224942';
 
@@ -12,6 +12,10 @@ export interface TransitFeed {
 }
 
 export const TRANSIT_FEEDS: Record<string, TransitFeed> = {
+  'ile-de-france': {
+    name: 'Île-de-France Mobilités (metro, RER, train, tram, bus)',
+    url: 'https://www.data.gouv.fr/api/1/datasets/r/413988ed-d340-467b-8be2-7b999fcd207a',
+  },
   normandie: {
     name: 'Agrégat des réseaux de Normandie (Twisto, Astuce, LiA, Nomad…)',
     url: 'https://transport.data.gouv.fr/resources/81942/download',

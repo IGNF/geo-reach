@@ -1,18 +1,16 @@
 # Data formats
 
-Both files are little endian, every section 4-byte aligned, so the browser reads them as typed array views on the
-fetched `ArrayBuffer` (no parsing, no copy). Positions are `f32` Web Mercator metres relative to the zone origin
-stored in `graph.bin`.
+Each region has two files, `web/public/data/regions/<id>.bin.gz` (roads, GRF4) and `<id>.transit.bin.gz` (public
+transport, TRN3), gzipped and inflated by the browser (`web/src/lib/dataCache.ts`). Inflated, both are little endian,
+every section 4-byte aligned, so the browser reads them as typed array views on the `ArrayBuffer` (no parsing, no
+copy). Positions are `f32` Web Mercator metres relative to the region's origin, stored in its road file. File by
+file: `web/public/data/README.md`.
 
-## graph.bin (road network)
+## Road network (GRF4, `<id>.bin.gz`)
 
 Written by `scripts/buildGraph.ts`, read by `web/src/engine/network.ts` (`readRoadNetwork`), which rebuilds the full
-geometries (`coords`, `coordStart`) once at load. One file per region, same format: `graph.bin` for Île-de-France,
-`regions/<id>.bin.gz` for the others, gzipped (inflated by the browser, `lib/dataCache.ts`) (their box plus a 0.25° margin, about 20 km, for the trips crossing their edge).
-Each file has its own origin, at the centre of its box. The other regions' public transport is in
-`regions/<id>.transit.bin.gz` (same TRN3 format, gzipped), built by `scripts/buildTransit.ts` from the feeds of
-`scripts/transitFeeds.ts`; `gtfs-prep` takes feeds without `calendar.txt` or `shapes.txt`, and turns the extended
-GTFS route types into the basic ones (ferries go with the buses). File by file: `web/public/data/README.md`.
+geometries (`coords`, `coordStart`) once at load. Each file covers its region's box plus a 0.25° margin (about 20 km),
+for the trips crossing its edge, and has its own origin at the centre of that box.
 
 | Section | Type | Content |
 |---|---|---|
@@ -54,9 +52,12 @@ past 0.5 m (hysteresis), so the small bumps of the terrain model do not add up; 
 Nodes are the section ends, merged when their coordinates are equal to 7 decimals. Sections no mode can use are
 dropped.
 
-## transit.bin (public transport layer)
+## Public transport (TRN3, `<id>.transit.bin.gz`)
 
-Written by `crates/gtfs-prep`, read by `web/src/engine/transit.ts` (`loadTransit`).
+Written by `crates/gtfs-prep` (run by `scripts/buildTransit.ts` on the feed of `scripts/transitFeeds.ts`), read by
+`web/src/engine/transit.ts` (`readTransit`). `gtfs-prep` takes feeds without `calendar.txt` or `shapes.txt` (the
+rides then go straight from stop to stop), and turns the extended GTFS route types into the basic ones (ferries go
+with the buses).
 
 | Section | Type | Content |
 |---|---|---|
@@ -93,16 +94,13 @@ so that the app builds without Rust.
 ## Rebuilding
 
 ```sh
-bun run data                # graph.bin (Île-de-France), WFS read tile by tile, about a minute
-bun run data -- occitanie   # regions/occitanie.bin.gz, the ids are in web/src/lib/regions.ts
-mkdir -p .cache/gtfs
-curl -L -o .cache/gtfs/idfm.zip https://www.data.gouv.fr/api/1/datasets/r/413988ed-d340-467b-8be2-7b999fcd207a
-cargo run -p gtfs-prep --release -- .cache/gtfs/idfm.zip web/public/data/graph.bin web/public/data/transit.bin
+bun run data -- occitanie      # roads: WFS read tile by tile, about a minute (the ids are in web/src/lib/regions.ts)
+bun run transit -- occitanie   # public transport: gtfs-prep on the region's feed, needs cargo
 ```
 
-`transit.bin` depends on `graph.bin` (origin and bbox): rebuild it whenever the Île-de-France box changes
-(`web/src/lib/regions.ts`). Away from the city centres (`scripts/denseAreas.ts`) the WFS filters the paths, tracks,
-stairs and service roads out itself (`CQL_FILTER`, cached apart as `-f` pages). On the IGN network, set `HTTPS_PROXY=http://proxy.ign.fr:3128` for these tools.
+A region's transit file depends on its road file (origin and box): rebuild it after the roads. Away from the city centres (`scripts/denseAreas.ts`) the WFS filters the paths, tracks,
+stairs and service roads out itself (`CQL_FILTER`, cached apart as `-f` pages). On the IGN network, set `HTTPS_PROXY=http://proxy.ign.fr:3128` for
+these tools.
 
 ## In the browser
 

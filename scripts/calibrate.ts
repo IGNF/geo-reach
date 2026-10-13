@@ -7,12 +7,12 @@
  * Reference speeds for Paris (orders of magnitude): car 13–15 km/h at peak hours, 17–20 km/h during the day,
  * 25–30 km/h at night, faster in the suburbs; bike 12–14 km/h door to door; walk 4 km/h.
  */
-import { EDGE_ROAD, loadRoadNetwork, type Network } from '@/engine/network';
-import { loadTransit } from '@/engine/transit';
+import { EDGE_ROAD, type Network } from '@/engine/network';
+import { loadRegion, loadRoads } from './regionData';
 import { LANDMARKS } from '@/lib/config';
 import { buildProfile, DEFAULT_MODEL, type Profile, type ProfileOptions } from '@/engine/profile';
 
-const net = await loadRoadNetwork(new URL('../web/public/data/graph.bin', import.meta.url).href);
+const net = await loadRoads();
 const R = 6378137;
 const [ox, oy] = net.origin;
 const lngLat = (n: number): [number, number] => [
@@ -122,7 +122,7 @@ if (process.argv.includes('--gpf')) {
 
 if (process.argv.includes('--transit')) {
   // Transit from the IGN head office at 8 am, to compare with a journey planner
-  const full = (await loadTransit(new URL('../web/public/data/transit.bin', import.meta.url).href))(net);
+  const full = await loadRegion();
   const p = buildProfile(full, { ...base, mode: 'transit', hour: 8 });
   const nearest = (lng: number, lat: number) => {
     let best = 0;

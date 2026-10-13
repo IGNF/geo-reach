@@ -1,13 +1,15 @@
-//! Builds the public transport layer of geo-reach from a GTFS feed (Île-de-France Mobilités), for the zone of
-//! graph.bin. Frequency model, as in accessibility studies: on a reference weekday, for each hour of the day,
+//! Builds the public transport layer of a region of geo-reach from a GTFS feed (Île-de-France Mobilités, a regional
+//! aggregate, the SNCF trains), for the zone of the region's road network. Frequency model, as in accessibility
+//! studies: on a reference weekday, for each hour of the day,
 //!
 //! - a ride between two consecutive stations of a line takes the median scheduled time;
 //! - boarding a line at a station costs half its interval there (capped), plus a fixed transfer penalty; with no
 //!   departure in that hour, the line cannot be boarded (infinite wait).
 //!
-//! Platforms are merged into their station (`parent_station`). Ride geometries come from the GTFS shapes.
+//! Platforms are merged into their station (`parent_station`). Ride geometries come from the GTFS shapes, or go
+//! straight from stop to stop when the feed has none. Usually run by `scripts/buildTransit.ts`.
 //!
-//! Usage: `cargo run -p gtfs-prep --release -- <feed.zip> <graph.bin> <transit.bin> [YYYYMMDD]`
+//! Usage: `cargo run -p gtfs-prep --release -- <feed.zip> <roads.bin> <transit.bin> [YYYYMMDD]`
 //!
 //! Modules: [`zone`] (the area and its projection), [`feed`] (reading the GTFS zip), [`schedule`] (the trips of the
 //! day, aggregated by line segment and hour), [`layer`] (the output tables and their binary layout).
@@ -37,7 +39,7 @@ fn megabytes(bytes: usize) -> f64 {
 fn main() -> Res<()> {
     let args: Vec<String> = std::env::args().collect();
     let [_, feed_path, graph_path, out_path, rest @ ..] = args.as_slice() else {
-        return Err("usage: gtfs-prep <feed.zip> <graph.bin> <transit.bin> [YYYYMMDD]".into());
+        return Err("usage: gtfs-prep <feed.zip> <roads.bin> <transit.bin> [YYYYMMDD]".into());
     };
     let date: u32 = rest
         .first()
@@ -51,7 +53,7 @@ fn main() -> Res<()> {
     let bytes = layer.to_bytes();
     std::fs::write(out_path, &bytes)?;
     eprintln!(
-        "transit.bin: {}, {:.1} MB",
+        "transit layer: {}, {:.1} MB",
         layer.summary(),
         megabytes(bytes.len())
     );

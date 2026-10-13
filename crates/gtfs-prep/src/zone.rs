@@ -1,4 +1,4 @@
-//! The zone of the road graph: its origin and bounding box, read from the header of graph.bin.
+//! The zone of the road network: its origin and bounding box, read from the header of the region's road file (GRF4).
 
 use crate::Res;
 use std::fs::File;
@@ -14,7 +14,7 @@ pub struct Zone {
 }
 
 impl Zone {
-    /// Reads the origin and the bounding box from the header of graph.bin (see scripts/buildGraph.ts)
+    /// Reads the origin and the bounding box from the header of a road file, uncompressed (see scripts/buildGraph.ts)
     pub fn read(path: &str) -> Res<Self> {
         let mut head = [0u8; 72];
         File::open(path)?.read_exact(&mut head)?;
