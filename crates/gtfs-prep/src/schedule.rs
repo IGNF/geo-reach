@@ -168,8 +168,8 @@ fn read_routes(zip: &mut Archive) -> Res<HashMap<String, Route>> {
             r.get("route_id").into(),
             Route {
                 name: r.get("route_short_name").into(),
-                color: feed::hex(r.get("route_color"), 0x666666),
-                text: feed::hex(r.get("route_text_color"), 0xffffff),
+                color: feed::hex(r.get("route_color"), 0x66_6666),
+                text: feed::hex(r.get("route_text_color"), 0xff_ffff),
                 kind: r.get("route_type").parse().unwrap_or(3),
             },
         );
@@ -238,7 +238,7 @@ fn read_stop_times(
             seg.times
                 .push((hour, arr.saturating_sub(p.departure).max(30)));
             if seg.shape.is_empty() {
-                seg.shape = shape.clone();
+                seg.shape.clone_from(shape);
                 seg.from_pos = p.pos;
                 seg.to_pos = (stop.lng, stop.lat);
             }

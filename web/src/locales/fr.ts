@@ -1,4 +1,4 @@
-import type { Messages } from './en';
+import type { Messages } from '@/locales/en';
 
 /** Interface texts, French */
 export const fr: Messages = {
@@ -23,6 +23,20 @@ export const fr: Messages = {
     car: { normal: 'Trafic estimé de l’heure', disrupted: 'Vitesses réduites de 25 %', severe: 'Vitesses réduites de 45 %' },
   },
   scenarioNote: 'Coefficients de simulation, pas des données mesurées',
+  cuts: {
+    start: 'Simuler une coupure',
+    title: 'Coupures',
+    hint: 'Cliquez une ligne ou une rue pour la couper. Échap : terminer.',
+    done: 'Terminer',
+    add: 'Couper encore',
+    reopen: 'Rétablir',
+    reopenAll: 'Tout rétablir',
+    hover: (what: string) => `Couper : ${what}`,
+    hoverCut: (what: string) => `Rétablir : ${what}`,
+    impact: (n: number, reached: number, min: number) =>
+      `station${n > 1 ? 's' : ''} sur ${reached} à portée perd${n > 1 ? 'ent' : ''} plus de ${min} min`,
+    beyond: (scale: number) => `> ${scale} min`,
+  },
   departureAt: 'Départ',
   hour: (h) => `${h} h`,
   traffic: { fluid: 'fluide', moderate: 'modéré', dense: 'dense' },

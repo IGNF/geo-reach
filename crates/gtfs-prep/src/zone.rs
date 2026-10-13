@@ -4,7 +4,7 @@ use crate::Res;
 use std::fs::File;
 use std::io::Read;
 
-const R: f64 = 6378137.0;
+const R: f64 = 6_378_137.0;
 
 pub struct Zone {
     /// Web Mercator metres of the zone centre: every output position is relative to it
@@ -29,7 +29,8 @@ impl Zone {
         lng >= self.bbox.0 && lat >= self.bbox.1 && lng <= self.bbox.2 && lat <= self.bbox.3
     }
 
-    /// Web Mercator metres relative to the zone origin
+    /// Web Mercator metres relative to the zone origin: tens of kilometres at most, so f32 keeps centimetres
+    #[allow(clippy::cast_possible_truncation)]
     pub fn project(&self, lng: f64, lat: f64) -> (f32, f32) {
         let d2r = std::f64::consts::PI / 180.0;
         let x = R * lng * d2r - self.origin.0;

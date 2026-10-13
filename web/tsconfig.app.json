@@ -15,8 +15,13 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
+    /* Imports from src as `@/engine/network`, not `../engine/network` */
+    "paths": { "@/*": ["./src/*"] },
 
     /* Linting */
+    "strict": true,
+    "noImplicitReturns": true,
+    "noImplicitOverride": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,

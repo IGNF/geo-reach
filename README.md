@@ -30,6 +30,10 @@ public transport, and the map lights up from green (close) to red (far).
 - **Departure or arrival**: "where can I go from here" or "where can people come from to reach this point".
 - **Travel time up to**: one duration for the colors and the figures, with contour lines every 10 or 15 min.
 - **Scenarios**: disrupted transit (fewer departures, slower rides) or congested roads, as what-if coefficients.
+- **Simulate a closure**: "Simulate a closure", then a click on a metro, RER or tram section or on a street closes
+  it; the whole map is recomputed around it, and the panel counts the stations within reach that lose more than
+  5 min (e.g. line 1 closed between Château de Vincennes and Bérault: Nation goes from 10 to 18 min, by the RER A).
+  "Default values" reopens everything.
 - **Adjust the calculation**: walking and cycling speed, traffic, average or worst-case wait, transfer time.
 - **Read the figures**: stations and lines you can board, nearest station, cycle lanes, travel times to well-known
   places (Châtelet, Gare de Lyon, La Défense…).
@@ -101,7 +105,12 @@ Requirements: [Bun](https://bun.sh). Rust is only needed to change the engine (s
 bun install
 bun run dev        # http://127.0.0.1:5173
 bun run build      # static site in web/dist
+bun run typecheck  # strict TypeScript: the app and the scripts
+bun run lint       # also: explicit types on exports, const over let, no `../` imports
 ```
+
+Imports inside the app go through the `@/` alias (`@/engine/network` for `web/src/engine/network.ts`), set in
+`web/tsconfig.app.json`, `web/vite.config.ts`, and `web/tsconfig.json` + `scripts/tsconfig.json` for Bun.
 
 The prepared data (`web/public/data/*.bin`) and the compiled engine (`web/src/engine/engine.wasm`) are in
 the repository: no data download, no Rust needed to run the app.
@@ -116,6 +125,8 @@ the repository: no data download, no Rust needed to run the app.
 3. **Drawing**: a WebGL layer on top of the MapLibre map colors every street on the graphics card; only the new
    times are sent at each move. The isochrone lines are traced on a 150 m grid from the reached streets and transit
    lines.
+4. **Closures** (what-if): the closed edges become impassable; a second worker runs the same computation with
+   everything open, and the two are compared station by station.
 
 The same explanation, with an interactive diagram: [How it works](https://ignf.github.io/geo-reach/how-it-works.html).
 
@@ -141,6 +152,8 @@ Install Rust and the WebAssembly target:
 ```sh
 rustup target add wasm32-unknown-unknown
 bun run engine     # also run by `bun run dev` and `bun run build` when cargo is found
+cargo test --workspace
+cargo clippy --workspace --all-targets   # pedantic lints, set in Cargo.toml
 ```
 
 ### Rebuild the data

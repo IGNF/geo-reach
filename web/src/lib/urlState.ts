@@ -1,5 +1,6 @@
-import { DEFAULT_MODEL, type ModelOptions } from '../engine/profile';
-import { type Direction, type LngLat, MAX_SCALE, type Mode } from './config';
+import { type Cut, cutKey, parseCut } from '@/engine/cuts';
+import { DEFAULT_MODEL, type ModelOptions } from '@/engine/profile';
+import { type Direction, type LngLat, MAX_SCALE, type Mode } from '@/lib/config';
 
 export interface ViewState {
   /** Pinned origin; undefined: the origin follows the cursor */
@@ -15,6 +16,8 @@ export interface ViewState {
   contours: boolean;
   /** Assumptions of the travel time model */
   model: ModelOptions;
+  /** Closed sections (what-if) */
+  cuts: Cut[];
 }
 
 export const DEFAULT_STATE: ViewState = {
@@ -25,6 +28,7 @@ export const DEFAULT_STATE: ViewState = {
   scale: 30,
   contours: true,
   model: DEFAULT_MODEL,
+  cuts: [],
 };
 
 /** `walk,bike,traffic,wait,transfer,scenario,relief`, e.g. `4,15,e,h,1.5,n,r` (`f` flat ground) */
@@ -47,12 +51,14 @@ const readModel = (text: string | undefined): ModelOptions => {
 const writeModel = (m: ModelOptions) =>
   [m.walkKmh, m.bikeKmh, m.traffic === 'free' ? 'f' : 'e', m.wait === 'full' ? 'f' : 'h', m.transferMin, m.scenario[0], m.relief ? 'r' : 'f'].join(',');
 
-const MODES: Mode[] = ['transit', 'pedestrian', 'bike', 'car'];
+const MODES: readonly Mode[] = ['transit', 'pedestrian', 'bike', 'car'];
 
-/** `#mode/direction/scale/contours/bus/lng,lat/hour/model`, so that a shared link opens the same view */
+const isMode = (value: string | undefined): value is Mode => MODES.some((m) => m === value);
+
+/** `#mode/direction/scale/contours/bus/lng,lat/hour/model/cuts`, so that a shared link opens the same view */
 export const readUrlState = (): ViewState => {
-  const [mode, direction, scale, contours, bus, pin, hour, model] = window.location.hash.slice(1).split('/');
-  const m = MODES.includes(mode as Mode) ? (mode as Mode) : DEFAULT_STATE.mode;
+  const [mode, direction, scale, contours, bus, pin, hour, model, cuts] = window.location.hash.slice(1).split('/');
+  const m = isMode(mode) ? mode : DEFAULT_STATE.mode;
   const p = pin?.split(',').map(Number);
 
   return {
@@ -62,12 +68,13 @@ export const readUrlState = (): ViewState => {
     contours: contours !== 'off',
     bus: bus === 'bus',
     hour: hour !== undefined && Number(hour) >= 0 && Number(hour) < 24 ? Math.floor(Number(hour)) : DEFAULT_STATE.hour,
-    pinned: p?.length === 2 && p.every(Number.isFinite) ? (p as LngLat) : undefined,
+    pinned: p?.length === 2 && p.every(Number.isFinite) ? [p[0], p[1]] : undefined,
     model: readModel(model),
+    cuts: (cuts ?? '').split(',').flatMap((k) => parseCut(k) ?? []),
   };
 };
 
-export const urlHash = ({ mode, direction, scale, contours, bus, pinned, hour, model }: ViewState) =>
+export const urlHash = ({ mode, direction, scale, contours, bus, pinned, hour, model, cuts }: ViewState): string =>
   `#${mode}/${direction}/${scale}/${contours ? 'on' : 'off'}/${bus ? 'bus' : 'nobus'}/${
     pinned ? pinned.map((v) => v.toFixed(5)).join(',') : ''
-  }/${hour}/${writeModel(model)}`;
+  }/${hour}/${writeModel(model)}${cuts.length ? `/${cuts.map(cutKey).join(',')}` : ''}`;

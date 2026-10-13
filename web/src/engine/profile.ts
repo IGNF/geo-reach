@@ -1,4 +1,4 @@
-import type { Direction, Mode } from '../lib/config';
+import type { Direction, Mode } from '@/lib/config';
 import {
   FLAG_BIKE_BWD,
   FLAG_BIKE_FWD,
@@ -16,7 +16,7 @@ import {
   FLAG_STAIRS,
   FLAG_WALK,
   type Network,
-} from './network';
+} from '@/engine/network';
 
 /** Assumptions of the travel time model, set from the interface */
 export interface ModelOptions {
@@ -105,6 +105,8 @@ export interface ProfileOptions {
   /** Departure hour (0–23): traffic for cars, service frequency for transit */
   hour: number;
   model: ModelOptions;
+  /** Edges closed by the user's cuts (engine/cuts.ts), impassable both ways */
+  closed: Uint32Array;
 }
 
 /** Travel costs of one mode and direction, and the graph the engine runs on (compressed rows) */
@@ -119,7 +121,7 @@ export interface Profile extends ProfileOptions {
   arcEdge: Uint32Array;
 }
 
-const edgeCosts = (net: Network, { mode, bus, hour, model }: ProfileOptions) => {
+const edgeCosts = (net: Network, { mode, bus, hour, model, closed }: ProfileOptions) => {
   const walkSpeed = model.walkKmh / 3.6;
   const scenario = SCENARIOS[model.scenario];
   const bikeSpeed = model.bikeKmh / 3.6;
@@ -171,6 +173,10 @@ const edgeCosts = (net: Network, { mode, bus, hour, model }: ProfileOptions) => 
           }
         } else if (net.edgeKind[e] === EDGE_ALIGHT) fwd[e] = model.transferMin * 60;
     }
+  }
+  for (const e of closed) {
+    fwd[e] = Number.POSITIVE_INFINITY;
+    bwd[e] = Number.POSITIVE_INFINITY;
   }
 
   return { fwd, bwd };

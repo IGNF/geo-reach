@@ -29,7 +29,7 @@ export const RAMP_LUT = (() => {
   return lut;
 })();
 
-export const rampCss = (t: number) => {
+export const rampCss = (t: number): string => {
   const [r, g, b] = rampAt(t).map(Math.round);
 
   return `rgb(${r}, ${g}, ${b})`;

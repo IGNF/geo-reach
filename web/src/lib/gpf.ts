@@ -1,4 +1,4 @@
-import { GPF_BASE, GPF_RESOURCE, type LngLat, type Mode } from './config';
+import { GPF_BASE, GPF_RESOURCE, type LngLat, type Mode } from '@/lib/config';
 
 export interface RouteStep {
   name: string;
@@ -81,7 +81,7 @@ export const fetchRoute = async (
 };
 
 /** Short label of the nearest address, or of the place when there is no address */
-export const reverseGeocode = async ([lon, lat]: LngLat, signal?: AbortSignal) => {
+export const reverseGeocode = async ([lon, lat]: LngLat, signal?: AbortSignal): Promise<string | undefined> => {
   const body = await getJson<{ features: { properties: { name?: string; city?: string; label?: string } }[] }>(
     '/geocodage/reverse',
     { lon: String(lon), lat: String(lat), limit: '1' },

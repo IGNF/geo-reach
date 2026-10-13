@@ -1,4 +1,5 @@
-import { loadData, type Progress } from '../lib/dataCache';
+import { BinaryReader } from '@/lib/binaryReader';
+import { loadData, type Progress } from '@/lib/dataCache';
 
 /**
  * The network the engine runs on: the BD TOPO road sections (graph.bin, built by scripts/buildGraph.ts), and the
@@ -74,72 +75,81 @@ export interface Network {
   stopNames: Map<number, string>;
   /** Station nodes served by a metro, RER, train or tram line */
   railStations: Uint32Array;
+  /** First station node: stations are numbered from it in transit.bin order (the road node count) */
+  firstStation: number;
+  /** Station node of each line stop node */
+  stopStation: Map<number, number>;
 }
 
 const MAGIC = 0x34465247;
 
-/** Reads graph.bin (scripts/buildGraph.ts): interior points are 16 bit deltas, rebuilt here into full geometries */
-export const loadRoadNetwork = async (url: string, onProgress?: Progress): Promise<Network> => {
-  const buffer = await loadData(url, onProgress);
-  const view = new DataView(buffer);
-  if (view.getUint32(0, true) !== MAGIC) throw new Error('graph.bin: unknown format');
-  const nodeCount = view.getUint32(4, true);
-  const E = view.getUint32(8, true);
-  const pointCount = view.getUint32(12, true);
-  const namesBytes = view.getUint32(16, true);
-  let offset = 24;
-  const f64 = () => {
-    const v = view.getFloat64(offset, true);
-    offset += 8;
+/**
+ * Full geometries of the edges: node A, the interior points, node B. Interior points are stored as 16-bit deltas from
+ * the rounded previous point, so they are summed up along the edge.
+ */
+const rebuildGeometries = (
+  nodeXY: Float32Array,
+  edgeA: Uint32Array,
+  edgeB: Uint32Array,
+  pointStart: Uint32Array,
+  deltas: Int16Array,
+): { coordStart: Uint32Array; coords: Float32Array } => {
+  const E = edgeA.length;
 
-    return v;
-  };
-  const origin: [number, number] = [f64(), f64()];
-  const bbox: [number, number, number, number] = [f64(), f64(), f64(), f64()];
-  const take = <T>(Ctor: { new (b: ArrayBuffer, o: number, n: number): T; BYTES_PER_ELEMENT: number }, n: number) => {
-    const array = new Ctor(buffer, offset, n);
-    offset += n * Ctor.BYTES_PER_ELEMENT;
-
-    return array;
-  };
-  const align = () => {
-    offset = (offset + 3) & ~3;
-  };
-  const nodeXY = take(Float32Array, nodeCount * 2);
-  const edgeA = take(Uint32Array, E);
-  const edgeB = take(Uint32Array, E);
-  const edgeName = take(Uint32Array, E);
-  const pointStart = take(Uint32Array, E + 1);
-  const edgeLength = Float32Array.from(take(Uint16Array, E));
-  const edgeClimb = Float32Array.from(take(Uint16Array, E), (dm) => dm / 10);
-  const edgeDescent = Float32Array.from(take(Uint16Array, E), (dm) => dm / 10);
-  const edgeCarSpeed = take(Uint8Array, E);
-  const edgeFlags = take(Uint8Array, E);
-  const edgeImportance = take(Uint8Array, E);
-  align();
-  const points = take(Int16Array, pointCount * 2);
-  align();
-  const names = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, offset, namesBytes))) as string[];
-
-  // Full geometries: node A, the interior points (deltas from the rounded previous point), node B
   const coordStart = new Uint32Array(E + 1);
   for (let e = 0; e < E; e += 1) coordStart[e + 1] = coordStart[e] + 2 + (pointStart[e + 1] - pointStart[e]);
+
   const coords = new Float32Array(coordStart[E] * 2);
   for (let e = 0; e < E; e += 1) {
-    let o = coordStart[e] * 2;
     const [a, b] = [edgeA[e], edgeB[e]];
+    // Running position and write index along the edge (hot loop over 700 k edges)
+    let o = coordStart[e] * 2;
+    let [x, y] = [Math.round(nodeXY[a * 2]), Math.round(nodeXY[a * 2 + 1])];
+
     coords[o++] = nodeXY[a * 2];
     coords[o++] = nodeXY[a * 2 + 1];
-    let [x, y] = [Math.round(nodeXY[a * 2]), Math.round(nodeXY[a * 2 + 1])];
     for (let p = pointStart[e]; p < pointStart[e + 1]; p += 1) {
-      x += points[p * 2];
-      y += points[p * 2 + 1];
+      x += deltas[p * 2];
+      y += deltas[p * 2 + 1];
       coords[o++] = x;
       coords[o++] = y;
     }
     coords[o++] = nodeXY[b * 2];
     coords[o] = nodeXY[b * 2 + 1];
   }
+
+  return { coordStart, coords };
+};
+
+/** Reads graph.bin (scripts/buildGraph.ts) */
+export const loadRoadNetwork = async (url: string, onProgress?: Progress): Promise<Network> => {
+  const buffer = await loadData(url, onProgress);
+  const header = new Uint32Array(buffer, 0, 5);
+  const [magic, nodeCount, E, pointCount, namesBytes] = header;
+  if (magic !== MAGIC) throw new Error('graph.bin: unknown format');
+
+  const file = new BinaryReader(buffer, 24);
+  const origin: [number, number] = [file.float64(), file.float64()];
+  const bbox: [number, number, number, number] = [file.float64(), file.float64(), file.float64(), file.float64()];
+
+  const nodeXY = file.array(Float32Array, nodeCount * 2);
+  const edgeA = file.array(Uint32Array, E);
+  const edgeB = file.array(Uint32Array, E);
+  const edgeName = file.array(Uint32Array, E);
+  const pointStart = file.array(Uint32Array, E + 1);
+  const edgeLength = Float32Array.from(file.array(Uint16Array, E));
+  // Decimetres in the file
+  const edgeClimb = Float32Array.from(file.array(Uint16Array, E), (dm) => dm / 10);
+  const edgeDescent = Float32Array.from(file.array(Uint16Array, E), (dm) => dm / 10);
+  const edgeCarSpeed = file.array(Uint8Array, E);
+  const edgeFlags = file.array(Uint8Array, E);
+  const edgeImportance = file.array(Uint8Array, E);
+  file.align();
+  const deltas = file.array(Int16Array, pointCount * 2);
+  file.align();
+  const names = file.json<string[]>(namesBytes);
+
+  const { coordStart, coords } = rebuildGeometries(nodeXY, edgeA, edgeB, pointStart, deltas);
 
   return {
     origin,
@@ -165,5 +175,7 @@ export const loadRoadNetwork = async (url: string, onProgress?: Progress): Promi
     lines: [],
     stopNames: new Map(),
     railStations: new Uint32Array(0),
+    firstStation: nodeCount,
+    stopStation: new Map(),
   };
 };

@@ -1,6 +1,6 @@
-import { EDGE_ALIGHT, EDGE_BOARD, EDGE_LINK, EDGE_RIDE, type Line, type Network } from './network';
-import type { Mode } from '../lib/config';
-import type { PathStep } from './travelEngine';
+import { EDGE_ALIGHT, EDGE_BOARD, EDGE_LINK, EDGE_RIDE, type Line, type Network } from '@/engine/network';
+import type { Mode } from '@/lib/config';
+import type { PathStep } from '@/engine/travelEngine';
 
 export interface Leg {
   kind: 'walk' | 'cycle' | 'drive' | 'wait' | 'ride';

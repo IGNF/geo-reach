@@ -7,3 +7,6 @@ description = "Builds the public transport layer of geo-reach (transit.bin) from
 [dependencies]
 csv = "1"
 zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[lints]
+workspace = true

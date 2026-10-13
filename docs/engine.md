@@ -69,6 +69,18 @@ arcEdge[arc]                 source edge, to rebuild the path and its geometry
 For an **arrival**, every arc is reversed while building the CSR: one Dijkstra from the point then gives, for each
 node, the time to reach the point.
 
+**Closed sections** (`cuts.ts`, a what-if set from the map): a metro, RER, train or tram line between two neighbouring
+stations (its rides both ways), or one BD TOPO road section (every mode). Their edges get `Infinity` both ways, so they
+leave the CSR and the snap index; the engine itself is unchanged. Rebuilding the profile takes about 120 ms for the
+whole region. In the URL a cut is `r<line>.<station>.<station>` (transit.bin indexes) or `s<edge>` (graph.bin index):
+a link stays valid as long as the data files do. An express ride that skips the closed stations is not cut.
+
+While sections are closed, `TravelEngine` keeps a **baseline**: the same profile with everything open, in a second
+worker (rebuilt only when the mode, hour, direction or model change). Each run is sent to both workers with the same
+start points; `cutImpact` then compares the two results on the rail stations reached within the limit with everything
+open. In cut mode the origin of the map stays fixed (the pinned point, else the last cursor position), so that the
+figure does not follow the clicks.
+
 ## Dijkstra in WebAssembly
 
 `crates/engine` exposes raw C functions, without `wasm-bindgen`:
@@ -122,6 +134,8 @@ consecutive streets of the same name, one wait per boarding, one ride per line (
 - `reachedKm`: kilometres of road whose two ends are reached within each contour.
 - `reachedTransit`, `nearestStation`: stations and lines one can board, first rail station reached.
 - `cyclewayKm`: kilometres of cycle lanes and greenways reached.
+- `cutImpact`: with closed sections, the rail stations within reach with everything open, and the delay of each
+  (Infinity: now beyond the limit); the panel counts those losing more than 5 min.
 
 ## Coordinates
 

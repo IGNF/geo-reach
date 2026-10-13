@@ -3,6 +3,7 @@
 export type StepId =
   | 'wfs'
   | 'gtfs'
+  | 'relief'
   | 'buildGraph'
   | 'gtfsPrep'
   | 'graphBin'
@@ -11,6 +12,7 @@ export type StepId =
   | 'wasm'
   | 'loaders'
   | 'profile'
+  | 'cuts'
   | 'snap'
   | 'dijkstra'
   | 'contours'
@@ -53,6 +55,8 @@ const en = {
       times: 'node times',
       path: 'path',
       stop: 'cursor stops',
+      slopes: 'climb, descent',
+      closed: 'closed edges',
     },
     legend: {
       primary: 'IGN / Géoplateforme',
@@ -72,10 +76,15 @@ const en = {
         detail: 'GTFS, transport.data.gouv.fr',
         text: 'The Île-de-France Mobilités timetables: every metro, RER, tram and bus trip of the region, in the GTFS standard format.',
       },
+      relief: {
+        label: 'BD TOPO heights',
+        detail: 'Z of the sections, RGE ALTI',
+        text: 'Every road section comes with the height of each of its points (Z), the road surface draped on the RGE ALTI terrain model, to the decimetre. Read from the same WFS service as the roads.',
+      },
       buildGraph: {
         label: 'buildGraph.ts',
         detail: 'Bun script',
-        text: 'Turns the road sections into a graph: section ends become nodes (crossings), sections become edges. Coordinates are stored in metres relative to the centre of the zone, so that they fit in 32-bit numbers without losing precision.',
+        text: 'Turns the road sections into a graph: section ends become nodes (crossings), sections become edges. Each edge keeps the metres climbed and descended along it, from the heights of its points (bumps under 0.5 m are ignored). Coordinates are stored in metres relative to the centre of the zone, so that they fit in 32-bit numbers without losing precision.',
         file: 'scripts/buildGraph.ts',
       },
       gtfsPrep: {
@@ -86,8 +95,8 @@ const en = {
       },
       graphBin: {
         label: 'graph.bin',
-        detail: '23 MB · 539 k nodes',
-        text: 'A compact binary file: plain arrays of numbers, one after another (11 MB compressed). The browser reads it as typed arrays straight from the download, with no parsing. Outside Paris and the inner suburbs, footpaths and service roads are left out to keep it light.',
+        detail: '26 MB · 539 k nodes',
+        text: 'A compact binary file: plain arrays of numbers, one after another (12 MB compressed), climb and descent included. The browser reads it as typed arrays straight from the download, with no parsing. Outside Paris and the inner suburbs, footpaths and service roads are left out to keep it light.',
       },
       transitBin: {
         label: 'transit.bin',
@@ -117,6 +126,12 @@ const en = {
         text: 'Computes the time to travel each edge for the chosen mode (walk 4 km/h and bike 15 km/h on the flat, slower uphill from the BD TOPO heights, car with the traffic of the hour, transit with the waits of the hour), then packs the graph into compact arrays (CSR) written once into the engine memory. Changing mode rebuilds it; moving the mouse does not.',
         file: 'web/src/engine/profile.ts',
       },
+      cuts: {
+        label: 'Closures',
+        detail: 'what-if, from the map',
+        text: 'A metro, RER or tram line closed between two stations, or a street closed for every mode: their edges become impassable and the profile is rebuilt (about 120 ms). A second worker runs the same computation with everything open, side by side: comparing the two gives the stations that lose more than 5 min.',
+        file: 'web/src/engine/cuts.ts',
+      },
       snap: {
         label: 'Snap',
         detail: 'cursor → nearest street',
@@ -144,7 +159,7 @@ const en = {
       panel: {
         label: 'Trip panel',
         detail: 'path, legs, figures',
-        text: 'With a pinned point, the path to the cursor is read back from the last computation (no new Dijkstra): streets, waits and lines become the legs of the trip. The figures (area, stations, cycle lanes) come from the same result.',
+        text: 'With a pinned point, the path to the cursor is read back from the last computation (no new Dijkstra): streets, waits and lines become the legs of the trip. The figures (area, stations, cycle lanes, stations delayed by closures) come from the same result.',
         file: 'web/src/engine/legs.ts',
       },
       map: {
@@ -217,6 +232,7 @@ const en = {
       'Transit: average waits on a typical weekday, not the exact timetable.',
       'Car: typical traffic curve, no live traffic, no traffic lights.',
       'Zone: Île-de-France; footpaths and service roads only in Paris and the inner suburbs.',
+      'Closures: an express train that skips the closed stations still runs; the Géoplateforme route ignores closures.',
     ],
   },
   more: 'Technical documentation',
@@ -246,6 +262,8 @@ const fr: typeof en = {
       times: 'temps des nœuds',
       path: 'chemin',
       stop: 'curseur arrêté',
+      slopes: 'montée, descente',
+      closed: 'arêtes fermées',
     },
     legend: {
       primary: 'IGN / Géoplateforme',
@@ -265,10 +283,15 @@ const fr: typeof en = {
         detail: 'GTFS, transport.data.gouv.fr',
         text: 'Les horaires d’Île-de-France Mobilités : toutes les courses de métro, RER, tram et bus de la région, au format standard GTFS.',
       },
+      relief: {
+        label: 'Altitudes BD TOPO',
+        detail: 'Z des tronçons, RGE ALTI',
+        text: 'Chaque tronçon de route arrive avec l’altitude de chacun de ses points (Z) : la surface de la route drapée sur le modèle de terrain RGE ALTI, au décimètre. Lue dans le même service WFS que les routes.',
+      },
       buildGraph: {
         label: 'buildGraph.ts',
         detail: 'script Bun',
-        text: 'Transforme les tronçons en graphe : les extrémités deviennent des nœuds (carrefours), les tronçons des arêtes. Les coordonnées sont en mètres relatifs au centre de la zone, pour tenir en nombres 32 bits sans perte de précision.',
+        text: 'Transforme les tronçons en graphe : les extrémités deviennent des nœuds (carrefours), les tronçons des arêtes. Chaque arête garde les mètres montés et descendus sur son parcours, d’après l’altitude de ses points (les bosses de moins de 0,5 m sont ignorées). Les coordonnées sont en mètres relatifs au centre de la zone, pour tenir en nombres 32 bits sans perte de précision.',
         file: 'scripts/buildGraph.ts',
       },
       gtfsPrep: {
@@ -279,8 +302,8 @@ const fr: typeof en = {
       },
       graphBin: {
         label: 'graph.bin',
-        detail: '23 Mo · 539 k nœuds',
-        text: 'Un fichier binaire compact : de simples tableaux de nombres à la suite (11 Mo compressé). Le navigateur les lit directement comme tableaux typés à la fin du téléchargement, sans analyse. Hors de Paris et de la petite couronne, les chemins et voies de service sont laissés de côté pour l’alléger.',
+        detail: '26 Mo · 539 k nœuds',
+        text: 'Un fichier binaire compact : de simples tableaux de nombres à la suite (12 Mo compressé), montées et descentes comprises. Le navigateur les lit directement comme tableaux typés à la fin du téléchargement, sans analyse. Hors de Paris et de la petite couronne, les chemins et voies de service sont laissés de côté pour l’alléger.',
       },
       transitBin: {
         label: 'transit.bin',
@@ -310,6 +333,12 @@ const fr: typeof en = {
         text: 'Calcule le temps de parcours de chaque arête pour le mode choisi (marche 4 km/h et vélo 15 km/h sur le plat, plus lents en montée d’après les altitudes BD TOPO, voiture avec le trafic de l’heure, transports avec les attentes de l’heure), puis range le graphe en tableaux compacts (CSR) écrits une fois dans la mémoire du moteur. Changer de mode le reconstruit ; bouger la souris, non.',
         file: 'web/src/engine/profile.ts',
       },
+      cuts: {
+        label: 'Coupures',
+        detail: 'simulation, depuis la carte',
+        text: 'Une ligne de métro, RER ou tram coupée entre deux stations, ou une rue fermée pour tous les modes : leurs arêtes deviennent infranchissables et le profil est reconstruit (environ 120 ms). Un second worker fait le même calcul tout ouvert, en parallèle : la comparaison donne les stations qui perdent plus de 5 min.',
+        file: 'web/src/engine/cuts.ts',
+      },
       snap: {
         label: 'Accroche',
         detail: 'curseur → rue la plus proche',
@@ -337,7 +366,7 @@ const fr: typeof en = {
       panel: {
         label: 'Panneau de trajet',
         detail: 'chemin, étapes, chiffres',
-        text: 'Avec un point fixé, le chemin jusqu’au curseur est relu dans le dernier calcul (pas de nouveau Dijkstra) : rues, attentes et lignes deviennent les étapes du trajet. Les chiffres (surface, stations, pistes cyclables) viennent du même résultat.',
+        text: 'Avec un point fixé, le chemin jusqu’au curseur est relu dans le dernier calcul (pas de nouveau Dijkstra) : rues, attentes et lignes deviennent les étapes du trajet. Les chiffres (surface, stations, pistes cyclables, stations retardées par les coupures) viennent du même résultat.',
         file: 'web/src/engine/legs.ts',
       },
       map: {
@@ -410,6 +439,7 @@ const fr: typeof en = {
       'Transports en commun : attentes moyennes un jour de semaine type, pas les horaires exacts.',
       'Voiture : courbe de trafic type, pas de trafic en temps réel ni de feux.',
       'Zone : Île-de-France ; chemins et voies de service seulement à Paris et en petite couronne.',
+      'Coupures : un train direct qui ne dessert pas les stations coupées circule toujours ; l’itinéraire Géoplateforme ignore les coupures.',
     ],
   },
   more: 'Documentation technique',

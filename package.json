@@ -7,7 +7,12 @@
     "dev": "bun run engine && bun --filter web dev",
     "build": "bun run engine && bun --filter web build",
     "lint": "bun --filter web lint",
+    "typecheck": "tsc -p scripts && tsc -b web",
     "engine": "bun scripts/buildEngine.ts",
     "data": "bun scripts/buildGraph.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.3",
+    "typescript": "~6.0.2"
   }
 }

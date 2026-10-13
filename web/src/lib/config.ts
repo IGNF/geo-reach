@@ -23,7 +23,7 @@ export const LANDMARKS: { name: string; at: LngLat }[] = [
 ];
 
 /** Contour lines up to the max time: every 10 min up to 30 min, every 15 min beyond */
-export const contourMinutes = (scale: number) => {
+export const contourMinutes = (scale: number): number[] => {
   const step = scale <= 30 ? 10 : 15;
 
   return Array.from({ length: Math.floor(scale / step) }, (_, i) => (i + 1) * step);

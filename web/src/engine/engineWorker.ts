@@ -5,21 +5,7 @@
  * nodes; the worker answers with the times and predecessors, in buffers it hands over (no copy) and gets back.
  */
 
-/** Exports of crates/engine */
-interface EngineExports {
-  memory: WebAssembly.Memory;
-  reserve: (nodes: number, arcs: number, sources: number) => void;
-  run: (sources: number, maxCost: number) => number;
-  offsets_ptr: () => number;
-  heads_ptr: () => number;
-  costs_ptr: () => number;
-  arc_edge_ptr: () => number;
-  src_nodes_ptr: () => number;
-  src_costs_ptr: () => number;
-  dist_ptr: () => number;
-  pred_node_ptr: () => number;
-  pred_edge_ptr: () => number;
-}
+import { type EngineExports, isEngine } from '@/engine/wasm';
 
 export type WorkerRequest =
   | { type: 'init'; wasmUrl: string }
@@ -37,14 +23,20 @@ export interface WorkerResult {
   runMs: number;
 }
 
-let wasm: EngineExports | undefined;
-let ready: Promise<void> | undefined;
-let nodes = 0;
+const state: {
+  wasm?: EngineExports;
+  /** Settles once the engine is instantiated */
+  ready?: Promise<void>;
+  /** Nodes of the current graph */
+  nodes: number;
+} = { nodes: 0 };
+
+/** Result buffers handed back by the page, reused */
 const pool: ArrayBuffer[] = [];
 
 /** A buffer of the right size: recycled when possible */
-const take = () => {
-  const bytes = nodes * 4;
+const take = (): ArrayBuffer => {
+  const bytes = state.nodes * 4;
   for (let i = pool.length - 1; i >= 0; i -= 1) if (pool[i].byteLength === bytes) return pool.splice(i, 1)[0];
 
   return new ArrayBuffer(bytes);
@@ -53,15 +45,17 @@ const take = () => {
 self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   const msg = event.data;
   if (msg.type === 'init') {
-    ready = WebAssembly.instantiateStreaming(fetch(msg.wasmUrl), {}).then(({ instance }) => {
-      wasm = instance.exports as unknown as EngineExports;
+    state.ready = WebAssembly.instantiateStreaming(fetch(msg.wasmUrl), {}).then(({ instance }) => {
+      if (!isEngine(instance.exports)) throw new Error('engine.wasm: unexpected exports');
+      state.wasm = instance.exports;
     });
 
     return;
   }
-  await ready;
-  const w = wasm;
+  await state.ready;
+  const w = state.wasm;
   if (!w) return;
+
   if (msg.type === 'recycle') {
     pool.push(...msg.buffers);
     if (pool.length > 12) pool.splice(0, pool.length - 12);
@@ -69,7 +63,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
     return;
   }
   if (msg.type === 'graph') {
-    nodes = msg.nodes;
+    state.nodes = msg.nodes;
     pool.length = 0;
     w.reserve(msg.nodes, msg.heads.length, 2);
     // Views after `reserve`: it may have grown the memory
@@ -91,9 +85,9 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   const dist = new Float32Array(take());
   const predNode = new Uint32Array(take());
   const predEdge = new Uint32Array(take());
-  dist.set(new Float32Array(out, w.dist_ptr(), nodes));
-  predNode.set(new Uint32Array(out, w.pred_node_ptr(), nodes));
-  predEdge.set(new Uint32Array(out, w.pred_edge_ptr(), nodes));
+  dist.set(new Float32Array(out, w.dist_ptr(), state.nodes));
+  predNode.set(new Uint32Array(out, w.pred_node_ptr(), state.nodes));
+  predEdge.set(new Uint32Array(out, w.pred_edge_ptr(), state.nodes));
   const result: WorkerResult = { id: msg.id, dist, predNode, predEdge, settled, runMs };
   self.postMessage(result, [dist.buffer, predNode.buffer, predEdge.buffer]);
 };

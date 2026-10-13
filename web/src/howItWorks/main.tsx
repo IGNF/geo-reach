@@ -1,12 +1,12 @@
 import '@mantine/core/styles.css';
 import '@mantine/code-highlight/styles.css';
 import '@ign-junn/design-system/styles.css';
-import './howItWorks.css';
+import '@/howItWorks/howItWorks.css';
 import theme from '@ign-junn/design-system/theme';
 import { MantineProvider } from '@mantine/core';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import HowItWorks from './HowItWorks';
+import HowItWorks from '@/howItWorks/HowItWorks';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('#root missing');

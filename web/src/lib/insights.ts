@@ -1,17 +1,17 @@
-import type { LiveInfo } from '../components/MapView';
-import { TRAFFIC } from '../engine/profile';
-import { t } from '../locales';
-import type { Mode } from './config';
+import type { LiveInfo } from '@/components/MapView';
+import { TRAFFIC } from '@/engine/profile';
+import { t } from '@/locales';
+import type { Mode } from '@/lib/config';
 
 /** Traffic level of an hour, from the estimated speed share on major roads */
-export const trafficLevel = (hour: number) => {
+export const trafficLevel = (hour: number): string => {
   const k = TRAFFIC.major[hour];
 
   return k >= 0.8 ? t.traffic.fluid : k >= 0.6 ? t.traffic.moderate : t.traffic.dense;
 };
 
 /** The sentence of the bottom bar: what matters for the chosen mode, undefined when there is nothing to say */
-export const insight = (mode: Mode, info: LiveInfo, hour: number) => {
+export const insight = (mode: Mode, info: LiveInfo, hour: number): string | undefined => {
   const min = Math.round(info.limit / 60);
   if (mode === 'transit' && info.transit) return t.insight.transit(info.transit.stations, info.transit.lines, min);
   if (mode === 'pedestrian' && info.nearestStation)

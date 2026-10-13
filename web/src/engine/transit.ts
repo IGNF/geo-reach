@@ -1,4 +1,5 @@
-import { loadData, type Progress } from '../lib/dataCache';
+import { BinaryReader } from '@/lib/binaryReader';
+import { loadData, type Progress } from '@/lib/dataCache';
 import {
   HOURS,
   EDGE_ALIGHT,
@@ -10,7 +11,7 @@ import {
   FLAG_WALK,
   type Line,
   type Network,
-} from './network';
+} from '@/engine/network';
 
 /** A station joins the streets through its nearest walkable nodes */
 const LINKS_PER_STATION = 3;
@@ -27,33 +28,21 @@ const css = (rgb: number) => `#${rgb.toString(16).padStart(6, '0')}`;
  */
 export const loadTransit = async (url: string, onProgress?: Progress) => {
   const buffer = await loadData(url, onProgress);
-  const u32 = new Uint32Array(buffer, 0, 8);
-  if (u32[0] !== 0x334e5254) throw new Error('transit.bin: unknown format');
-  const [, stationCount, lineCount, lineStopCount, rideCount, coordCount, stringsBytes] = u32;
-  let offset = 32;
-  const words = (n: number) => {
-    const view = new DataView(buffer, offset, n * 4);
-    offset += n * 4;
+  const header = new Uint32Array(buffer, 0, 8);
+  const [magic, stationCount, lineCount, lineStopCount, rideCount, coordCount, stringsBytes] = header;
+  if (magic !== 0x334e5254) throw new Error('transit.bin: unknown format');
 
-    return view;
-  };
-  const stations = words(stationCount * 3);
-  const lines = words(lineCount * 4);
   // Line stop: u32 line, u32 station, u16 hourly waits. Ride: u32 from, u32 to, u16 hourly durations.
   const ROW = 8 + HOURS * 2;
-  const rows = (n: number) => {
-    const view = new DataView(buffer, offset, n * ROW);
-    offset += n * ROW;
 
-    return view;
-  };
-  const lineStops = rows(lineStopCount);
-  const rides = rows(rideCount);
-  const rideCoordStart = new Uint32Array(buffer, offset, rideCount + 1);
-  offset += (rideCount + 1) * 4;
-  const rideCoords = new Float32Array(buffer, offset, coordCount * 2);
-  offset += coordCount * 8;
-  const strings = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, offset, stringsBytes))) as string[];
+  const file = new BinaryReader(buffer, 32);
+  const stations = file.view(stationCount * 3 * 4);
+  const lines = file.view(lineCount * 4 * 4);
+  const lineStops = file.view(lineStopCount * ROW);
+  const rides = file.view(rideCount * ROW);
+  const rideCoordStart = file.array(Uint32Array, rideCount + 1);
+  const rideCoords = file.array(Float32Array, coordCount * 2);
+  const strings = file.json<string[]>(stringsBytes);
 
   return (roads: Network): Network => {
     const N = roads.nodeCount;
@@ -63,6 +52,7 @@ export const loadTransit = async (url: string, onProgress?: Progress) => {
     const nodeXY = new Float32Array(nodeCount * 2);
     nodeXY.set(roads.nodeXY);
     const stopNames = new Map<number, string>();
+    const stopStation = new Map<number, number>();
     for (let s = 0; s < stationCount; s += 1) {
       nodeXY[stationNode(s) * 2] = stations.getFloat32(s * 12, true);
       nodeXY[stationNode(s) * 2 + 1] = stations.getFloat32(s * 12 + 4, true);
@@ -91,6 +81,7 @@ export const loadTransit = async (url: string, onProgress?: Progress) => {
       nodeXY[lineStopNode(i) * 2] = nodeXY[stationNode(s) * 2];
       nodeXY[lineStopNode(i) * 2 + 1] = nodeXY[stationNode(s) * 2 + 1];
       stopNames.set(lineStopNode(i), stopNames.get(stationNode(s)) ?? '');
+      stopStation.set(lineStopNode(i), stationNode(s));
     }
 
     // Walkable road nodes, bucketed, to link the stations
@@ -221,6 +212,8 @@ export const loadTransit = async (url: string, onProgress?: Progress) => {
       lines: lineList,
       stopNames,
       railStations: Uint32Array.from(rail).sort(),
+      firstStation: N,
+      stopStation,
     };
   };
 };

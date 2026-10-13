@@ -6,3 +6,6 @@ description = "Travel time engine of geo-reach: bounded Dijkstra over a compact 
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+[lints]
+workspace = true

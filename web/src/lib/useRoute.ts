@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import type { Direction, LngLat, Mode } from './config';
-import { fetchRoute, reverseGeocode, type Route } from './gpf';
+import type { Direction, LngLat, Mode } from '@/lib/config';
+import { fetchRoute, reverseGeocode, type Route } from '@/lib/gpf';
 
 /**
  * Géoplateforme route between the anchored point and the point where the cursor stopped, to compare with the local
  * engine (walk and car only: the GPF has no public transport nor bike profile). The latest request wins.
  */
-export const useGpfRoute = (origin: LngLat | undefined, target: LngLat | undefined, mode: Mode, direction: Direction) => {
+export const useGpfRoute = (origin: LngLat | undefined, target: LngLat | undefined, mode: Mode, direction: Direction): Route | undefined => {
   const [latest, setLatest] = useState<{ target: LngLat; route: Route }>();
 
   useEffect(() => {
@@ -25,7 +25,7 @@ export const useGpfRoute = (origin: LngLat | undefined, target: LngLat | undefin
 };
 
 /** Address near a point, asked once the point stays still a moment */
-export const useAddress = (point: LngLat | undefined, delay = 250) => {
+export const useAddress = (point: LngLat | undefined, delay = 250): string | undefined => {
   const [address, setAddress] = useState<string>();
 
   useEffect(() => {

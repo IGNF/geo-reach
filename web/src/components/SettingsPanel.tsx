@@ -1,12 +1,13 @@
 import { Button, CopyButton, PreviewPanel, SegmentedSwitch, Slider, Stack, Switch, Typography } from '@ign-junn/design-system';
-import { IconAdjustmentsHorizontal, IconInfoCircle } from '@ign-junn/design-system/icons';
-import { RAMP_GRADIENT_CSS } from '../lib/colors';
-import { trafficLevel } from '../lib/insights';
-import { contourMinutes, type Direction, MAX_SCALE, type Mode } from '../lib/config';
-import { t } from '../locales';
-import type { ModelOptions } from '../engine/profile';
-import ModelSection from './ModelSection';
-import ModePicker from './ModePicker';
+import { IconAdjustmentsHorizontal, IconInfoCircle, IconScissors } from '@ign-junn/design-system/icons';
+import { RAMP_GRADIENT_CSS } from '@/lib/colors';
+import { trafficLevel } from '@/lib/insights';
+import { contourMinutes, type Direction, MAX_SCALE, type Mode } from '@/lib/config';
+import { t } from '@/locales';
+import type { ModelOptions } from '@/engine/profile';
+import ModelSection from '@/components/ModelSection';
+import ModePicker from '@/components/ModePicker';
+import type { ReactElement } from 'react';
 
 interface SettingsPanelProps {
   mode: Mode;
@@ -18,6 +19,10 @@ interface SettingsPanelProps {
   onHourChange: (hour: number) => void;
   model: ModelOptions;
   onModelChange: (patch: Partial<ModelOptions>) => void;
+  onReset: () => void;
+  /** Cut mode: a click on the map closes a section */
+  cutMode: boolean;
+  onCutModeChange: (on: boolean) => void;
   direction: Direction;
   onDirectionChange: (direction: Direction) => void;
   contours: boolean;
@@ -44,6 +49,9 @@ const SettingsPanel = ({
   onHourChange,
   model,
   onModelChange,
+  onReset,
+  cutMode,
+  onCutModeChange,
   direction,
   onDirectionChange,
   contours,
@@ -55,7 +63,7 @@ const SettingsPanel = ({
   onOpenChange,
   width,
   onWidthChange,
-}: SettingsPanelProps) => {
+}: SettingsPanelProps): ReactElement => {
   const max = MAX_SCALE[mode];
   const timed = mode === 'transit' || mode === 'car';
   const directions = [
@@ -76,6 +84,14 @@ const SettingsPanel = ({
     >
       <div className="settings-wrap">
       <div className="settings">
+      <Button
+        label={cutMode ? t.cuts.done : t.cuts.start}
+        icon={IconScissors}
+        variant={cutMode ? 'filled' : 'light'}
+        color="red"
+        fullWidth
+        onClick={() => onCutModeChange(!cutMode)}
+      />
       <ModePicker value={mode} onChange={onModeChange} disabled={transitAvailable ? [] : ['transit']} />
       {mode === 'transit' && <Switch label={t.bus} checked={bus} onChange={onBusChange} size="xs" />}
       {(mode === 'transit' || mode === 'car') && (
@@ -130,7 +146,7 @@ const SettingsPanel = ({
         <Typography variant="caption">{t.mapFrom}</Typography>
         <SegmentedSwitch label={t.mapFrom} options={directions} value={direction} onChange={onDirectionChange} fullWidth />
       </Stack>
-      <ModelSection mode={mode} model={model} onChange={onModelChange} />
+      <ModelSection mode={mode} model={model} onChange={onModelChange} onReset={onReset} />
       </div>
       {/* Fixed at the bottom of the panel, whatever its scroll */}
       <footer className="settings-footer">

@@ -5,7 +5,7 @@
 //! - boarding a line at a station costs half its interval there (capped), plus a fixed transfer penalty; with no
 //!   departure in that hour, the line cannot be boarded (infinite wait).
 //!
-//! Platforms are merged into their station (parent_station). Ride geometries come from the GTFS shapes.
+//! Platforms are merged into their station (`parent_station`). Ride geometries come from the GTFS shapes.
 //!
 //! Usage: `cargo run -p gtfs-prep --release -- <feed.zip> <graph.bin> <transit.bin> [YYYYMMDD]`
 //!
@@ -25,7 +25,14 @@ pub type Res<T> = Result<T, Box<dyn Error>>;
 pub const HOURS: usize = 24;
 
 /// Default reference day: a Tuesday of the IDFM feed
-const DEFAULT_DATE: u32 = 20261013;
+#[allow(clippy::inconsistent_digit_grouping)] // YYYY_MM_DD
+const DEFAULT_DATE: u32 = 2026_10_13;
+
+/// A size for a message: precision does not matter
+#[allow(clippy::cast_precision_loss)]
+fn megabytes(bytes: usize) -> f64 {
+    bytes as f64 / 1e6
+}
 
 fn main() -> Res<()> {
     let args: Vec<String> = std::env::args().collect();
@@ -46,7 +53,7 @@ fn main() -> Res<()> {
     eprintln!(
         "transit.bin: {}, {:.1} MB",
         layer.summary(),
-        bytes.len() as f64 / 1e6
+        megabytes(bytes.len())
     );
     Ok(())
 }

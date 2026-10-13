@@ -27,7 +27,7 @@ impl Row<'_> {
     }
 }
 
-/// Every row of one file of the feed, streamed (stop_times.txt is over a gigabyte)
+/// Every row of one file of the feed, streamed (`stop_times.txt` is over a gigabyte)
 pub fn read_csv(zip: &mut Archive, name: &str, mut row: impl FnMut(&Row)) -> Res<()> {
     let file = zip.by_name(name)?;
     let mut reader = csv::ReaderBuilder::new()
@@ -55,19 +55,9 @@ pub fn seconds(hms: &str) -> Option<u32> {
     Some(it.next()?? * 3600 + it.next()?? * 60 + it.next()??)
 }
 
-/// GTFS calendar column of the day of the week of a YYYYMMDD date (Zeller's congruence)
+/// GTFS calendar column of the day of the week of a `YYYYMMDD` date (Zeller's congruence)
 pub fn weekday_column(date: u32) -> &'static str {
-    let (mut y, mut m, d) = (
-        (date / 10000) as i32,
-        ((date / 100) % 100) as i32,
-        (date % 100) as i32,
-    );
-    if m < 3 {
-        m += 12;
-        y -= 1;
-    }
-    let h = (d + 13 * (m + 1) / 5 + y + y / 4 - y / 100 + y / 400) % 7;
-    [
+    const DAYS: [&str; 7] = [
         "monday",
         "tuesday",
         "wednesday",
@@ -75,7 +65,24 @@ pub fn weekday_column(date: u32) -> &'static str {
         "friday",
         "saturday",
         "sunday",
-    ][((h + 5) % 7) as usize]
+    ];
+
+    // Lossless widening: the year can then go back by one in January and February
+    let (mut y, mut m, d) = (
+        i64::from(date / 10_000),
+        i64::from((date / 100) % 100),
+        i64::from(date % 100),
+    );
+    if m < 3 {
+        m += 12;
+        y -= 1;
+    }
+
+    // Zeller: 0 is Saturday; shifted so that 0 is Monday
+    let h = (d + 13 * (m + 1) / 5 + y + y / 4 - y / 100 + y / 400).rem_euclid(7);
+    let monday_first = usize::try_from((h + 5) % 7).expect("a remainder of 7 is in 0..7");
+
+    DAYS[monday_first]
 }
 
 /// A `RRGGBB` color
@@ -95,14 +102,15 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::inconsistent_digit_grouping)] // YYYY_MM_DD
     fn finds_the_day_of_the_week() {
-        assert_eq!(weekday_column(20261013), "tuesday");
-        assert_eq!(weekday_column(20260101), "thursday");
+        assert_eq!(weekday_column(2026_10_13), "tuesday");
+        assert_eq!(weekday_column(2026_01_01), "thursday");
     }
 
     #[test]
     fn reads_colors() {
-        assert_eq!(hex("FFBE00", 0), 0xffbe00);
-        assert_eq!(hex("", 0x666666), 0x666666);
+        assert_eq!(hex("FFBE00", 0), 0xff_be00);
+        assert_eq!(hex("", 0x66_6666), 0x66_6666);
     }
 }

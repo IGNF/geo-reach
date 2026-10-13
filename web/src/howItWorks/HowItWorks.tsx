@@ -24,12 +24,14 @@ import {
   IconGridDots,
   IconMap,
   IconMapPin,
+  IconMountain,
   IconRoad,
   IconRoute,
+  IconScissors,
   IconSettings,
 } from '@ign-junn/design-system/icons';
-import { useState } from 'react';
-import { howItWorks as h, type StepId } from '../locales/howItWorks';
+import { useState, type ReactElement } from 'react';
+import { howItWorks as h, type StepId } from '@/locales/howItWorks';
 
 const REPO = 'https://github.com/IGNF/geo-reach';
 
@@ -37,6 +39,7 @@ const REPO = 'https://github.com/IGNF/geo-reach';
 const BOXES: { id: StepId; parent: 'offline' | 'browser' | 'gpf'; tone: FlowDiagramTone; icon: FlowDiagramNode['icon'] }[] = [
   { id: 'wfs', parent: 'offline', tone: 'primary', icon: IconRoad },
   { id: 'gtfs', parent: 'offline', tone: 'neutral', icon: IconBus },
+  { id: 'relief', parent: 'offline', tone: 'primary', icon: IconMountain },
   { id: 'buildGraph', parent: 'offline', tone: 'accent', icon: IconFileCode },
   { id: 'gtfsPrep', parent: 'offline', tone: 'warning', icon: IconBrandRust },
   { id: 'graphBin', parent: 'offline', tone: 'neutral', icon: IconBinary },
@@ -45,6 +48,7 @@ const BOXES: { id: StepId; parent: 'offline' | 'browser' | 'gpf'; tone: FlowDiag
   { id: 'wasm', parent: 'offline', tone: 'warning', icon: IconBinary },
   { id: 'loaders', parent: 'browser', tone: 'accent', icon: IconFileCode },
   { id: 'profile', parent: 'browser', tone: 'accent', icon: IconSettings },
+  { id: 'cuts', parent: 'browser', tone: 'accent', icon: IconScissors },
   { id: 'snap', parent: 'browser', tone: 'accent', icon: IconGridDots },
   { id: 'dijkstra', parent: 'browser', tone: 'warning', icon: IconCpu },
   { id: 'contours', parent: 'browser', tone: 'accent', icon: IconGridDots },
@@ -59,6 +63,7 @@ const BOXES: { id: StepId; parent: 'offline' | 'browser' | 'gpf'; tone: FlowDiag
 const e = h.diagram.edges;
 const EDGES: FlowDiagramEdge[] = [
   { from: 'wfs', to: 'buildGraph' },
+  { from: 'relief', to: 'buildGraph', label: e.slopes },
   { from: 'buildGraph', to: 'graphBin' },
   { from: 'gtfs', to: 'gtfsPrep' },
   { from: 'graphBin', to: 'gtfsPrep', label: e.zone, dashed: true },
@@ -67,6 +72,7 @@ const EDGES: FlowDiagramEdge[] = [
   { from: 'graphBin', to: 'loaders', label: e.loaded },
   { from: 'transitBin', to: 'loaders' },
   { from: 'loaders', to: 'profile' },
+  { from: 'cuts', to: 'profile', label: e.closed },
   { from: 'profile', to: 'dijkstra', label: e.csr },
   { from: 'snap', to: 'dijkstra', label: e.sources },
   { from: 'wasm', to: 'dijkstra', label: e.instance, dashed: true },
@@ -122,7 +128,7 @@ wasm.run(msg.sources.length, msg.maxCost);
 dist.set(new Float32Array(wasm.memory.buffer, wasm.dist_ptr(), nodes));
 self.postMessage({ id: msg.id, dist, predNode, predEdge }, [dist.buffer, predNode.buffer, predEdge.buffer]);`;
 
-const HowItWorks = () => {
+const HowItWorks = (): ReactElement => {
   const [selected, setSelected] = useState<StepId>('dijkstra');
   const box = h.diagram.boxes[selected];
 

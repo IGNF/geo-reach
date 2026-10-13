@@ -1,5 +1,6 @@
-import { EDGE_ROAD, type Network } from './network';
-import type { Profile } from './profile';
+import { EDGE_ROAD, type Network } from '@/engine/network';
+import type { Profile } from '@/engine/profile';
+import { pointsBounds } from '@/lib/bounds';
 
 const CELL = 80;
 const MAX_RINGS = 6;
@@ -33,13 +34,7 @@ export class SnapIndex {
   constructor(net: Network, profile: Profile) {
     this.net = net;
     const { coords, coordStart } = net;
-    let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity];
-    for (let i = 0; i < coords.length; i += 2) {
-      minX = Math.min(minX, coords[i]);
-      maxX = Math.max(maxX, coords[i]);
-      minY = Math.min(minY, coords[i + 1]);
-      maxY = Math.max(maxY, coords[i + 1]);
-    }
+    const [minX, minY, maxX, maxY] = pointsBounds(coords);
     this.minX = minX;
     this.minY = minY;
     this.cols = Math.ceil((maxX - minX) / CELL) + 1;
@@ -141,7 +136,7 @@ export class SnapIndex {
   }
 
   /** Fraction along its edge of a geometry point */
-  fraction(p: number) {
+  fraction(p: number): number {
     return this.pointFrac[p];
   }
 }

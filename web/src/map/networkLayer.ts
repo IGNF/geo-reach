@@ -1,7 +1,7 @@
 import type { CustomLayerInterface, CustomRenderMethodInput, Map as MlMap } from 'maplibre-gl';
-import { RAMP_LUT } from '../lib/colors';
-import { EDGE_RIDE, EDGE_ROAD, FLAG_BUS, type Network } from '../engine/network';
-import type { Profile } from '../engine/profile';
+import { RAMP_LUT } from '@/lib/colors';
+import { EDGE_RIDE, EDGE_ROAD, FLAG_BUS, type Network } from '@/engine/network';
+import type { Profile } from '@/engine/profile';
 
 /**
  * The network colored by travel time, drawn by the GPU. The geometry (one instanced quad per segment) is uploaded
@@ -142,7 +142,7 @@ export class NetworkLayer implements CustomLayerInterface {
     this.times = new Float32Array(TEX_WIDTH * this.texHeight).fill(Number.POSITIVE_INFINITY);
   }
 
-  onAdd(map: MlMap, gl: WebGL2RenderingContext) {
+  onAdd(map: MlMap, gl: WebGL2RenderingContext): void {
     this.map = map;
     this.gl = gl;
     const program = gl.createProgram();
@@ -200,7 +200,7 @@ export class NetworkLayer implements CustomLayerInterface {
   }
 
   /** Segments of the edges the profile travels, with the cost of reaching each end from A and from B */
-  setProfile(profile: Profile) {
+  setProfile(profile: Profile): void {
     const { net } = this;
     const { fwd, bwd, direction } = profile;
     const sx = 1 / EARTH;
@@ -243,7 +243,7 @@ export class NetworkLayer implements CustomLayerInterface {
   }
 
   /** Node times of the latest run (seconds); undefined hides the layer */
-  setTimes(dist: Float32Array | undefined) {
+  setTimes(dist: Float32Array | undefined): void {
     if (dist) this.times.set(dist);
     this.hasTimes = !!dist;
     const { gl } = this;
@@ -254,7 +254,7 @@ export class NetworkLayer implements CustomLayerInterface {
     this.map?.triggerRepaint();
   }
 
-  setStyle(style: NetworkStyle) {
+  setStyle(style: NetworkStyle): void {
     this.style = style;
     this.map?.triggerRepaint();
   }
@@ -271,7 +271,7 @@ export class NetworkLayer implements CustomLayerInterface {
     this.map?.triggerRepaint();
   }
 
-  render(gl: WebGL2RenderingContext, args: CustomRenderMethodInput) {
+  render(gl: WebGL2RenderingContext, args: CustomRenderMethodInput): void {
     if (!this.program || !this.instances || !this.hasTimes || !this.map) return;
     // Relative to the zone centre: the model matrix carries the large offset in double precision
     // Mercator 0..1 to clip space, in 64 bit floats

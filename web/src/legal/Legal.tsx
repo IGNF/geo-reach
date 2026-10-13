@@ -1,10 +1,11 @@
 import { Link, Page, Stack, Typography } from '@ign-junn/design-system';
 import { IconArrowLeft, IconBrandGithub } from '@ign-junn/design-system/icons';
-import { legal as l } from '../locales/legal';
+import { legal as l } from '@/locales/legal';
+import type { ReactElement } from 'react';
 
 const REPO = 'https://github.com/IGNF/geo-reach';
 
-const Legal = () => (
+const Legal = (): ReactElement => (
   <Page width="medium">
     <Stack gap="xl">
       <Stack gap="sm">

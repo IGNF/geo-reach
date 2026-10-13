@@ -1,7 +1,8 @@
 import type { IconComponent } from '@ign-junn/design-system';
 import { IconBike, IconCar, IconTrain, IconWalk } from '@ign-junn/design-system/icons';
-import type { Mode } from '../lib/config';
-import { t } from '../locales';
+import type { Mode } from '@/lib/config';
+import { t } from '@/locales';
+import type { ReactElement } from 'react';
 
 const MODES: { value: Mode; icon: IconComponent }[] = [
   { value: 'transit', icon: IconTrain },
@@ -18,7 +19,7 @@ interface ModePickerProps {
 }
 
 /** The travel modes as large icon tiles */
-const ModePicker = ({ value, onChange, disabled = [] }: ModePickerProps) => (
+const ModePicker = ({ value, onChange, disabled = [] }: ModePickerProps): ReactElement => (
   <div className="mode-picker" role="radiogroup" aria-label={t.mode}>
     {MODES.map(({ value: mode, icon: Icon }) => (
       <button

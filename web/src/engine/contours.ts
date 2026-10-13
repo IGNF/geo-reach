@@ -1,4 +1,5 @@
-import { EDGE_RIDE, type Network } from './network';
+import { EDGE_RIDE, type Network } from '@/engine/network';
+import { emptyBounds, extendBounds, pointsBounds } from '@/lib/bounds';
 
 /** Cell of the time grid, ground metres */
 const CELL_METRES = 150;
@@ -32,14 +33,7 @@ interface Window {
 
 /** The grid of the zone, built once per network */
 export const contourGrid = (net: Network, groundScale: number): ContourGrid => {
-  let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity];
-  for (let n = 0; n < net.nodeCount; n += 1) {
-    const [x, y] = [net.nodeXY[n * 2], net.nodeXY[n * 2 + 1]];
-    minX = Math.min(minX, x);
-    maxX = Math.max(maxX, x);
-    minY = Math.min(minY, y);
-    maxY = Math.max(maxY, y);
-  }
+  const [minX, minY, maxX, maxY] = pointsBounds(net.nodeXY);
   const cell = CELL_METRES / groundScale;
   const cols = Math.ceil((maxX - minX) / cell) + 1;
   const rows = Math.ceil((maxY - minY) / cell) + 1;
@@ -111,24 +105,18 @@ const rideTime = (g: ContourGrid, dist: Float32Array, i: number) => {
 
 /** Cells around the nodes reached within `limit` */
 const reachedWindow = (g: ContourGrid, dist: Float32Array, limit: number): Window | undefined => {
-  let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
-  for (let n = 0; n < g.nodeCol.length; n += 1) {
-    if (!(dist[n] <= limit) || g.nodeCol[n] < 0) continue;
-    x0 = Math.min(x0, g.nodeCol[n]);
-    x1 = Math.max(x1, g.nodeCol[n]);
-    y0 = Math.min(y0, g.nodeRow[n]);
-    y1 = Math.max(y1, g.nodeRow[n]);
-  }
-  for (let i = 0; i < g.rideCol.length; i += 1) {
-    if (!(rideTime(g, dist, i) <= limit)) continue;
-    x0 = Math.min(x0, g.rideCol[i]);
-    x1 = Math.max(x1, g.rideCol[i]);
-    y0 = Math.min(y0, g.rideRow[i]);
-    y1 = Math.max(y1, g.rideRow[i]);
-  }
-  if (x0 > x1) return undefined;
-  [x0, y0] = [Math.max(0, x0 - MARGIN), Math.max(0, y0 - MARGIN)];
-  [x1, y1] = [Math.min(g.cols - 1, x1 + MARGIN), Math.min(g.rows - 1, y1 + MARGIN)];
+  const box = emptyBounds();
+  for (let n = 0; n < g.nodeCol.length; n += 1)
+    if (dist[n] <= limit && g.nodeCol[n] >= 0) extendBounds(box, g.nodeCol[n], g.nodeRow[n]);
+  for (let i = 0; i < g.rideCol.length; i += 1)
+    if (rideTime(g, dist, i) <= limit) extendBounds(box, g.rideCol[i], g.rideRow[i]);
+
+  const [minCol, minRow, maxCol, maxRow] = box;
+  if (minCol > maxCol) return undefined;
+
+  // A margin of cells around, within the grid
+  const [x0, y0] = [Math.max(0, minCol - MARGIN), Math.max(0, minRow - MARGIN)];
+  const [x1, y1] = [Math.min(g.cols - 1, maxCol + MARGIN), Math.min(g.rows - 1, maxRow + MARGIN)];
 
   return { x0, y0, cols: x1 - x0 + 1, rows: y1 - y0 + 1 };
 };
@@ -210,7 +198,7 @@ const fillField = (g: ContourGrid, w: Window, dist: Float32Array, walkSeconds: n
  * Isochrone lines (marching squares) for each limit, in Mercator metres relative to the zone: one list of segments
  * per limit, drawn as a multi-line.
  */
-export const isochroneLines = (g: ContourGrid, dist: Float32Array, limits: number[], walkSpeed: number) => {
+export const isochroneLines = (g: ContourGrid, dist: Float32Array, limits: number[], walkSpeed: number): [number, number][][][] => {
   const w = reachedWindow(g, dist, Math.max(...limits));
   if (!w) return limits.map(() => [] as [number, number][][]);
   const field = fillField(g, w, dist, CELL_METRES / walkSpeed);
@@ -282,7 +270,7 @@ export const isochroneLines = (g: ContourGrid, dist: Float32Array, limits: numbe
 };
 
 /** Joins the marching squares segments that share an end into longer lines (fewer features, steadier labels) */
-export const joinSegments = (segments: [number, number][][]) => {
+export const joinSegments = (segments: [number, number][][]): [number, number][][] => {
   const key = ([x, y]: [number, number]) => `${Math.round(x)},${Math.round(y)}`;
   const ends = new Map<string, number[]>();
   segments.forEach((s, i) => {

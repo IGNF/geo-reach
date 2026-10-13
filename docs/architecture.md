@@ -9,7 +9,8 @@ tiles and two optional Géoplateforme queries made when the cursor stops (route 
 ```mermaid
 flowchart LR
   subgraph prep["Offline, once (developer machine)"]
-    WFS["GPF WFS<br/>BD TOPO troncon_de_route"] -->|scripts/buildGraph.ts| G[graph.bin<br/>~23 MB, 11 MB gz]
+    WFS["GPF WFS<br/>BD TOPO troncon_de_route"] -->|scripts/buildGraph.ts| G[graph.bin<br/>~26 MB, 12 MB gz]
+    Z["BD TOPO heights (Z)<br/>RGE ALTI"] -->|climb, descent| G
     GTFS["IDFM GTFS<br/>(transport.data.gouv.fr)"] -->|crates/gtfs-prep| T[transit.bin<br/>~11 MB, 2 MB gz]
     G -. zone origin + bbox .-> T
     RS[crates/engine] -->|scripts/buildEngine.ts<br/>cargo → wasm32| W[engine.wasm]
@@ -17,7 +18,10 @@ flowchart LR
 
   subgraph browser["Browser (web)"]
     L[network.ts + transit.ts<br/>decode and merge] --> P[profile.ts<br/>costs + CSR graph]
+    C[cuts.ts<br/>closed sections] -->|closed edges| P
     P --> E[travelEngine.ts<br/>snap + WASM Dijkstra]
+    E -->|with closures: run all open too| B[baseline worker]
+    B -->|delayed stations| UI
     E -->|node times| R[networkLayer.ts<br/>WebGL custom layer]
     E -->|path| UI[TripPanel / labels]
     UI -.cursor stops.-> GPF["GPF itineraire<br/>+ reverse geocoding"]
@@ -38,8 +42,11 @@ flowchart LR
 | `scripts/buildEngine.ts` | TypeScript (Bun) | `cargo build --target wasm32-unknown-unknown`, copies the result to `web/src/engine/engine.wasm` |
 | `web/src/engine/` | TypeScript | Loads the binaries, builds the per-mode graph, drives the WASM engine, rebuilds paths |
 | `web/src/map/networkLayer.ts` | TypeScript + GLSL | MapLibre custom layer that draws the network colored by time |
-| `web/src/components/` | React | Map, settings panel (DS preview panel), trip card, mode picker |
-| `web/src/lib/` | TypeScript | Config, GPF clients, URL state, colors, formatting |
+| `web/src/map/cutLayer.ts` | TypeScript | Closed sections on the map, and the section under the cursor in cut mode |
+| `web/src/map/contourLines.ts` | TypeScript | Isochrone lines: requests to their worker, newest first |
+| `web/src/engine/wasm.ts` | TypeScript | Exports of `engine.wasm`, checked at load time |
+| `web/src/components/` | React | Map, settings panel (DS preview panel), trip card, closures panel, mode picker |
+| `web/src/lib/` | TypeScript | Config, GPF clients, URL state, colors, formatting, binary reader, bounds |
 | `web/src/locales/` | TypeScript | UI strings (English, French), picked from the browser language |
 
 Two workspaces sit side by side: Bun for JavaScript (`package.json`, `web`) and Cargo for Rust (`Cargo.toml`,
@@ -97,7 +104,7 @@ mode.
 
 ## State and sharing
 
-The view (`mode/direction/scale/contours/bus/lng,lat`) lives in the URL hash (`lib/urlState.ts`): a copied link
+The view (`mode/direction/scale/contours/bus/lng,lat/hour/model/cuts`) lives in the URL hash (`lib/urlState.ts`): a copied link
 opens the same view. No other persistence.
 
 ## More

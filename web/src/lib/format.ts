@@ -1,10 +1,10 @@
-export const formatMinutes = (minutes: number) => {
+export const formatMinutes = (minutes: number): string => {
   const m = Math.max(1, Math.round(minutes));
 
   return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`;
 };
 
-export const formatDistance = (metres: number) =>
+export const formatDistance = (metres: number): string =>
   metres < 1000 ? `${Math.round(metres / 10) * 10} m` : `${(metres / 1000).toFixed(1).replace('.', ',')} km`;
 
 /** BD TOPO abbreviations of street types (French data values) */
@@ -26,7 +26,7 @@ const STREET_TYPES: Record<string, string> = {
 const LOWER = new Set(['de', 'du', 'des', 'la', 'le', 'les', 'et', 'aux', 'au', 'sur']);
 
 /** `AV DE LA REPUBLIQUE` → `Avenue de la Republique` */
-export const formatStreet = (name: string) =>
+export const formatStreet = (name: string): string =>
   name
     .split(/\s+/)
     .map((word, i) => {

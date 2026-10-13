@@ -1,4 +1,4 @@
-import type { LngLat } from './config';
+import type { LngLat } from '@/lib/config';
 
 const R = 6378137;
 const D2R = Math.PI / 180;
@@ -16,4 +16,4 @@ export const fromMercator = ([x, y]: XY): LngLat => [
 ];
 
 /** Web Mercator stretches distances by 1 / cos(lat): ground metres to projected metres */
-export const mercatorScale = ([, lat]: LngLat) => 1 / Math.cos(lat * D2R);
+export const mercatorScale = ([, lat]: LngLat): number => 1 / Math.cos(lat * D2R);

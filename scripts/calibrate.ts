@@ -7,10 +7,10 @@
  * Reference speeds for Paris (orders of magnitude): car 13–15 km/h at peak hours, 17–20 km/h during the day,
  * 25–30 km/h at night, faster in the suburbs; bike 12–14 km/h door to door; walk 4 km/h.
  */
-import { EDGE_ROAD, loadRoadNetwork, type Network } from '../web/src/engine/network';
-import { loadTransit } from '../web/src/engine/transit';
-import { LANDMARKS } from '../web/src/lib/config';
-import { buildProfile, DEFAULT_MODEL, type Profile, type ProfileOptions } from '../web/src/engine/profile';
+import { EDGE_ROAD, loadRoadNetwork, type Network } from '@/engine/network';
+import { loadTransit } from '@/engine/transit';
+import { LANDMARKS } from '@/lib/config';
+import { buildProfile, DEFAULT_MODEL, type Profile, type ProfileOptions } from '@/engine/profile';
 
 const net = await loadRoadNetwork(new URL('../web/public/data/graph.bin', import.meta.url).href);
 const R = 6378137;
@@ -68,7 +68,7 @@ const suburbs = roadNodes((n) => !inParis(lngLat(n)));
 
 /** Mean effective speed (km/h) of trips from a few sources to targets 2–6 km away */
 const effectiveSpeed = (options: ProfileOptions, pool: number[], sources = 6) => {
-  const p = buildProfile(net as Network, options);
+  const p = buildProfile(net, options);
   let km = 0;
   let hours = 0;
   for (let s = 0; s < sources; s += 1) {
@@ -85,7 +85,7 @@ const effectiveSpeed = (options: ProfileOptions, pool: number[], sources = 6) =>
   return hours ? km / hours : NaN;
 };
 
-const base = { direction: 'departure', bus: false, model: DEFAULT_MODEL } as const;
+const base = { direction: 'departure', bus: false, model: DEFAULT_MODEL, closed: new Uint32Array(0) } as const;
 for (const [zone, pool] of [
   ['Paris', paris],
   ['Inner suburbs', suburbs],
@@ -99,7 +99,7 @@ for (const [zone, pool] of [
 
 if (process.argv.includes('--gpf')) {
   // Free flow: the night profile against the Géoplateforme route service (no traffic)
-  const p = buildProfile(net as Network, { ...base, mode: 'car', hour: 3 });
+  const p = buildProfile(net, { ...base, mode: 'car', hour: 3 });
   for (let i = 0; i < 6; i += 1) {
     const a = paris[Math.floor(random() * paris.length)];
     const b = paris[Math.floor(random() * paris.length)];

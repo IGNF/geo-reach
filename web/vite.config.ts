@@ -5,6 +5,8 @@ import { defineConfig } from 'vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // `@/engine/network` → src/engine/network (same alias as tsconfig.app.json)
+  resolve: { alias: { '@': resolve(import.meta.dirname, 'src') } },
   // GitHub Pages serves the app under /geo-reach/ (set by the deploy workflow)
   base: process.env.BASE_PATH ?? '/',
   // Three pages: the map, how it works, the legal notice

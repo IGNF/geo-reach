@@ -3,5 +3,9 @@
   "references": [
     { "path": "./tsconfig.app.json" },
     { "path": "./tsconfig.node.json" }
-  ]
+  ],
+  // For Bun (scripts/), which reads the alias here: the same as tsconfig.app.json
+  "compilerOptions": {
+    "paths": { "@/*": ["./src/*"] }
+  }
 }

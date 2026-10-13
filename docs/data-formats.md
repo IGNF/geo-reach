@@ -28,7 +28,7 @@ geometries (`coords`, `coordStart`) once at load.
 To stay light over Île-de-France (1.19 million BD TOPO sections): every section in Paris and the inner suburbs,
 beyond no footpaths, stairs, tracks nor service roads (importance 6); consecutive sections with the same attributes
 merged into one edge; geometries simplified to 3 m (Douglas-Peucker). Result: about 540,000 nodes and 710,000 edges,
-23 MB (11 MB gzipped). The WFS is read tile by tile (0.1° × 0.08°), cached in `.cache/bdtopo-z/`.
+26 MB (12 MB gzipped). The WFS is read tile by tile (0.1° × 0.08°), cached in `.cache/bdtopo-z/`.
 
 Climb and descent come from the Z of the BD TOPO sections (road surface heights, draped on the RGE ALTI, to the
 decimetre; `-1000` when unknown, then the section counts as flat). Along a section, a change of direction counts only

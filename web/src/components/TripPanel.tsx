@@ -8,13 +8,14 @@ import {
   IconWalk,
   IconX,
 } from '@ign-junn/design-system/icons';
-import type { Leg } from '../engine/legs';
-import { rampCss } from '../lib/colors';
-import type { Mode } from '../lib/config';
-import { formatDistance, formatMinutes, formatStreet } from '../lib/format';
-import type { Route } from '../lib/gpf';
-import { t } from '../locales';
-import type { LiveInfo, TargetInfo } from './MapView';
+import type { Leg } from '@/engine/legs';
+import { rampCss } from '@/lib/colors';
+import type { Mode } from '@/lib/config';
+import { formatDistance, formatMinutes, formatStreet } from '@/lib/format';
+import type { Route } from '@/lib/gpf';
+import { t } from '@/locales';
+import type { LiveInfo, TargetInfo } from '@/components/MapView';
+import type { ReactElement } from 'react';
 
 interface TripPanelProps {
   mode: Mode;
@@ -124,7 +125,7 @@ const TripPanel = ({
   gpfRoute,
   scale,
   notice,
-}: TripPanelProps) => {
+}: TripPanelProps): ReactElement => {
   // Map from the departure: the cursor is the departure, the anchored point the arrival; and the reverse
   const [from, to] = direction === 'departure' ? [targetAddress, originAddress] : [originAddress, targetAddress];
 

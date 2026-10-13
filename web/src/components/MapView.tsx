@@ -12,18 +12,19 @@ import {
 } from 'maplibre-gl';
 // MapLibre's worker, bundled by Vite with its shared chunk (the library's own `new URL` lookup breaks in a bundle)
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { useEffect, useRef } from 'react';
-import { type ContourGrid, contourGrid } from '../engine/contours';
-import type { ContourRequest, ContourResult } from '../engine/contourWorker';
-import { type Leg, toLegs } from '../engine/legs';
-import { EDGE_BOARD, EDGE_RIDE, FLAG_BUS } from '../engine/network';
-import { type Result, TravelEngine } from '../engine/travelEngine';
-import { BASEMAP_STYLE, LANDMARKS, type LngLat, START } from '../lib/config';
-import { rampCss } from '../lib/colors';
-import { formatMinutes } from '../lib/format';
-import { fromMercator, toMercator } from '../lib/mercator';
-import { t } from '../locales';
-import { NetworkLayer } from '../map/networkLayer';
+import { useEffect, useRef, type ReactElement } from 'react';
+import type { Cut } from '@/engine/cuts';
+import { type Leg, toLegs } from '@/engine/legs';
+import { EDGE_BOARD, EDGE_RIDE, FLAG_BUS } from '@/engine/network';
+import { type CutImpact, type Result, TravelEngine } from '@/engine/travelEngine';
+import { BASEMAP_STYLE, LANDMARKS, type LngLat, START } from '@/lib/config';
+import { rampCss } from '@/lib/colors';
+import { formatMinutes } from '@/lib/format';
+import { fromMercator, toMercator } from '@/lib/mercator';
+import { t } from '@/locales';
+import { CutLayer } from '@/map/cutLayer';
+import { ContourLines } from '@/map/contourLines';
+import { NetworkLayer } from '@/map/networkLayer';
 
 setWorkerUrl(maplibreWorkerUrl);
 
@@ -40,6 +41,8 @@ export interface LiveInfo {
   nearestStation?: { name: string; seconds: number };
   /** Bike: kilometres of cycle lanes and greenways within the limit */
   cyclewayKm?: number;
+  /** With closed sections: the rail stations they delay */
+  cutImpact?: CutImpact;
   runMs: number;
   settled: number;
 }
@@ -69,6 +72,12 @@ interface MapViewProps {
   focus?: { point: LngLat };
   /** The locate button of the map controls */
   onLocate: () => void;
+  /** Closed sections, drawn over the network */
+  cuts: Cut[];
+  /** Cut mode: a click closes (or reopens) the section under the cursor instead of pinning a point */
+  cutMode: boolean;
+  onCutModeChange: (on: boolean) => void;
+  onCutToggle: (cut: Cut) => void;
 }
 
 const PANEL_THROTTLE_MS = 60;
@@ -90,7 +99,7 @@ const railFeatures = (engine: TravelEngine): GeoJSON.FeatureCollection => {
       coordinates.push(at(net.coords[p * 2], net.coords[p * 2 + 1]));
     features.push({
       type: 'Feature',
-      properties: { color: line.color, order: line.type === 1 ? 2 : 1 },
+      properties: { color: line.color, order: line.type === 1 ? 2 : 1, edge: e },
       geometry: { type: 'LineString', coordinates },
     });
   }
@@ -112,26 +121,26 @@ const railFeatures = (engine: TravelEngine): GeoJSON.FeatureCollection => {
 const LOCATE_ICON =
   '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2M12 20v2M20 12h2M2 12h2"/></svg>';
 
-/** "My location" button, in the group of the map controls */
-class LocateControl implements IControl {
+/** A button of its own in the map controls: "my location", "close a section" */
+class ButtonControl implements IControl {
   private container?: HTMLDivElement;
-  private readonly onClick: () => void;
+  readonly button: HTMLButtonElement;
 
-  constructor(onClick: () => void) {
-    this.onClick = onClick;
+  constructor(icon: string, title: string, onClick: () => void) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'map-button';
+    button.title = title;
+    button.setAttribute('aria-label', title);
+    button.innerHTML = icon;
+    button.addEventListener('click', onClick);
+    this.button = button;
   }
 
   onAdd() {
     const container = document.createElement('div');
     container.className = 'maplibregl-ctrl maplibregl-ctrl-group';
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'locate-button';
-    button.title = t.locate;
-    button.setAttribute('aria-label', t.locate);
-    button.innerHTML = LOCATE_ICON;
-    button.addEventListener('click', this.onClick);
-    container.append(button);
+    container.append(this.button);
     this.container = container;
 
     return container;
@@ -161,10 +170,15 @@ const MapView = ({
   onSettle,
   focus,
   onLocate,
-}: MapViewProps) => {
+  cuts,
+  cutMode,
+  onCutModeChange,
+  onCutToggle,
+}: MapViewProps): ReactElement => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const live = useRef({ engine, scale, contours, pinned, onPin, onLive, onTarget, onSettle, onLocate });
-  live.current = { engine, scale, contours, pinned, onPin, onLive, onTarget, onSettle, onLocate };
+  const props = { engine, scale, contours, pinned, onPin, onLive, onTarget, onSettle, onLocate, cuts, cutMode, onCutModeChange, onCutToggle };
+  const live = useRef(props);
+  live.current = props;
   // Imperative state of the map, shared by the effects below
   const ctl = useRef<{
     map?: MlMap;
@@ -175,8 +189,16 @@ const MapView = ({
     frame: number;
     lastPanel: number;
     settleTimer?: ReturnType<typeof setTimeout>;
+    /** Last update of the panel after the moves stop */
+    panelTimer?: ReturnType<typeof setTimeout>;
     refresh: () => void;
-  }>({ ready: false, frame: 0, lastPanel: 0, refresh: () => undefined });
+    /** Draws the closed sections */
+    drawCuts: () => void;
+    /** Clears the section highlighted in cut mode */
+    clearHover: () => void;
+    /** Cut mode on: the map stays computed from the pinned point, else from the cursor's last position */
+    freeze: () => void;
+  }>({ ready: false, frame: 0, lastPanel: 0, refresh: () => undefined, drawCuts: () => undefined, clearHover: () => undefined, freeze: () => undefined });
 
   useEffect(() => {
     const container = containerRef.current;
@@ -207,7 +229,7 @@ const MapView = ({
       fadeDuration: 0,
     });
     // Bottom corners stack upwards: the locate button, added first, sits under the zoom buttons
-    map.addControl(new LocateControl(() => live.current.onLocate()), 'bottom-right');
+    map.addControl(new ButtonControl(LOCATE_ICON, t.locate, () => live.current.onLocate()), 'bottom-right');
     map.addControl(new NavigationControl({ showCompass: false }), 'bottom-right');
     c.map = map;
     const layer = new NetworkLayer(net);
@@ -216,7 +238,7 @@ const MapView = ({
 
     const originMarker = new Marker({ element: markerElement('origin-marker'), draggable: true });
     originMarker.on('drag', () => {
-      const p = originMarker.getLngLat().toArray() as LngLat;
+      const p = originMarker.getLngLat().toArray();
       live.current.onPin(p);
     });
     const labelEl = markerElement('time-label');
@@ -262,12 +284,11 @@ const MapView = ({
     };
 
     // The panel follows at most every PANEL_THROTTLE_MS, and once more after the last move
-    let trailing: ReturnType<typeof setTimeout> | undefined;
     const panelDue = () => {
       const now = performance.now();
-      clearTimeout(trailing);
+      clearTimeout(c.panelTimer);
       if (now - c.lastPanel < PANEL_THROTTLE_MS) {
-        trailing = setTimeout(schedule, PANEL_THROTTLE_MS);
+        c.panelTimer = setTimeout(schedule, PANEL_THROTTLE_MS);
 
         return false;
       }
@@ -276,52 +297,7 @@ const MapView = ({
       return true;
     };
 
-    // Smooth isochrone lines, traced by their own worker from the node times: one request at a time, the latest
-    // result waiting meanwhile replaces any older one, so a slow trace (long car runs) never piles up nor blocks the map
-    const contourWorker = new Worker(new URL('../engine/contourWorker.ts', import.meta.url), { type: 'module' });
-    let gridSent = false;
-    let contourId = 0;
-    let contourBusy = false;
-    let contourNext: { dist: Float32Array; limits: number[] } | undefined;
-    const sendContours = (job: { dist: Float32Array; limits: number[] }) => {
-      if (!gridSent) {
-        // The grid is built once, then handed to the worker
-        const grid: ContourGrid = contourGrid(net, engine.groundScale);
-        contourWorker.postMessage({ type: 'grid', grid, origin: [ox, oy] } satisfies ContourRequest);
-        gridSent = true;
-      }
-      contourBusy = true;
-      contourId += 1;
-      contourWorker.postMessage(
-        { type: 'lines', id: contourId, dist: job.dist, limits: job.limits, walkSpeed: engine.walkSpeed } satisfies ContourRequest,
-        [job.dist.buffer],
-      );
-    };
-    contourWorker.onmessage = (event: MessageEvent<ContourResult>) => {
-      contourBusy = false;
-      // A newer request supersedes this answer: draw the newest only
-      if (event.data.id === contourId) map.getSource<GeoJSONSource>('contours')?.setData({ type: 'FeatureCollection', features: event.data.features });
-      if (contourNext) {
-        const job = contourNext;
-        contourNext = undefined;
-        sendContours(job);
-      }
-    };
-    const drawContours = (dist: Float32Array | undefined, limits: number[]) => {
-      const source = map.getSource<GeoJSONSource>('contours');
-      if (!source) return;
-      if (!dist || !limits.length) {
-        contourNext = undefined;
-        contourId += 1;
-        source.setData(EMPTY);
-
-        return;
-      }
-      // A copy: the result's buffers go back to the engine worker
-      const job = { dist: dist.slice(), limits };
-      if (contourBusy) contourNext = job;
-      else sendContours(job);
-    };
+    const contourLines = new ContourLines(map, engine);
 
     const summary = (r: Result, point: LngLat): LiveInfo => {
       const limit = live.current.scale;
@@ -345,6 +321,7 @@ const MapView = ({
         transit: mode === 'transit' ? engine.reachedTransit(r.dist, limit) : undefined,
         nearestStation: mode === 'pedestrian' ? engine.nearestStation(r.dist) : undefined,
         cyclewayKm: mode === 'bike' ? engine.cyclewayKm(r.dist, limit) : undefined,
+        cutImpact: engine.cutImpact(r, limit),
         runMs: r.runMs,
         settled: r.settled,
       };
@@ -353,30 +330,29 @@ const MapView = ({
     /** One frame of work for the latest cursor position */
     // One run at a time in the worker: moves made meanwhile collapse into one run from the latest position, and the
     // map keeps showing the last result until the next one is ready
-    let busy = false;
-    let dirty = false;
-    let shown: Result | undefined;
+    const runs: { busy: boolean; dirty: boolean; shown?: Result } = { busy: false, dirty: false };
     const process = () => {
       c.frame = 0;
-      if (busy) {
-        dirty = true;
+      if (runs.busy) {
+        runs.dirty = true;
 
         return;
       }
-      busy = true;
+      runs.busy = true;
+
       const pin = live.current.pinned;
       const cursor: [number, number] = c.cursor ?? toRel(pin ?? START);
       engine
         .run(cursor[0], cursor[1], live.current.scale)
         .then((r) => {
           apply(r, cursor);
-          if (shown && shown !== r) engine.recycle(shown);
-          shown = r;
+          if (runs.shown && runs.shown !== r) engine.recycle(runs.shown);
+          runs.shown = r;
         })
         .finally(() => {
-          busy = false;
-          if (dirty) {
-            dirty = false;
+          runs.busy = false;
+          if (runs.dirty) {
+            runs.dirty = false;
             schedule();
           }
         });
@@ -388,11 +364,18 @@ const MapView = ({
       layer.setStyle({ scale: s, contours: [] });
       // The colors always follow the cursor: from it (departure) or towards it (arrival)
       layer.setTimes(r?.dist);
-      drawContours(r?.dist, cs);
+      contourLines.draw(r?.dist, cs);
       // One panel slot per frame, shared by the figures and the trip
       const due = panelDue();
       if (due) live.current.onLive(r && summary(r, toLngLat(cursor)));
       if (!pin) return;
+      if (live.current.cutMode) {
+        // Computed from the pinned point itself: no trip to show
+        label.remove();
+        setRoute(undefined);
+
+        return;
+      }
 
       // The anchored point is the other end of the trip: its time and path are read in the same result
       const anchored = toRel(pin);
@@ -436,16 +419,34 @@ const MapView = ({
       schedule();
     };
 
+    const cutLayer = new CutLayer(map, engine);
+    c.drawCuts = () => cutLayer.draw(live.current.cuts);
+    c.clearHover = () => cutLayer.clearHover();
+
+    c.freeze = () => {
+      const pin = live.current.pinned;
+      if (pin) c.cursor = toRel(pin);
+      schedule();
+    };
+
     map.on('mousemove', (e) => {
-      c.cursor = toRel(e.lngLat.toArray() as LngLat);
+      // Cut mode: the cursor picks sections, the origin of the map stays where it was
+      const point = e.lngLat.toArray();
+      if (live.current.cutMode) return cutLayer.hover(e.point, point);
+
+      c.cursor = toRel(point);
       schedule();
       clearTimeout(c.settleTimer);
-      const point = e.lngLat.toArray() as LngLat;
       c.settleTimer = setTimeout(() => live.current.onSettle(live.current.pinned ? point : undefined), SETTLE_MS);
     });
     map.getCanvas().addEventListener('mouseleave', () => clearTimeout(c.settleTimer));
     map.on('click', (e) => {
-      live.current.onPin(e.lngLat.toArray() as LngLat);
+      if (!live.current.cutMode) return live.current.onPin(e.lngLat.toArray());
+      const { hovered } = cutLayer;
+      if (!hovered) return;
+
+      live.current.onCutToggle(hovered.cut);
+      cutLayer.clearHover();
     });
 
     map.on('load', () => {
@@ -567,6 +568,8 @@ const MapView = ({
         },
         paint: { 'text-color': '#111', 'text-halo-color': '#fff', 'text-halo-width': 2.5 },
       });
+      cutLayer.addLayers();
+      c.drawCuts();
       map.addSource('route', { type: 'geojson', data: EMPTY, lineMetrics: true });
       map.addLayer({
         id: 'route-casing',
@@ -593,7 +596,7 @@ const MapView = ({
     return () => {
       cancelAnimationFrame(c.frame);
       clearTimeout(c.settleTimer);
-      contourWorker.terminate();
+      contourLines.terminate();
       map.remove();
       c.ready = false;
     };
@@ -624,6 +627,28 @@ const MapView = ({
     if (c.ready) c.refresh();
   }, [contours]);
 
+  useEffect(() => {
+    const c = ctl.current;
+    if (c.ready) c.drawCuts();
+  }, [cuts]);
+
+  // Cut mode: Esc leaves it
+  useEffect(() => {
+    const c = ctl.current;
+    if (!cutMode) {
+      c.clearHover();
+
+      return;
+    }
+    c.freeze();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') live.current.onCutModeChange(false);
+    };
+    window.addEventListener('keydown', onKey);
+
+    return () => window.removeEventListener('keydown', onKey);
+  }, [cutMode]);
+
   const positionMarker = useRef<Marker>(undefined);
   useEffect(() => {
     const map = ctl.current.map;
@@ -633,7 +658,7 @@ const MapView = ({
     map.flyTo({ center: focus.point, zoom: Math.max(map.getZoom(), 14), duration: 1200 });
   }, [focus]);
 
-  return <div ref={containerRef} className="map" />;
+  return <div ref={containerRef} className={cutMode ? 'map cutting' : 'map'} />;
 };
 
 export default MapView;

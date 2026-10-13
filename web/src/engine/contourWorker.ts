@@ -5,8 +5,8 @@
  * of a result; the worker answers with the GeoJSON features (lines and their labels), in longitude and latitude.
  */
 import type * as GeoJSON from 'geojson';
-import { fromMercator } from '../lib/mercator';
-import { type ContourGrid, isochroneLines, joinSegments } from './contours';
+import { fromMercator } from '@/lib/mercator';
+import { type ContourGrid, isochroneLines, joinSegments } from '@/engine/contours';
 
 export type ContourRequest =
   | { type: 'grid'; grid: ContourGrid; origin: [number, number] }
@@ -17,20 +17,23 @@ export interface ContourResult {
   features: GeoJSON.Feature[];
 }
 
-let grid: ContourGrid | undefined;
-let origin: [number, number] = [0, 0];
+/** Sent once by the page */
+const zone: { grid?: ContourGrid; origin: [number, number] } = { origin: [0, 0] };
 
-const toLngLat = ([x, y]: [number, number]) => fromMercator([x + origin[0], y + origin[1]]);
+const toLngLat = ([x, y]: [number, number]): [number, number] => fromMercator([x + zone.origin[0], y + zone.origin[1]]);
 
 self.onmessage = (event: MessageEvent<ContourRequest>) => {
   const msg = event.data;
   if (msg.type === 'grid') {
-    grid = msg.grid;
-    origin = msg.origin;
+    zone.grid = msg.grid;
+    zone.origin = msg.origin;
 
     return;
   }
+
+  const { grid } = zone;
   if (!grid) return;
+
   const features: GeoJSON.Feature[] = [];
   isochroneLines(grid, msg.dist, msg.limits, msg.walkSpeed).forEach((segments, i) => {
     const lines = joinSegments(segments);

@@ -17,7 +17,13 @@ use crate::schedule::{Route, Schedule, Segment};
 use crate::zone::Zone;
 use std::collections::HashMap;
 
-const MAGIC: u32 = 0x334e5254;
+const MAGIC: u32 = 0x334e_5254;
+
+/// An index or a count of the file: transit.bin stores them as u32, so beyond 4 billion items the build fails
+/// rather than writing truncated values
+fn u32_of(n: usize) -> u32 {
+    u32::try_from(n).expect("transit.bin: more than u32::MAX items")
+}
 /// No departure in the hour
 const NO_SERVICE: u16 = u16::MAX;
 const GTFS_BUS: u32 = 3;
@@ -51,11 +57,16 @@ fn waits(departures: [u32; HOURS]) -> [f32; HOURS] {
         if n == 0 {
             f32::INFINITY
         } else {
-            (3600.0 / n as f32 / 2.0).min(MAX_WAIT) + BOARD_PENALTY
+            // Departures in an hour: a few hundred at most, exact in f32
+            #[allow(clippy::cast_precision_loss)]
+            let departures = n as f32;
+            (3600.0 / departures / 2.0).min(MAX_WAIT) + BOARD_PENALTY
         }
     })
 }
 
+/// Seconds: a ride lasts far less than 2^24 s, exact in f32
+#[allow(clippy::cast_precision_loss)]
 fn median(mut v: Vec<u32>) -> f32 {
     v.sort_unstable();
     v[v.len() / 2] as f32
@@ -120,13 +131,13 @@ impl TransitLayer {
             let la = layer.line_stop(route_id, dir, from, line, sa, schedule);
             let lb = layer.line_stop(route_id, dir, to, line, sb, schedule);
             layer.rides.push((la, lb, hourly_durations(seg)));
-            layer.ride_coord_start.push((layer.coords.len() / 2) as u32);
+            layer.ride_coord_start.push(u32_of(layer.coords.len() / 2));
             for (lng, lat) in ride_geometry(seg, &schedule.shapes, route.kind == GTFS_BUS) {
                 let (x, y) = zone.project(lng, lat);
                 layer.coords.extend([x, y]);
             }
         }
-        layer.ride_coord_start.push((layer.coords.len() / 2) as u32);
+        layer.ride_coord_start.push(u32_of(layer.coords.len() / 2));
         layer
     }
 
@@ -135,7 +146,7 @@ impl TransitLayer {
             return id;
         }
         self.strings.push(s.to_string());
-        let id = (self.strings.len() - 1) as u32;
+        let id = u32_of(self.strings.len() - 1);
         self.string_ids.insert(s.to_string(), id);
         id
     }
@@ -146,7 +157,7 @@ impl TransitLayer {
         }
         let name = self.intern(&route.name);
         self.lines.push([name, route.color, route.text, route.kind]);
-        let id = (self.lines.len() - 1) as u32;
+        let id = u32_of(self.lines.len() - 1);
         self.line_ids.insert(route_id.to_string(), id);
         id
     }
@@ -161,7 +172,7 @@ impl TransitLayer {
         };
         let name_id = self.intern(name);
         self.stations.push((x, y, name_id));
-        let s = (self.stations.len() - 1) as u32;
+        let s = u32_of(self.stations.len() - 1);
         self.station_ids.insert(id.to_string(), s);
         s
     }
@@ -185,7 +196,7 @@ impl TransitLayer {
         }
         let departures = schedule.departures.get(&key).copied().unwrap_or([0; HOURS]);
         self.line_stops.push((line, station, waits(departures)));
-        let id = (self.line_stops.len() - 1) as u32;
+        let id = u32_of(self.line_stops.len() - 1);
         self.line_stop_ids.insert(key, id);
         id
     }
@@ -215,24 +226,31 @@ impl TransitLayer {
         let f32s = |out: &mut Vec<u8>, v: f32| out.extend(v.to_le_bytes());
         let header = [
             MAGIC,
-            self.stations.len() as u32,
-            self.lines.len() as u32,
-            self.line_stops.len() as u32,
-            self.rides.len() as u32,
-            (self.coords.len() / 2) as u32,
-            strings.len() as u32,
+            u32_of(self.stations.len()),
+            u32_of(self.lines.len()),
+            u32_of(self.line_stops.len()),
+            u32_of(self.rides.len()),
+            u32_of(self.coords.len() / 2),
+            u32_of(strings.len()),
             0,
         ];
-        header.iter().for_each(|&v| u32s(&mut out, v));
+        for v in header {
+            u32s(&mut out, v);
+        }
         for &(x, y, n) in &self.stations {
             f32s(&mut out, x);
             f32s(&mut out, y);
             u32s(&mut out, n);
         }
-        self.lines.iter().flatten().for_each(|&v| u32s(&mut out, v));
+        for &v in self.lines.iter().flatten() {
+            u32s(&mut out, v);
+        }
         let u16s = |out: &mut Vec<u8>, v: f32| {
             let s = if v.is_finite() {
-                v.round().min(f32::from(NO_SERVICE - 1)) as u16
+                // Clamped to the u16 range first, so the cast is exact
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                let seconds = v.round().clamp(0.0, f32::from(NO_SERVICE - 1)) as u16;
+                seconds
             } else {
                 NO_SERVICE
             };
@@ -241,17 +259,23 @@ impl TransitLayer {
         for (l, s, w) in &self.line_stops {
             u32s(&mut out, *l);
             u32s(&mut out, *s);
-            w.iter().for_each(|&v| u16s(&mut out, v));
+            for &v in w {
+                u16s(&mut out, v);
+            }
         }
         for (a, b, t) in &self.rides {
             u32s(&mut out, *a);
             u32s(&mut out, *b);
-            t.iter().for_each(|&v| u16s(&mut out, v));
+            for &v in t {
+                u16s(&mut out, v);
+            }
         }
-        self.ride_coord_start
-            .iter()
-            .for_each(|&v| u32s(&mut out, v));
-        self.coords.iter().for_each(|&v| f32s(&mut out, v));
+        for &v in &self.ride_coord_start {
+            u32s(&mut out, v);
+        }
+        for &v in &self.coords {
+            f32s(&mut out, v);
+        }
         out.extend(strings.as_bytes());
         out
     }

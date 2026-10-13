@@ -1,12 +1,15 @@
 import { Button, CollapsibleSection, SegmentedSwitch, Slider, Stack, Switch, Typography } from '@ign-junn/design-system';
-import { DEFAULT_MODEL, type ModelOptions } from '../engine/profile';
-import type { Mode } from '../lib/config';
-import { t } from '../locales';
+import type { ModelOptions } from '@/engine/profile';
+import type { Mode } from '@/lib/config';
+import { t } from '@/locales';
+import type { ReactElement } from 'react';
 
 interface ModelSectionProps {
   mode: Mode;
   model: ModelOptions;
   onChange: (patch: Partial<ModelOptions>) => void;
+  /** Back to the default values, closed sections reopened */
+  onReset: () => void;
 }
 
 const Value = ({ label, value }: { label: string; value: string }) => (
@@ -17,7 +20,7 @@ const Value = ({ label, value }: { label: string; value: string }) => (
 );
 
 /** The assumptions of the travel times that matter for the chosen mode */
-const ModelSection = ({ mode, model, onChange }: ModelSectionProps) => {
+const ModelSection = ({ mode, model, onChange, onReset }: ModelSectionProps): ReactElement => {
   const walking = mode === 'pedestrian' || mode === 'transit';
 
   return (
@@ -87,7 +90,7 @@ const ModelSection = ({ mode, model, onChange }: ModelSectionProps) => {
             </Stack>
           </>
         )}
-        <Button label={t.model.reset} variant="subtle" size="xs" onClick={() => onChange(DEFAULT_MODEL)} />
+        <Button label={t.model.reset} variant="subtle" size="xs" onClick={onReset} />
       </Stack>
     </CollapsibleSection>
   );
