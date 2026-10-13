@@ -35,7 +35,7 @@ by the browser (`web/src/shared/dataCache.ts`): every file stays under the 100 M
 | Pays de la Loire | 1.61 M | 29.8 MB | regional aggregate | 1.3 MB |
 | Provence-Alpes-Côte d’Azur | 1.05 M | 20.2 MB | SNCF, Aix-Marseille-Provence (RTM…), Lignes d’Azur (Nice), Mistral, Orizo | 1.0 MB |
 
-Sizes of the files as stored (gzipped). Where several feeds are listed, `crates/prep` merges them into one layer; a feed
+Sizes of the files as stored (gzipped); Nouvelle-Aquitaine is stored with Git LFS. Where several feeds are listed, `crates/prep` merges them into one layer; a feed
 that has no service on the reference day (an outdated one, like the Corsican railways) is read on the nearest same
 day of the week.
 

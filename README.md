@@ -193,7 +193,9 @@ point), the city centres kept in full in `crates/prep/src/regions.rs`, the refer
 `crates/prep/src/transit.rs` (`--date YYYYMMDD` to change it). Away from the city centres the WFS filters the paths
 and service roads out itself. The WFS pages are cached in `.cache/bdtopo-z/`, the GTFS feeds, listed in
 `crates/prep/src/transit/feeds.rs`, in `.cache/gtfs/`. The region files are stored
-gzipped (1 to 52 MB each, under the 100 MB a file of GitHub); the browser inflates them.
+gzipped (1 to 52 MB each, under the 100 MB a file of GitHub); the browser inflates them. Nouvelle-Aquitaine, over the
+50 MB GitHub recommends, is stored with Git LFS (`.gitattributes`): install [git-lfs](https://git-lfs.com) before
+cloning, or run `git lfs pull` after.
 
 ### Deployment
 

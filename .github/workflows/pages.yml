@@ -19,6 +19,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        # The largest region file is stored with Git LFS
+        with:
+          lfs: true
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       # The runner has Rust: the engine is rebuilt from crates/engine
