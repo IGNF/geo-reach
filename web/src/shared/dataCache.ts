@@ -3,7 +3,7 @@
  * then kept in the Cache Storage of the browser: later visits read it locally, even offline. Bump DATA_VERSION when
  * the files change, so that browsers drop their copy.
  */
-export const DATA_VERSION = '2026-10-13-relief';
+export const DATA_VERSION = '2026-10-13-tracks';
 const CACHE = `geo-reach-data-${DATA_VERSION}`;
 
 /** Bytes received so far, and the size of the file when the server tells it (not when it compresses the transfer) */

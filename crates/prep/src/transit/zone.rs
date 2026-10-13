@@ -27,6 +27,11 @@ impl Zone {
         })
     }
 
+    /// min lng, min lat, max lng, max lat
+    pub fn bbox(&self) -> [f64; 4] {
+        [self.bbox.0, self.bbox.1, self.bbox.2, self.bbox.3]
+    }
+
     pub fn contains(&self, lng: f64, lat: f64) -> bool {
         lng >= self.bbox.0 && lat >= self.bbox.1 && lng <= self.bbox.2 && lat <= self.bbox.3
     }

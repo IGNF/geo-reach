@@ -5,17 +5,19 @@
 //! - boarding a line at a station costs half its interval there (capped), plus a fixed transfer penalty; with no
 //!   departure in that hour, the line cannot be boarded (infinite wait).
 //!
-//! Platforms are merged into their station (`parent_station`). Ride geometries come from the GTFS shapes, or go
-//! straight from stop to stop when the feed has none. A region's feeds are merged.
+//! Platforms are merged into their station (`parent_station`). Ride geometries come from the GTFS shapes; without
+//! them, rail, metro and tram rides follow the BD TOPO tracks, buses go straight from stop to stop. A region's feeds
+//! are merged.
 //!
 //! Modules: [`feeds`] (the feeds of each region), [`zone`] (the area and its projection), [`feed`] (reading a GTFS
-//! zip), [`schedule`] (the trips of the day, aggregated by line segment and hour), [`layer`] (the output tables and
-//! their binary layout).
+//! zip), [`schedule`] (the trips of the day, aggregated by line segment and hour), [`tracks`] (the BD TOPO railway),
+//! [`layer`] (the output tables and their binary layout).
 
 mod feed;
 mod feeds;
 mod layer;
 mod schedule;
+mod tracks;
 mod zone;
 
 use crate::http::Http;
@@ -89,7 +91,15 @@ pub fn build(http: &Http, region: &Region, date: u32) -> Res<()> {
     let dir = root().join("web/public/data/regions");
     let zone = zone::Zone::read(&dir.join(format!("{}.bin.gz", region.id)))?;
     let schedule = schedule::Schedule::read_all(&zips, &zone, date);
-    let layer = layer::TransitLayer::build(&schedule, &zone);
+    let mut tracks = if layer::rails_without_shapes(&schedule) {
+        Some(tracks::Tracks::load(http, zone.bbox())?)
+    } else {
+        None
+    };
+    let layer = layer::TransitLayer::build(&schedule, &zone, tracks.as_mut());
+    if let Some(tracks) = &tracks {
+        eprintln!("{}", tracks.summary());
+    }
     let bytes = layer.to_bytes();
 
     let mut gz = GzEncoder::new(Vec::new(), Compression::best());

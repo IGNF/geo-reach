@@ -7,13 +7,15 @@
 //!   lines:     u32 name (string index), u32 color 0xRRGGBB, u32 text color, u32 GTFS route type
 //!   lineStops: u32 line, u32 station, u16 wait[24] (seconds per hour of the day, penalty included, 65535: none)
 //!   rides:     u32 from lineStop, u32 to lineStop, u16 seconds[24]
-//! Bus rides are straight lines between their stops (their shapes weigh a lot for little); rail keeps its shapes.
+//! Bus rides are straight lines between their stops (their shapes weigh a lot for little); rail keeps its shapes,
+//! or follows the BD TOPO tracks when its feed has none.
 //!   rideCoordStart: u32[rideCount + 1]
 //!   coords:    f32[coordCount * 2]
 //!   strings:   JSON array
 
 use super::HOURS;
 use super::schedule::{Route, Schedule, Segment};
+use super::tracks::Tracks;
 use super::zone::Zone;
 use std::collections::HashMap;
 use std::fmt::Write;
@@ -106,15 +108,21 @@ fn hourly_durations(seg: &Segment) -> [f32; HOURS] {
     per_hour
 }
 
-/// The shape between the points nearest to both platforms, else a straight line
-fn ride_geometry(
+/// Whether some rail, metro or tram ride has no shape to follow
+pub fn rails_without_shapes(schedule: &Schedule) -> bool {
+    schedule.segments.iter().any(|((route_id, ..), seg)| {
+        schedule.routes.get(route_id).is_some_and(|r| r.kind < 3)
+            && !schedule.shapes.contains_key(&seg.shape)
+    })
+}
+
+/// The shape between the points nearest to both platforms; none for a bus, or without a shape
+fn shape_geometry(
     seg: &Segment,
     shapes: &HashMap<String, Vec<(f64, f64)>>,
     bus: bool,
-) -> Vec<(f64, f64)> {
-    let Some(shape) = shapes.get(&seg.shape).filter(|_| !bus) else {
-        return vec![seg.from_pos, seg.to_pos];
-    };
+) -> Option<Vec<(f64, f64)>> {
+    let shape = shapes.get(&seg.shape).filter(|_| !bus)?;
     let nearest = |(lng, lat): (f64, f64), from: usize| {
         (from..shape.len())
             .min_by(|&i, &j| {
@@ -125,15 +133,12 @@ fn ride_geometry(
     };
     let i = nearest(seg.from_pos, 0);
     let j = nearest(seg.to_pos, i);
-    if j > i + 1 {
-        shape[i..=j].to_vec()
-    } else {
-        vec![seg.from_pos, seg.to_pos]
-    }
+    (j > i + 1).then(|| shape[i..=j].to_vec())
 }
 
 impl TransitLayer {
-    pub fn build(schedule: &Schedule, zone: &Zone) -> Self {
+    /// The layer; rides without a shape follow the `tracks` when given, else go straight
+    pub fn build(schedule: &Schedule, zone: &Zone, mut tracks: Option<&mut Tracks>) -> Self {
         let mut layer = TransitLayer::default();
         // Sorted keys: the same feed always gives the same file
         let mut keys: Vec<_> = schedule.segments.keys().collect();
@@ -153,7 +158,14 @@ impl TransitLayer {
             let lb = layer.line_stop(route_id, dir, to, line, sb, schedule);
             layer.rides.push((la, lb, hourly_durations(seg)));
             layer.ride_coord_start.push(u32_of(layer.coords.len() / 2));
-            for (lng, lat) in ride_geometry(seg, &schedule.shapes, route.kind == GTFS_BUS) {
+            let geometry = shape_geometry(seg, &schedule.shapes, route.kind == GTFS_BUS)
+                .or_else(|| {
+                    tracks
+                        .as_deref_mut()
+                        .and_then(|t| t.path(route.kind, seg.from_pos, seg.to_pos))
+                })
+                .unwrap_or_else(|| vec![seg.from_pos, seg.to_pos]);
+            for (lng, lat) in geometry {
                 let (x, y) = zone.project(lng, lat);
                 layer.coords.extend([x, y]);
             }

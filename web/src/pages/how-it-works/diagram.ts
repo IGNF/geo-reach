@@ -59,6 +59,7 @@ export const EDGES: FlowDiagramEdge[] = [
   { from: 'relief', to: 'buildGraph', label: e.slopes },
   { from: 'buildGraph', to: 'graphBin' },
   { from: 'gtfs', to: 'gtfsPrep' },
+  { from: 'wfs', to: 'gtfsPrep', label: e.tracks, dashed: true },
   { from: 'graphBin', to: 'gtfsPrep', label: e.zone, dashed: true },
   { from: 'gtfsPrep', to: 'transitBin' },
   { from: 'engineCrate', to: 'wasm', label: e.cargo },

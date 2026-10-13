@@ -44,6 +44,7 @@ day of the week.
 | Data | Source | Licence |
 |---|---|---|
 | Road network, heights | IGN BD TOPO, `troncon_de_route`, Géoplateforme WFS | Licence Ouverte Etalab 2.0 |
+| Rail tracks (drawing of the rides without GTFS shapes) | IGN BD TOPO, `troncon_de_voie_ferree`, Géoplateforme WFS | Licence Ouverte Etalab 2.0 |
 | Timetables | Île-de-France Mobilités, aggregates of the urban and interurban networks, SNCF feed, on [transport.data.gouv.fr](https://transport.data.gouv.fr) (feeds listed in [crates/prep/src/transit/feeds.rs](../../../crates/prep/src/transit/feeds.rs)) | per feed, mostly Licence Ouverte or ODbL |
 
 The `.transit` files are databases derived from these timetables, under the licence of their feed.

@@ -41,3 +41,16 @@ impl Http {
         Err(format!("{url}: {last}").into())
     }
 }
+
+/// Percent-encoding of a query value
+pub fn encode(value: &str) -> String {
+    value
+        .bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
+}

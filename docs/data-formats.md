@@ -57,7 +57,7 @@ dropped.
 Written by `crates/prep` (`prep transit`, `src/transit.rs`, feeds in `src/transit/feeds.rs`), read by
 `web/src/features/routing/transit.ts` (`readTransit`). A region can have several feeds (the SNCF trains with the urban
 networks): `prep` reads them one by one and merges them, each feed's ids prefixed with its index. It takes feeds
-without `calendar.txt` or `shapes.txt` (the rides then go straight from stop to stop), values padded with spaces,
+without `calendar.txt` or `shapes.txt` (their rail, metro and tram rides then follow the BD TOPO tracks, see below), values padded with spaces,
 stray control characters in the names (written as JSON escapes), and turns the extended GTFS route types into the
 basic ones (ferries go with the buses). A feed with no service on the reference day is read on the nearest same day
 of the week (logged).
@@ -70,7 +70,7 @@ of the week (logged).
 | lineStops | `(u32 line, u32 station, u16 wait[24])[lineStopCount]` | wait per hour of the day, seconds, boarding penalty included, `65535` without departure |
 | rides | `(u32 fromLineStop, u32 toLineStop, u16 seconds[24])[rideCount]` | ride time per hour |
 | `rideCoordStart` | `u32[rideCount + 1]` | first point of each ride in `coords` |
-| `coords` | `f32[coordCount × 2]` | ride geometries: GTFS shapes cut between the two platforms for rail and tram, straight lines for buses |
+| `coords` | `f32[coordCount × 2]` | ride geometries: GTFS shapes cut between the two platforms for rail, metro and tram, else the BD TOPO tracks, straight lines for buses |
 | strings | UTF-8 JSON | names of stations and lines |
 
 ### Frequency model
@@ -81,6 +81,18 @@ For a reference day (default Tuesday 2026-10-13, `prep transit <region> --date Y
 - **wait** = 3600 / (departures in the hour) / 2, capped at 12 min, plus 60 s.
 
 Platforms are merged into their parent station; GTFS times past 24:00 wrap to the hour of the day.
+
+### Ride geometries without shapes
+
+The SNCF feed, Ilévia (Lille) and TaM (Montpellier) have no `shapes.txt`, and some trips of the aggregates have no
+shape. Their rail, metro and tram rides follow the BD TOPO railway (`crates/prep/src/transit/tracks.rs`): the
+`troncon_de_voie_ferree` sections in service around the zone (0.3° margin), read from the Géoplateforme WFS once
+per region and cached in `.cache/bdtopo-rail/`. One graph per kind of track: main lines and LGV for trains (service
+tracks, three times the cost, only bridge them in stations and yards), `Métro`, `Tramway`. Each station is snapped
+to the nearest point of its tracks within 400 m, the ride is the A* shortest path between the two, simplified to
+5 m; when there is none, or it is more than 1.4 times the straight line (plus the snapping), the ride stays a
+straight line. About 90 % of these rides follow the tracks; most of the others are stops without tracks (coaches
+filed as trains).
 
 The browser grafts this layer on the road graph at load time (`loadTransit` returns a function of the road
 network): each station is linked to its 3 nearest walkable road nodes within 400 m.

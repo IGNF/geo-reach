@@ -2,7 +2,7 @@
 //! million objects is slow), each page cached gzipped in .cache/bdtopo-z/ (delete it to download again). Away from
 //! the city centres the WFS leaves the paths and service roads out itself (cached apart, `-f` pages).
 
-use crate::http::Http;
+use crate::http::{Http, encode};
 use crate::regions::{self, Box};
 use crate::{Res, root};
 use flate2::Compression;
@@ -181,19 +181,6 @@ impl Tile {
         fs::write(&file, gz.finish()?)?;
         Ok(sections)
     }
-}
-
-/// Percent-encoding of a query value
-fn encode(value: &str) -> String {
-    value
-        .bytes()
-        .map(|b| match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                (b as char).to_string()
-            }
-            _ => format!("%{b:02X}"),
-        })
-        .collect()
 }
 
 /// Downloads every page missing from the cache, a few tiles at once

@@ -8,6 +8,7 @@
 //! The regions are web/src/features/regions/regions.json, shared with the app. Downloads are cached in .cache/ (WFS
 //! pages, GTFS feeds): a second run reads them back. On the IGN network, set `HTTPS_PROXY`.
 
+mod geometry;
 mod http;
 mod regions;
 mod roads;

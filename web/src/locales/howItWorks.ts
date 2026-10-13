@@ -48,6 +48,7 @@ const en = {
     groups: { offline: 'Prepared once, offline', browser: 'In your browser, at every mouse move' },
     edges: {
       zone: 'zone',
+      tracks: 'rail tracks',
       cargo: 'cargo build',
       loaded: 'loaded once',
       csr: 'graph arrays',
@@ -77,7 +78,7 @@ const en = {
       wfs: {
         label: 'BD TOPO roads',
         detail: 'Géoplateforme WFS',
-        text: 'Every road section of metropolitan France, region by region, with its traffic direction, pedestrian and car access, average speed, cycle lanes and street name. Downloaded tile by tile from the Géoplateforme WFS service; away from the main city centres the service itself leaves out the footpaths and service roads.',
+        text: 'Every road section of metropolitan France, region by region, with its traffic direction, pedestrian and car access, average speed, cycle lanes and street name. Downloaded tile by tile from the Géoplateforme WFS service; away from the main city centres the service itself leaves out the footpaths and service roads. The railway (trains, metros, trams) comes from the same service.',
       },
       gtfs: {
         label: 'Timetables',
@@ -98,7 +99,7 @@ const en = {
       gtfsPrep: {
         label: 'prep transit',
         detail: 'Rust, region by region',
-        text: 'Merges the feeds of each region, aligned on its road network. Reads the timetables of the region and keeps, for a reference weekday and for each hour, the median ride time between two stations and the average wait (half the time between two departures).',
+        text: 'Merges the feeds of each region, aligned on its road network. Reads the timetables of the region and keeps, for a reference weekday and for each hour, the median ride time between two stations and the average wait (half the time between two departures). Lines come with their shapes; where a feed has none (the SNCF trains, the Lille metro, the Montpellier tram), the ride follows the BD TOPO tracks between its two stations.',
         file: 'crates/prep/src/transit.rs',
       },
       graphBin: {
@@ -274,6 +275,7 @@ const fr: typeof en = {
     groups: { offline: 'Préparé une fois, hors ligne', browser: 'Dans votre navigateur, à chaque mouvement' },
     edges: {
       zone: 'zone',
+      tracks: 'voies ferrées',
       cargo: 'cargo build',
       loaded: 'chargé une fois',
       csr: 'tableaux du graphe',
@@ -303,7 +305,7 @@ const fr: typeof en = {
       wfs: {
         label: 'Routes BD TOPO',
         detail: 'WFS Géoplateforme',
-        text: 'Tous les tronçons de route de France métropolitaine, région par région, avec leur sens de circulation, l’accès piéton et voiture, la vitesse moyenne, les aménagements cyclables et le nom de la rue. Téléchargés tuile par tuile depuis le service WFS de la Géoplateforme ; hors des principaux centres-villes, le service écarte lui-même chemins et voies de service.',
+        text: 'Tous les tronçons de route de France métropolitaine, région par région, avec leur sens de circulation, l’accès piéton et voiture, la vitesse moyenne, les aménagements cyclables et le nom de la rue. Téléchargés tuile par tuile depuis le service WFS de la Géoplateforme ; hors des principaux centres-villes, le service écarte lui-même chemins et voies de service. Les voies ferrées (trains, métros, trams) viennent du même service.',
       },
       gtfs: {
         label: 'Horaires',
@@ -324,7 +326,7 @@ const fr: typeof en = {
       gtfsPrep: {
         label: 'prep transit',
         detail: 'Rust, région par région',
-        text: 'Fusionne les flux de chaque région, aligné sur son réseau routier. Lit les horaires de la région et garde, pour un jour de semaine de référence et pour chaque heure, le temps de trajet médian entre deux stations et l’attente moyenne (la moitié du temps entre deux départs).',
+        text: 'Fusionne les flux de chaque région, aligné sur son réseau routier. Lit les horaires de la région et garde, pour un jour de semaine de référence et pour chaque heure, le temps de trajet médian entre deux stations et l’attente moyenne (la moitié du temps entre deux départs). Les lignes arrivent avec leur tracé ; quand un flux n’en a pas (les trains SNCF, le métro de Lille, le tram de Montpellier), le trajet suit les voies BD TOPO entre ses deux stations.',
         file: 'crates/prep/src/transit.rs',
       },
       graphBin: {

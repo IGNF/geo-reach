@@ -13,6 +13,7 @@ flowchart LR
     Z["BD TOPO heights (Z)<br/>RGE ALTI"] -->|climb, descent| G
     GTFS["GTFS feeds<br/>(transport.data.gouv.fr)"] -->|crates/prep<br/>prep transit| T["regions/&lt;id&gt;.transit.bin.gz<br/>13 regions, 14,000 lines"]
     G -. zone origin + bbox .-> T
+    WFS -. troncon_de_voie_ferree .-> T
     RS[crates/engine] -->|scripts/buildEngine.ts<br/>cargo → wasm32| W[engine.wasm]
   end
 
