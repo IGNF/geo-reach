@@ -5,6 +5,8 @@ import { BUILDINGS_MIN_ZOOM } from '@/features/buildings';
 export const TILT_PITCH = 45;
 /** Tilt and heading of the 3D views */
 export const TILT = { pitch: TILT_PITCH, bearing: -17 };
+/** Widest zoom: about a département across the screen; beyond, the network blurs into a solid patch of color */
+export const MIN_ZOOM = 9;
 /** Zoom of the building view: where the buildings exist */
 export const BUILDINGS_ZOOM = BUILDINGS_MIN_ZOOM + 0.6;
 

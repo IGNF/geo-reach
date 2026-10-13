@@ -48,6 +48,10 @@ Fragment shader:
 
 Blending is premultiplied (`ONE, ONE_MINUS_SRC_ALPHA`), depth test off.
 
+The map stops zooming out at zoom 9 (`MIN_ZOOM`, `features/map/camera.ts`), about a département across the screen:
+further out, the glow of hundreds of thousands of streets would merge into one solid patch of color, and every frame
+would draw the whole region for nothing.
+
 ## 3D views
 
 - **3D buildings** (the default view): a second custom layer (`features/buildings/buildingGlLayer.ts`), drawn under the network
