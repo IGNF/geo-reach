@@ -44,7 +44,9 @@ It is a proof of concept, good for comparing places and modes, not for planning 
 - **Transit**: average waits (half the time between two trains or buses at that hour) on a typical weekday, not the
   exact timetable; changes happen inside the station.
 - **Car**: estimated traffic from a typical congestion curve, no live traffic, no traffic lights.
-- **Walk**: 4 km/h, as the Géoplateforme route service. **Bike**: 15 km/h, a little faster on cycle lanes.
+- **Walk**: 4 km/h on the flat, as the Géoplateforme route service. **Bike**: 15 km/h, a little faster on cycle lanes.
+- **Slopes**: walking and cycling slow down uphill (Tobler's hiking function for walking), using the heights of the
+  BD TOPO roads. The Géoplateforme route service ignores them, so its walking times differ on hills.
 - **Zone**: Île-de-France. Full street network in Paris and the inner suburbs; beyond, no footpaths, tracks nor
   service roads (main roads, streets and station access are kept).
 
@@ -66,7 +68,7 @@ So the **data** comes from the Géoplateforme and the **computation** runs in th
 - the road network is the BD TOPO, read from the Géoplateforme WFS; the basemap is Plan IGN; addresses come from
   its reverse geocoding;
 - the route service stays the reference: when the cursor stops, its walking or driving time is shown beside ours
-  in the trip panel. Walking uses the same speed (4 km/h); night driving times differ by about 15 %
+  in the trip panel. Walking uses the same speed on the flat (4 km/h); night driving times differ by about 15 %
   (`scripts/calibrate.ts --gpf`).
 
 What would let the Géoplateforme serve this directly: a one-to-many service (a matrix of travel times, or

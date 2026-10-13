@@ -31,10 +31,23 @@ transfers cost a new wait: staying on the same line follows `RIDE` arcs only, ch
 
 | Mode | Roads | Transit edges |
 |---|---|---|
-| `pedestrian` | 4 km/h both ways (same as the GPF route service), ×2 on stairs; motorways and ramps excluded | ignored |
-| `bike` | 15 km/h, ×1.1 on cycle lanes and greenways, ×0.65 on unpaved paths; one-way streets respected except contraflow cycle lanes | ignored |
+| `pedestrian` | 4 km/h on the flat (same as the GPF route service), Tobler's function on slopes, ×2 on stairs; motorways and ramps excluded | ignored |
+| `bike` | 15 km/h on the flat, ×1.1 on cycle lanes and greenways, ×0.65 on unpaved paths, slowed down uphill; one-way streets respected except contraflow cycle lanes | ignored |
 | `car` | BD TOPO average speed × traffic factor of the hour + 3 s per section, one-way streets respected | ignored |
 | `transit` | as pedestrian | all, bus edges only if the bus toggle is on; wait and ride time of the chosen hour |
+
+**Slopes** (`ModelOptions.relief`, on by default): each road edge knows its climb and descent from A to B
+(`edgeClimb`, `edgeDescent`), so the two directions get different costs. Only totals are stored: the climbing and
+descending parts are assumed to share the length in proportion to their heights, at one grade
+`(climb + descent) / length`, capped at 25 % (beyond, it is a bump of the terrain on a short edge). Time factors on
+those parts:
+
+| | Uphill, grade g | Downhill, grade g |
+|---|---|---|
+| walk | `exp(3.5 × (abs(g + 0.05) − 0.05))` (Tobler): ×1.19 at 5 %, ×1.42 at 10 % | same with −g: ×0.84 at 5 % (fastest), ×1 at 10 %, slower beyond |
+| bike | `1 + 10 g`: half the speed at 10 % | `1 / min(1 + 5 g, 1.4)`: at most 40 % faster |
+
+Cars ignore slopes. The trip panel sums the climb and descent of the path, each edge in its direction of travel.
 
 The **hour of departure** (`ProfileOptions.hour`, 0–23) drives two things:
 

@@ -201,6 +201,22 @@ body,
   color: var(--mantine-color-dimmed);
 }
 
+.trip-relief {
+  display: inline-flex;
+  gap: 8px;
+  margin-left: auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--mantine-color-dimmed);
+  white-space: nowrap;
+}
+
+.trip-relief > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .trip-duration {
   font-size: 38px;
   font-weight: 800;

@@ -1,4 +1,4 @@
-import { Button, CollapsibleSection, SegmentedSwitch, Slider, Stack, Typography } from '@ign-junn/design-system';
+import { Button, CollapsibleSection, SegmentedSwitch, Slider, Stack, Switch, Typography } from '@ign-junn/design-system';
 import { DEFAULT_MODEL, type ModelOptions } from '../engine/profile';
 import type { Mode } from '../lib/config';
 import { t } from '../locales';
@@ -34,6 +34,15 @@ const ModelSection = ({ mode, model, onChange }: ModelSectionProps) => {
             <Value label={t.model.bike} value={t.kmh(model.bikeKmh)} />
             <Slider label={t.model.bike} min={10} max={25} step={1} value={model.bikeKmh} onChange={(v) => onChange({ bikeKmh: v })} />
           </Stack>
+        )}
+        {mode !== 'car' && (
+          <Switch
+            label={t.model.relief}
+            description={t.model.reliefHint}
+            checked={model.relief}
+            onChange={(relief) => onChange({ relief })}
+            size="xs"
+          />
         )}
         {mode === 'car' && (
           <Stack direction="row" justify="space-between" align="center">

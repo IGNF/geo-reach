@@ -40,6 +40,8 @@ export const en = {
     waitHint:
       'Average: arriving at random, one waits half the time between two departures. Worst case: the train or bus leaves before your eyes, one waits for the next.',
     transfer: 'Station exit and transfers',
+    relief: 'Slopes',
+    reliefHint: 'Slower uphill, a little faster on gentle descents (road heights of the BD TOPO)',
     reset: 'Default values',
   },
   kmh: (v: number) => `${v} km/h`,
@@ -68,6 +70,8 @@ export const en = {
   nearestTile: 'nearest station',
   engineStats: (ms: string, nodes: string) => `Local engine: ${ms} ms · ${nodes} nodes`,
   gpfDuration: (duration: string) => `Géoplateforme: ${duration}`,
+  climb: (metres: number) => `${metres} m climbed`,
+  descent: (metres: number) => `${metres} m descended`,
   wait: (line: string) => `Wait ${line}`,
   walk: 'Walk',
   unnamedRoad: 'Unnamed road',

@@ -42,6 +42,8 @@ export const fr: Messages = {
     waitHint:
       'Attente moyenne : on arrive au hasard, on attend en moyenne la moitié du temps entre deux passages. Pire cas : on voit partir la rame ou le bus, on attend le suivant.',
     transfer: 'Sortie de station et correspondances',
+    relief: 'Pentes',
+    reliefHint: 'Plus lent en montée, un peu plus rapide en descente douce (altitudes des routes de la BD TOPO)',
     reset: 'Valeurs par défaut',
   },
   kmh: (v) => `${v.toLocaleString('fr-FR')} km/h`,
@@ -70,6 +72,8 @@ export const fr: Messages = {
   nearestTile: 'station la plus proche',
   engineStats: (ms, nodes) => `Moteur local : ${ms} ms · ${nodes} nœuds`,
   gpfDuration: (duration) => `Géoplateforme : ${duration}`,
+  climb: (metres) => `${metres} m de montée`,
+  descent: (metres) => `${metres} m de descente`,
   wait: (line) => `Attente ${line}`,
   walk: 'À pied',
   unnamedRoad: 'Voie sans nom',

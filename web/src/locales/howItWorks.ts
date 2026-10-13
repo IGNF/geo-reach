@@ -114,7 +114,7 @@ const en = {
       profile: {
         label: 'Profile',
         detail: 'mode, hour, direction',
-        text: 'Computes the time to travel each edge for the chosen mode (walk 4 km/h, bike 15 km/h, car with the traffic of the hour, transit with the waits of the hour), then packs the graph into compact arrays (CSR) written once into the engine memory. Changing mode rebuilds it; moving the mouse does not.',
+        text: 'Computes the time to travel each edge for the chosen mode (walk 4 km/h and bike 15 km/h on the flat, slower uphill from the BD TOPO heights, car with the traffic of the hour, transit with the waits of the hour), then packs the graph into compact arrays (CSR) written once into the engine memory. Changing mode rebuilds it; moving the mouse does not.',
         file: 'web/src/engine/profile.ts',
       },
       snap: {
@@ -195,7 +195,7 @@ const en = {
     kept: [
       'The road network: BD TOPO sections read from the WFS service (directions, pedestrian and car access, speeds, street names).',
       'The basemap (Plan IGN vector tiles) and the addresses near a point (reverse geocoding).',
-      'The route service as a reference: when the cursor stops, its walking or driving time is shown beside ours; the walking speed is the same (4 km/h), night driving times differ by about 15 %.',
+      'The route service as a reference: when the cursor stops, its walking or driving time is shown beside ours; the walking speed on the flat is the same (4 km/h), but it ignores slopes; night driving times differ by about 15 %.',
     ],
     next: 'What would let the Géoplateforme serve this directly: a "one to many" service (a matrix of travel times, or isochrones as a grid), or a routing graph one can download.',
   },
@@ -307,7 +307,7 @@ const fr: typeof en = {
       profile: {
         label: 'Profil',
         detail: 'mode, heure, sens',
-        text: 'Calcule le temps de parcours de chaque arête pour le mode choisi (marche 4 km/h, vélo 15 km/h, voiture avec le trafic de l’heure, transports avec les attentes de l’heure), puis range le graphe en tableaux compacts (CSR) écrits une fois dans la mémoire du moteur. Changer de mode le reconstruit ; bouger la souris, non.',
+        text: 'Calcule le temps de parcours de chaque arête pour le mode choisi (marche 4 km/h et vélo 15 km/h sur le plat, plus lents en montée d’après les altitudes BD TOPO, voiture avec le trafic de l’heure, transports avec les attentes de l’heure), puis range le graphe en tableaux compacts (CSR) écrits une fois dans la mémoire du moteur. Changer de mode le reconstruit ; bouger la souris, non.',
         file: 'web/src/engine/profile.ts',
       },
       snap: {
@@ -388,7 +388,7 @@ const fr: typeof en = {
     kept: [
       'Le réseau routier : tronçons BD TOPO lus par le service WFS (sens de circulation, accès piéton et voiture, vitesses, noms de voies).',
       'Le fond de carte (tuiles vectorielles Plan IGN) et les adresses près d’un point (géocodage inverse).',
-      'Le calcul d’itinéraire comme référence : quand le curseur s’arrête, son temps à pied ou en voiture s’affiche à côté du nôtre ; la vitesse de marche est la même (4 km/h), les temps en voiture de nuit diffèrent d’environ 15 %.',
+      'Le calcul d’itinéraire comme référence : quand le curseur s’arrête, son temps à pied ou en voiture s’affiche à côté du nôtre ; la vitesse de marche sur le plat est la même (4 km/h), mais il ignore les pentes ; les temps en voiture de nuit diffèrent d’environ 15 %.',
     ],
     next: 'Ce qui permettrait à la Géoplateforme de servir ce besoin directement : un service « un vers plusieurs » (matrice de temps de trajet, ou isochrones en grille), ou un graphe routier téléchargeable.',
   },

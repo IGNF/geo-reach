@@ -1,5 +1,13 @@
 import { Button, Stack, Typography } from '@ign-junn/design-system';
-import { IconBike, IconCar, IconClockHour4, IconWalk, IconX } from '@ign-junn/design-system/icons';
+import {
+  IconBike,
+  IconCar,
+  IconClockHour4,
+  IconTrendingDown,
+  IconTrendingUp,
+  IconWalk,
+  IconX,
+} from '@ign-junn/design-system/icons';
 import type { Leg } from '../engine/legs';
 import { rampCss } from '../lib/colors';
 import type { Mode } from '../lib/config';
@@ -61,6 +69,24 @@ const LegRow = ({ leg }: { leg: Leg }) => {
         {formatMinutes(leg.seconds / 60)}
       </span>
     </li>
+  );
+};
+
+/** Climb and descent of the trip, when it has some: walking and cycling, slopes from the BD TOPO Z */
+const Relief = ({ legs }: { legs: Leg[] }) => {
+  const climb = Math.round(legs.reduce((sum, leg) => sum + (leg.climb ?? 0), 0));
+  const descent = Math.round(legs.reduce((sum, leg) => sum + (leg.descent ?? 0), 0));
+  if (climb < 2 && descent < 2) return null;
+
+  return (
+    <span className="trip-relief">
+      <span title={t.climb(climb)} aria-label={t.climb(climb)}>
+        <IconTrendingUp size={14} /> {climb} m
+      </span>
+      <span title={t.descent(descent)} aria-label={t.descent(descent)}>
+        <IconTrendingDown size={14} /> {descent} m
+      </span>
+    </span>
   );
 };
 
@@ -127,6 +153,7 @@ const TripPanel = ({
                   {formatMinutes(target.seconds / 60)}
                 </span>
                 {gpfRoute && <Typography variant="hint">{t.gpfDuration(formatMinutes(gpfRoute.duration))}</Typography>}
+                <Relief legs={target.legs} />
               </Stack>
               <ol className="trip-steps">
                 {target.legs.slice(0, 12).map((leg, i) => (

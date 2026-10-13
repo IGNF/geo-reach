@@ -51,6 +51,9 @@ export interface Network {
   edgeB: Uint32Array;
   /** Ground metres for roads and links; seconds of the ride for rides; seconds of the wait for boardings */
   edgeLength: Float32Array;
+  /** Metres climbed and descended from A to B (roads; 0 for the other edges) */
+  edgeClimb: Float32Array;
+  edgeDescent: Float32Array;
   edgeKind: Uint8Array;
   edgeFlags: Uint8Array;
   edgeCarSpeed: Uint8Array;
@@ -73,7 +76,7 @@ export interface Network {
   railStations: Uint32Array;
 }
 
-const MAGIC = 0x33465247;
+const MAGIC = 0x34465247;
 
 /** Reads graph.bin (scripts/buildGraph.ts): interior points are 16 bit deltas, rebuilt here into full geometries */
 export const loadRoadNetwork = async (url: string, onProgress?: Progress): Promise<Network> => {
@@ -108,6 +111,8 @@ export const loadRoadNetwork = async (url: string, onProgress?: Progress): Promi
   const edgeName = take(Uint32Array, E);
   const pointStart = take(Uint32Array, E + 1);
   const edgeLength = Float32Array.from(take(Uint16Array, E));
+  const edgeClimb = Float32Array.from(take(Uint16Array, E), (dm) => dm / 10);
+  const edgeDescent = Float32Array.from(take(Uint16Array, E), (dm) => dm / 10);
   const edgeCarSpeed = take(Uint8Array, E);
   const edgeFlags = take(Uint8Array, E);
   const edgeImportance = take(Uint8Array, E);
@@ -145,6 +150,8 @@ export const loadRoadNetwork = async (url: string, onProgress?: Progress): Promi
     edgeA,
     edgeB,
     edgeLength,
+    edgeClimb,
+    edgeDescent,
     edgeKind: new Uint8Array(E),
     edgeFlags,
     edgeCarSpeed,

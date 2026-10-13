@@ -11,13 +11,14 @@ geometries (`coords`, `coordStart`) once at load.
 
 | Section | Type | Content |
 |---|---|---|
-| header | `u32 × 6` | magic `GRF3` (`0x33465247`), nodeCount, edgeCount (E), pointCount, namesBytes, padding |
+| header | `u32 × 6` | magic `GRF4` (`0x34465247`), nodeCount, edgeCount (E), pointCount, namesBytes, padding |
 | zone | `f64 × 6` | originX, originY (Mercator metres of the zone centre), minLng, minLat, maxLng, maxLat |
 | `nodes` | `f32[nodeCount × 2]` | node positions |
 | `edgeA`, `edgeB` | `u32[E]` each | end nodes; the geometry runs from A to B |
 | `edgeName` | `u32[E]` | index in `names`, `0xffffffff` without name |
 | `edgePointStart` | `u32[E + 1]` | first interior point of each edge in `points` |
 | `edgeLength` | `u16[E]` | ground metres |
+| `edgeClimb`, `edgeDescent` | `u16[E]` each | decimetres climbed and descended from A to B |
 | `edgeCarSpeed` | `u8[E]` | km/h, 0 where cars cannot go |
 | `edgeFlags` | `u8[E]` | bit field, below |
 | `edgeImportance` | `u8[E]` | BD TOPO importance, 1 (major) to 6, 0 unknown |
@@ -27,7 +28,11 @@ geometries (`coords`, `coordStart`) once at load.
 To stay light over Île-de-France (1.19 million BD TOPO sections): every section in Paris and the inner suburbs,
 beyond no footpaths, stairs, tracks nor service roads (importance 6); consecutive sections with the same attributes
 merged into one edge; geometries simplified to 3 m (Douglas-Peucker). Result: about 540,000 nodes and 710,000 edges,
-23 MB (11 MB gzipped). The WFS is read tile by tile (0.1° × 0.08°), cached in `.cache/bdtopo/`.
+23 MB (11 MB gzipped). The WFS is read tile by tile (0.1° × 0.08°), cached in `.cache/bdtopo-z/`.
+
+Climb and descent come from the Z of the BD TOPO sections (road surface heights, draped on the RGE ALTI, to the
+decimetre; `-1000` when unknown, then the section counts as flat). Along a section, a change of direction counts only
+past 0.5 m (hysteresis), so the small bumps of the terrain model do not add up; merged edges sum their sections.
 
 `edgeFlags`:
 

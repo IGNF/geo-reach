@@ -27,9 +27,9 @@ export const DEFAULT_STATE: ViewState = {
   model: DEFAULT_MODEL,
 };
 
-/** `walk,bike,traffic,wait,transfer,scenario`, e.g. `4,15,e,h,1.5,n` */
+/** `walk,bike,traffic,wait,transfer,scenario,relief`, e.g. `4,15,e,h,1.5,n,r` (`f` flat ground) */
 const readModel = (text: string | undefined): ModelOptions => {
-  const [walk, bike, traffic, wait, transfer, scenario] = text?.split(',') ?? [];
+  const [walk, bike, traffic, wait, transfer, scenario, relief] = text?.split(',') ?? [];
   const num = (v: string | undefined, min: number, max: number, fallback: number) =>
     Number(v) >= min && Number(v) <= max ? Number(v) : fallback;
 
@@ -40,11 +40,12 @@ const readModel = (text: string | undefined): ModelOptions => {
     wait: wait === 'f' ? 'full' : 'half',
     transferMin: num(transfer, 0, 10, DEFAULT_MODEL.transferMin),
     scenario: scenario === 'd' ? 'disrupted' : scenario === 's' ? 'severe' : 'normal',
+    relief: relief !== 'f',
   };
 };
 
 const writeModel = (m: ModelOptions) =>
-  [m.walkKmh, m.bikeKmh, m.traffic === 'free' ? 'f' : 'e', m.wait === 'full' ? 'f' : 'h', m.transferMin, m.scenario[0]].join(',');
+  [m.walkKmh, m.bikeKmh, m.traffic === 'free' ? 'f' : 'e', m.wait === 'full' ? 'f' : 'h', m.transferMin, m.scenario[0], m.relief ? 'r' : 'f'].join(',');
 
 const MODES: Mode[] = ['transit', 'pedestrian', 'bike', 'car'];
 

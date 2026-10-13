@@ -3,7 +3,7 @@
  * then kept in the Cache Storage of the browser: later visits read it locally, even offline. Bump DATA_VERSION when
  * the files change, so that browsers drop their copy.
  */
-export const DATA_VERSION = '2026-10-08-idf';
+export const DATA_VERSION = '2026-10-13-relief';
 const CACHE = `geo-reach-data-${DATA_VERSION}`;
 
 /** Bytes received so far, for a progress text */

@@ -10,14 +10,18 @@
  * - simplification: geometries simplified to 3 m (Douglas-Peucker);
  * - encoding: interior points as 16 bit deltas in metres, lengths as 16 bit metres.
  *
+ * Slopes come from the Z of the BD TOPO sections (road surface, draped on the RGE ALTI, decimetres): each edge keeps
+ * its total climb and descent from A to B, counted with a hysteresis that ignores small bumps of the terrain model.
+ *
  * Layout (little endian, every section 4-byte aligned), read by web/src/engine/network.ts:
- *   u32 magic 'GRF3', u32 nodeCount, u32 edgeCount, u32 pointCount, u32 namesBytes, u32 pad
+ *   u32 magic 'GRF4', u32 nodeCount, u32 edgeCount, u32 pointCount, u32 namesBytes, u32 pad
  *   f64 originX, originY (Web Mercator metres of the zone centre), f64 minLng, minLat, maxLng, maxLat
  *   f32 nodes[nodeCount * 2]          node positions, Mercator metres relative to the origin
  *   u32 edgeA[E], edgeB[E]            end nodes (geometry runs from A to B)
  *   u32 edgeName[E]                   index in `names`, 0xffffffff without a name
  *   u32 edgePointStart[E + 1]         first interior point of each edge in `points`
  *   u16 edgeLength[E]                 ground metres
+ *   u16 edgeClimb[E], edgeDescent[E]  decimetres climbed and descended from A to B
  *   u8  edgeCarSpeed[E]               km/h, 0 where cars cannot go
  *   u8  edgeFlags[E]                  1 car A→B, 2 car B→A, 4 pedestrian, 8 stairs (slow walk),
  *                                     16 bike A→B, 32 bike B→A, 64 cycle lane or greenway, 128 path (slow ride)
@@ -36,8 +40,13 @@ const CONCURRENCY = 6;
 /** Tile size, degrees */
 const TILE = { lng: 0.1, lat: 0.08 };
 const SIMPLIFY_METRES = 3;
-const CACHE = new URL('../.cache/bdtopo/', import.meta.url);
+/** Pages with their Z (bdtopo/ held 2D pages, before slopes) */
+const CACHE = new URL('../.cache/bdtopo-z/', import.meta.url);
 const OUT = new URL('../web/public/data/graph.bin', import.meta.url);
+/** Climb or descent counted only once the terrain has moved this much from the last turning point, metres */
+const HYSTERESIS = 0.5;
+/** BD TOPO value of an unknown Z */
+const NO_Z = -1000;
 const R = 6378137;
 const D2R = Math.PI / 180;
 
@@ -90,7 +99,7 @@ const fetchPage = async (tile: string, box: Box, start: number): Promise<Section
     if (res?.ok) {
       const features = ((await res.json()) as { features: Section[] }).features.map((f) => ({
         id: f.id,
-        geometry: f.geometry && { coordinates: f.geometry.coordinates.map(([lng, lat]) => [lng, lat]) },
+        geometry: f.geometry && { coordinates: f.geometry.coordinates.map(([lng, lat, z]) => [lng, lat, z ?? NO_Z]) },
         properties: f.properties,
       }));
       await Bun.write(file, Bun.gzipSync(new TextEncoder().encode(JSON.stringify(features))));
@@ -120,6 +129,23 @@ const groundLength = (coords: number[][]) =>
 
     return sum + Math.hypot(x, y) * R;
   }, 0);
+/** Climb and descent along a line, from its first point, in metres; flat when a Z is unknown */
+const relief = (coords: number[][]) => {
+  if (coords.some((c) => !(c[2] > NO_Z + 1))) return { up: 0, down: 0 };
+  let [up, down, ref, trend] = [0, 0, coords[0][2], 0];
+  for (const [, , z] of coords) {
+    const dz = z - ref;
+    // Follows the current trend at once, turns only past the hysteresis
+    if ((trend >= 0 && dz > 0) || (trend <= 0 && dz < 0) || Math.abs(dz) >= HYSTERESIS) {
+      if (dz > 0) up += dz;
+      else down -= dz;
+      trend = Math.sign(dz) || trend;
+      ref = z;
+    }
+  }
+
+  return { up, down };
+};
 const inside = ([lng, lat]: number[], b: typeof INNER) =>
   lng >= b.minLng && lng <= b.maxLng && lat >= b.minLat && lat <= b.maxLat;
 
@@ -164,6 +190,9 @@ interface Edge {
   /** Relative Mercator metres, A to B */
   pts: number[];
   length: number;
+  /** Metres climbed and descended from A to B */
+  up: number;
+  down: number;
   name: number;
   speed: number;
   flags: number;
@@ -212,6 +241,7 @@ const addSection = (s: Section) => {
     b: nodeOf(line[line.length - 1]),
     pts: line.flatMap(([lng, lat]) => project(lng, lat)),
     length: groundLength(line),
+    ...relief(line),
     name: nameOf(p.nom_voie_ban_droite || p.nom_collaboratif_droite),
     speed: car ? speed : 0,
     flags,
@@ -327,12 +357,14 @@ for (let i = 0; i < edges.length; i += 1) {
     used[next.i] = 1;
   }
   const pts: number[] = [];
-  let length = 0;
+  let [length, up, down] = [0, 0, 0];
   for (const link of chain) {
     const e = edges[link.i];
     const p = link.reversed ? reversePoints(e.pts) : e.pts;
     pts.push(...(pts.length ? p.slice(2) : p));
     length += e.length;
+    up += link.reversed ? e.down : e.up;
+    down += link.reversed ? e.up : e.down;
   }
   const head = edges[first.i];
   merged.push({
@@ -340,6 +372,8 @@ for (let i = 0; i < edges.length; i += 1) {
     b: chain[chain.length - 1].to,
     pts,
     length,
+    up,
+    down,
     name: head.name,
     speed: head.speed,
     flags: first.flags,
@@ -393,6 +427,8 @@ const edgeB = new Uint32Array(E);
 const edgeName = new Uint32Array(E);
 const edgePointStart = new Uint32Array(E + 1);
 const edgeLength = new Uint16Array(E);
+const edgeClimb = new Uint16Array(E);
+const edgeDescent = new Uint16Array(E);
 const edgeCarSpeed = new Uint8Array(E);
 const edgeFlags = new Uint8Array(E);
 const edgeImportance = new Uint8Array(E);
@@ -402,6 +438,8 @@ merged.forEach((e, i) => {
   edgeB[i] = nodeIndex(e.b);
   edgeName[i] = e.name;
   edgeLength[i] = Math.min(65535, Math.round(e.length));
+  edgeClimb[i] = Math.min(65535, Math.round(e.up * 10));
+  edgeDescent[i] = Math.min(65535, Math.round(e.down * 10));
   edgeCarSpeed[i] = e.speed;
   edgeFlags[i] = e.flags;
   edgeImportance[i] = e.importance;
@@ -420,7 +458,7 @@ edgePointStart[E] = points.length / 2;
 const namesBytes = new TextEncoder().encode(JSON.stringify(names));
 const align4 = (n: number) => (n + 3) & ~3;
 const size =
-  24 + 48 + nodes.length * 4 + E * 12 + (E + 1) * 4 + align4(E * 5) + align4(points.length * 2) + namesBytes.length;
+  24 + 48 + nodes.length * 4 + E * 12 + (E + 1) * 4 + align4(E * 9) + align4(points.length * 2) + namesBytes.length;
 const buffer = new ArrayBuffer(size);
 const view = new DataView(buffer);
 let offset = 0;
@@ -434,7 +472,7 @@ const put = (array: ArrayLike<number>, Ctor: TypedCtor) => {
   new Ctor(buffer, offset, array.length).set(array);
   offset += array.length * Ctor.BYTES_PER_ELEMENT;
 };
-for (const v of [0x33465247, nodes.length / 2, E, points.length / 2, namesBytes.length, 0]) {
+for (const v of [0x34465247, nodes.length / 2, E, points.length / 2, namesBytes.length, 0]) {
   view.setUint32(offset, v, true);
   offset += 4;
 }
@@ -448,6 +486,8 @@ put(edgeB, Uint32Array);
 put(edgeName, Uint32Array);
 put(edgePointStart, Uint32Array);
 put(edgeLength, Uint16Array);
+put(edgeClimb, Uint16Array);
+put(edgeDescent, Uint16Array);
 put(edgeCarSpeed, Uint8Array);
 put(edgeFlags, Uint8Array);
 put(edgeImportance, Uint8Array);

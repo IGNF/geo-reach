@@ -207,6 +207,8 @@ export const loadTransit = async (url: string, onProgress?: Progress) => {
       edgeA: grow(roads.edgeA, a, Uint32Array),
       edgeB: grow(roads.edgeB, b, Uint32Array),
       edgeLength: grow(roads.edgeLength, length, Float32Array),
+      edgeClimb: grow(roads.edgeClimb, [], Float32Array),
+      edgeDescent: grow(roads.edgeDescent, [], Float32Array),
       edgeKind,
       edgeFlags: grow(roads.edgeFlags, flags, Uint8Array),
       edgeCarSpeed: grow(roads.edgeCarSpeed, [], Uint8Array),

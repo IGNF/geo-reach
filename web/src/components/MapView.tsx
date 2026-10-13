@@ -253,14 +253,7 @@ const MapView = ({
       const start: [number, number] = [r.snap.x, r.snap.y];
       // Departure: origin → target. Arrival: the path runs from the target to the origin.
       pts.push(engine.profile.direction === 'departure' ? start : snapXY);
-      for (const { edge } of steps) {
-        const a = net.edgeA[edge];
-        const b = net.edgeB[edge];
-        const last = pts[pts.length - 1];
-        const da = Math.hypot(net.nodeXY[a * 2] - last[0], net.nodeXY[a * 2 + 1] - last[1]);
-        const db = Math.hypot(net.nodeXY[b * 2] - last[0], net.nodeXY[b * 2 + 1] - last[1]);
-        pts.push(...engine.edgePoints(edge, da <= db ? a : b));
-      }
+      for (const { edge, from } of steps) pts.push(...engine.edgePoints(edge, from));
       pts.push(engine.profile.direction === 'departure' ? snapXY : start);
       if (engine.profile.direction === 'departure') pts.push(target);
       else pts.unshift(target);

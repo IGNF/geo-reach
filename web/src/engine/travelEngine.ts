@@ -34,6 +34,8 @@ export interface PathStep {
   edge: number;
   /** Seconds spent on it */
   cost: number;
+  /** Node it is entered from, in travel order */
+  from: number;
 }
 
 /** The engine of the page: one profile at a time, a run per cursor move */
@@ -170,7 +172,9 @@ export class TravelEngine {
   path(r: Result, node: number): PathStep[] {
     const steps: PathStep[] = [];
     for (let n = node; r.predNode[n] !== NONE && steps.length < 5000; n = r.predNode[n]) {
-      steps.push({ edge: r.predEdge[n], cost: r.dist[n] - r.dist[r.predNode[n]] });
+      // Reversed graph (arrival): the predecessor is the node one travels to
+      const from = r.profile.direction === 'departure' ? r.predNode[n] : n;
+      steps.push({ edge: r.predEdge[n], cost: r.dist[n] - r.dist[r.predNode[n]], from });
     }
     // Departure: the predecessors lead back to the origin. Arrival (reversed graph): they already lead to it.
     return r.profile.direction === 'departure' ? steps.reverse() : steps;

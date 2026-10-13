@@ -8,6 +8,9 @@ export interface Leg {
   label: string;
   seconds: number;
   metres: number;
+  /** Metres climbed and descended (walking, cycling) */
+  climb?: number;
+  descent?: number;
   line?: Line;
   /** Ride: first and last stop */
   from?: string;
@@ -17,7 +20,7 @@ export interface Leg {
 /** Path edges grouped into the legs of the trip panel: a street, a wait, a ride on one line */
 export const toLegs = (net: Network, steps: PathStep[], mode: Mode): Leg[] => {
   const legs: Leg[] = [];
-  for (const { edge, cost } of steps) {
+  for (const { edge, cost, from } of steps) {
     const kind = net.edgeKind[edge];
     if (kind === EDGE_ALIGHT) {
       const last = legs.at(-1);
@@ -46,12 +49,18 @@ export const toLegs = (net: Network, steps: PathStep[], mode: Mode): Leg[] => {
     }
     const label = kind === EDGE_LINK ? '' : nameId === 0xffffffff ? '' : net.names[nameId];
     const legKind = mode === 'car' ? 'drive' : mode === 'bike' ? 'cycle' : 'walk';
+    const forward = from === net.edgeA[edge];
+    const [climb, descent] = forward
+      ? [net.edgeClimb[edge], net.edgeDescent[edge]]
+      : [net.edgeDescent[edge], net.edgeClimb[edge]];
     const last = legs.at(-1);
     if (last?.kind === legKind && (last.label === label || !label || !last.label)) {
       last.seconds += cost;
       last.metres += net.edgeLength[edge];
+      last.climb = (last.climb ?? 0) + climb;
+      last.descent = (last.descent ?? 0) + descent;
       if (!last.label) last.label = label;
-    } else legs.push({ kind: legKind, label, seconds: cost, metres: net.edgeLength[edge] });
+    } else legs.push({ kind: legKind, label, seconds: cost, metres: net.edgeLength[edge], climb, descent });
   }
 
   return legs;

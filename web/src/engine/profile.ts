@@ -33,6 +33,8 @@ export interface ModelOptions {
   transferMin: number;
   /** What-if: transit disrupted (fewer departures, slower rides), roads congested */
   scenario: Scenario;
+  /** Walking and cycling slowed down uphill, sped up on gentle descents (BD TOPO Z) */
+  relief: boolean;
 }
 
 export type Scenario = 'normal' | 'disrupted' | 'severe';
@@ -51,6 +53,7 @@ export const DEFAULT_MODEL: ModelOptions = {
   wait: 'half',
   transferMin: 1.5,
   scenario: 'normal',
+  relief: true,
 };
 
 /** Boarding penalty already counted in the waits of transit.bin (crates/gtfs-prep) */
@@ -69,6 +72,30 @@ export const TRAFFIC: { major: number[]; local: number[] } = {
 const CAR_PENALTY = { major: 0.5, local: 1.5 };
 /** Per road section, seconds: crossings slow bikes down too */
 const BIKE_PENALTY = 1.5;
+
+/** Steeper is a bump of the terrain model on a short edge (a bridge end, a kerb), not a street */
+const MAX_GRADE = 0.25;
+/** Tobler's hiking function as a time factor, 1 on the flat: 0.84 down a 5 % slope (the fastest), 1.42 up 10 % */
+const tobler = (grade: number) => Math.exp(3.5 * (Math.abs(grade + 0.05) - 0.05));
+/** Cycling, time factors: 7.5 km/h instead of 15 up a 10 % slope; downhill at most 40 % faster (brakes, crossings) */
+const bikeUphill = (grade: number) => 1 + 10 * grade;
+const bikeDownhill = (grade: number) => 1 / Math.min(1 + 5 * grade, 1.4);
+
+/**
+ * Time factor of an edge from its climb and descent along the way, metres. Only totals are known: the climbing and
+ * descending parts share the length in proportion to their heights, at one grade (exact on a steady slope).
+ */
+const slopeFactor = (length: number, up: number, down: number, uphill: (g: number) => number, downhill: (g: number) => number) => {
+  const rise = up + down;
+  if (!(rise > 0 && length > 0)) return 1;
+  const grade = Math.min(rise / length, MAX_GRADE);
+
+  return (up * uphill(grade) + down * downhill(grade)) / rise;
+};
+const walkFactor = (length: number, up: number, down: number) =>
+  slopeFactor(length, up, down, tobler, (g) => tobler(-g));
+const bikeFactor = (length: number, up: number, down: number) =>
+  slopeFactor(length, up, down, bikeUphill, bikeDownhill);
 
 export interface ProfileOptions {
   mode: Mode;
@@ -102,6 +129,7 @@ const edgeCosts = (net: Network, { mode, bus, hour, model }: ProfileOptions) => 
   for (let e = 0; e < net.edgeCount; e += 1) {
     const flags = net.edgeFlags[e];
     const length = net.edgeLength[e];
+    const [up, down] = model.relief ? [net.edgeClimb[e], net.edgeDescent[e]] : [0, 0];
     switch (net.edgeKind[e]) {
       case EDGE_ROAD:
         if (mode === 'car') {
@@ -113,12 +141,13 @@ const edgeCosts = (net: Network, { mode, bus, hour, model }: ProfileOptions) => 
           if (flags & FLAG_CAR_BWD) bwd[e] = t;
         } else if (mode === 'bike') {
           const speed = bikeSpeed * (flags & FLAG_CYCLEWAY ? 1.1 : 1) * (flags & FLAG_PATH ? 0.65 : 1);
-          if (flags & FLAG_BIKE_FWD) fwd[e] = length / speed + BIKE_PENALTY;
-          if (flags & FLAG_BIKE_BWD) bwd[e] = length / speed + BIKE_PENALTY;
+          if (flags & FLAG_BIKE_FWD) fwd[e] = (length / speed) * bikeFactor(length, up, down) + BIKE_PENALTY;
+          if (flags & FLAG_BIKE_BWD) bwd[e] = (length / speed) * bikeFactor(length, down, up) + BIKE_PENALTY;
         } else if (flags & FLAG_WALK) {
-          const t = (length / walkSpeed) * (flags & FLAG_STAIRS ? 2 : 1);
-          fwd[e] = t;
-          bwd[e] = t;
+          const t = length / walkSpeed;
+          // Stairs: already slowed down, whatever their height
+          fwd[e] = flags & FLAG_STAIRS ? t * 2 : t * walkFactor(length, up, down);
+          bwd[e] = flags & FLAG_STAIRS ? t * 2 : t * walkFactor(length, down, up);
         }
         break;
       case EDGE_LINK:
