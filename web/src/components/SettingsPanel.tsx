@@ -97,7 +97,9 @@ const SettingsPanel = ({
           <Typography variant="caption">{t.region.label}</Typography>
           <Typography variant="strong">{region.name}</Typography>
         </Stack>
-        <Typography variant="hint">{region.transit ? t.region.follows : `${t.region.follows} ${t.region.noTransit}`}</Typography>
+        <Typography variant="hint">
+          {t.region.follows} {region.transit === 'trains' ? t.region.trainsOnly : region.transit ? '' : t.region.noTransit}
+        </Typography>
       </Stack>
       <Button
         label={cutMode ? t.cuts.done : t.cuts.start}

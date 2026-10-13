@@ -1,0 +1,60 @@
+# Data
+
+The networks the app computes on, prepared once from open data and served as they are: the browser downloads the
+file of the region in view, keeps it in its cache, and reads it as typed arrays with no parsing. Byte layouts:
+[docs/data-formats.md](../../../docs/data-formats.md).
+
+## Files
+
+| File | What | Built by |
+|---|---|---|
+| `graph.bin` | Île-de-France road network (GRF4: nodes, edges, geometries, climb and descent, street names) | `bun run data` |
+| `transit.bin` | Île-de-France public transport (TRN3: stations, lines, hourly waits and ride times) | `gtfs-prep` on the IDFM feed |
+| `regions/<id>.bin.gz` | Road network of another region, same format, gzipped | `bun run data -- <id>` |
+| `regions/<id>.transit.bin.gz` | Public transport of that region, same format, gzipped | `bun scripts/buildTransit.ts <id>` |
+
+The region ids, boxes and opening points are in [web/src/lib/regions.ts](../../src/lib/regions.ts); each regional
+network covers its box plus a 0.25° margin (about 20 km) for the trips that cross its edge. The `.gz` files are
+inflated by the browser (`web/src/lib/dataCache.ts`): every file stays under the 100 MB a file of GitHub.
+
+## Regions
+
+| Region | Roads (edges) | Roads | Public transport | Transport |
+|---|---|---|---|---|
+| Île-de-France | 711 k | 25.7 MB | IDFM: every network | 10.8 MB |
+| Auvergne-Rhône-Alpes | 2.03 M | 40.6 MB | regional aggregate | 1.3 MB |
+| Bourgogne-Franche-Comté | 1.27 M | 24.4 MB | SNCF trains only | 65 KB |
+| Bretagne | 1.11 M | 20.6 MB | regional aggregate | 0.8 MB |
+| Centre-Val de Loire | 1.58 M | 28.4 MB | regional aggregate | 0.5 MB |
+| Corse | 63 k | 1.4 MB | none | |
+| Grand Est | 1.30 M | 23.2 MB | regional aggregate | 1.4 MB |
+| Hauts-de-France | 1.35 M | 23.0 MB | SNCF trains only | 44 KB |
+| Normandie | 1.04 M | 19.7 MB | regional aggregate (Twisto, Astuce, LiA, Nomad…) | 0.6 MB |
+| Nouvelle-Aquitaine | 2.73 M | 52.5 MB | regional aggregate | 1.3 MB |
+| Occitanie | 1.97 M | 38.8 MB | SNCF trains only | 58 KB |
+| Pays de la Loire | 1.61 M | 29.8 MB | regional aggregate | 1.3 MB |
+| Provence-Alpes-Côte d’Azur | 1.05 M | 20.2 MB | SNCF trains only | 29 KB |
+
+Sizes of the files as stored (gzipped for the regions). Where only the SNCF feed is used, the urban networks (Lille,
+Marseille, Toulouse, Montpellier…) are still to merge in.
+
+## Sources and licences
+
+| Data | Source | Licence |
+|---|---|---|
+| Road network, heights | IGN BD TOPO, `troncon_de_route`, Géoplateforme WFS | Licence Ouverte Etalab 2.0 |
+| Île-de-France timetables | Île-de-France Mobilités GTFS | ODbL |
+| Regional timetables | Aggregates of the urban and interurban networks, SNCF feed, on [transport.data.gouv.fr](https://transport.data.gouv.fr) (feeds listed in [scripts/transitFeeds.ts](../../../scripts/transitFeeds.ts)) | per feed, mostly Licence Ouverte or ODbL |
+
+The `.transit` files are databases derived from these timetables, under the licence of their feed.
+
+## Rebuilding
+
+```sh
+bun run data                          # Île-de-France roads (graph.bin), about a minute
+bun run data -- normandie             # a region's roads, about a minute (WFS pages cached in .cache/bdtopo-z/)
+bun scripts/buildTransit.ts all       # every region's public transport (feeds cached in .cache/gtfs/), needs cargo
+```
+
+On the IGN network, set `HTTPS_PROXY=http://proxy.ign.fr:3128`. A region's transport layer depends on its road
+network (its origin and box): rebuild it after the roads.

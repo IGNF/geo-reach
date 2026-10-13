@@ -9,7 +9,10 @@ stored in `graph.bin`.
 Written by `scripts/buildGraph.ts`, read by `web/src/engine/network.ts` (`readRoadNetwork`), which rebuilds the full
 geometries (`coords`, `coordStart`) once at load. One file per region, same format: `graph.bin` for Île-de-France,
 `regions/<id>.bin.gz` for the others, gzipped (inflated by the browser, `lib/dataCache.ts`) (their box plus a 0.25° margin, about 20 km, for the trips crossing their edge).
-Each file has its own origin, at the centre of its box.
+Each file has its own origin, at the centre of its box. The other regions' public transport is in
+`regions/<id>.transit.bin.gz` (same TRN3 format, gzipped), built by `scripts/buildTransit.ts` from the feeds of
+`scripts/transitFeeds.ts`; `gtfs-prep` takes feeds without `calendar.txt` or `shapes.txt`, and turns the extended
+GTFS route types into the basic ones (ferries go with the buses). File by file: `web/public/data/README.md`.
 
 | Section | Type | Content |
 |---|---|---|

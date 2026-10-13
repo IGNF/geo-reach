@@ -242,7 +242,7 @@ const en = {
     items: [
       'Transit: average waits on a typical weekday, not the exact timetable.',
       'Car: typical traffic curve, no live traffic, no traffic lights.',
-      'Zone: metropolitan France, one region at a time; footpaths and service roads only in the main city centres. Public transport: Île-de-France only.',
+      'Zone: metropolitan France, one region at a time; footpaths and service roads only in the main city centres. Public transport: every network in Île-de-France and seven regions, trains only in four others, none in Corsica.',
       'Closures: an express train that skips the closed stations still runs; the Géoplateforme route ignores closures.',
       'Buildings: each one takes the time of the street nearest to its middle, not of its actual entrance.',
     ],
@@ -460,7 +460,7 @@ const fr: typeof en = {
     items: [
       'Transports en commun : attentes moyennes un jour de semaine type, pas les horaires exacts.',
       'Voiture : courbe de trafic type, pas de trafic en temps réel ni de feux.',
-      'Zone : France métropolitaine, une région à la fois ; chemins et voies de service seulement dans les principaux centres-villes. Transports en commun : Île-de-France seulement.',
+      'Zone : France métropolitaine, une région à la fois ; chemins et voies de service seulement dans les principaux centres-villes. Transports en commun : tous les réseaux en Île-de-France et dans sept régions, les trains seulement dans quatre autres, aucun en Corse.',
       'Coupures : un train direct qui ne dessert pas les stations coupées circule toujours ; l’itinéraire Géoplateforme ignore les coupures.',
       'Bâtiments : chacun prend le temps de la rue la plus proche de son centre, pas celui de sa véritable entrée.',
     ],

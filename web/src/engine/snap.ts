@@ -15,6 +15,88 @@ export interface Snap {
   y: number;
 }
 
+/** A group of streets smaller than this, cut off from the rest for a mode, is an island no trip starts from */
+const MIN_COMPONENT_NODES = 500;
+
+/**
+ * Strongly connected components of a profile's graph (Kosaraju, iterative: a million nodes would overflow the call
+ * stack): from any node of a component one can reach any other and come back. A one-way street ending in a dead end,
+ * or a car street inside a pedestrian zone, falls in a tiny component of its own.
+ * Returns the component of each node and the size of each component.
+ */
+const strongComponents = ({ offsets, heads }: Profile, nodes: number): { component: Uint32Array; size: Uint32Array } => {
+  // First pass: the nodes in the order their depth-first search finishes
+  const order = new Uint32Array(nodes);
+  let finished = 0;
+  const visited = new Uint8Array(nodes);
+  const stack = new Uint32Array(nodes);
+  const nextArc = new Uint32Array(nodes);
+  for (let root = 0; root < nodes; root += 1) {
+    if (visited[root]) continue;
+    let depth = 0;
+    stack[0] = root;
+    visited[root] = 1;
+    nextArc[root] = offsets[root];
+    while (depth >= 0) {
+      const n = stack[depth];
+      if (nextArc[n] < offsets[n + 1]) {
+        const head = heads[nextArc[n]];
+        nextArc[n] += 1;
+        if (!visited[head]) {
+          visited[head] = 1;
+          nextArc[head] = offsets[head];
+          depth += 1;
+          stack[depth] = head;
+        }
+      } else {
+        order[finished] = n;
+        finished += 1;
+        depth -= 1;
+      }
+    }
+  }
+
+  // The reversed graph, in the same compressed layout
+  const rOffsets = new Uint32Array(nodes + 1);
+  for (let a = 0; a < heads.length; a += 1) rOffsets[heads[a] + 1] += 1;
+  for (let n = 0; n < nodes; n += 1) rOffsets[n + 1] += rOffsets[n];
+  const rHeads = new Uint32Array(heads.length);
+  const cursor = rOffsets.slice(0, nodes);
+  for (let n = 0; n < nodes; n += 1)
+    for (let a = offsets[n]; a < offsets[n + 1]; a += 1) {
+      rHeads[cursor[heads[a]]] = n;
+      cursor[heads[a]] += 1;
+    }
+
+  // Second pass, on the reversed graph, latest finished first: each search covers one component
+  const NONE = 0xffffffff;
+  const component = new Uint32Array(nodes).fill(NONE);
+  const sizes: number[] = [];
+  for (let i = nodes - 1; i >= 0; i -= 1) {
+    const root = order[i];
+    if (component[root] !== NONE) continue;
+    const id = sizes.length;
+    let count = 0;
+    let top = 0;
+    stack[0] = root;
+    component[root] = id;
+    while (top >= 0) {
+      const n = stack[top];
+      top -= 1;
+      count += 1;
+      for (let a = rOffsets[n]; a < rOffsets[n + 1]; a += 1)
+        if (component[rHeads[a]] === NONE) {
+          component[rHeads[a]] = id;
+          top += 1;
+          stack[top] = rHeads[a];
+        }
+    }
+    sizes.push(count);
+  }
+
+  return { component, size: Uint32Array.from(sizes) };
+};
+
 /**
  * Grid of the road segments a profile can use, to attach any cursor position to the nearest one (the cursor can be
  * in a park, on a building: it walks to the street first).
@@ -51,9 +133,17 @@ export class SnapIndex {
       for (let p = s; p < t; p += 1) this.pointFrac[p] = total > 0 ? this.pointFrac[p] / total : 0;
     }
 
-    // Segments of usable roads, bucketed by the cell of their middle (cells are larger than most segments)
-    const usable = (e: number) =>
+    // Segments of usable roads, bucketed by the cell of their middle (cells are larger than most segments). A road
+    // outside the main network of the mode (a one-way street into a dead end, a car street inside a pedestrian zone)
+    // is left out: a point snapped there could not leave it, or reach it.
+    const open = (e: number): boolean =>
       net.edgeKind[e] === EDGE_ROAD && (profile.fwd[e] < Infinity || profile.bwd[e] < Infinity);
+    const { component, size } = strongComponents(profile, net.nodeCount);
+    const usable = (e: number): boolean => {
+      const [ca, cb] = [component[net.edgeA[e]], component[net.edgeB[e]]];
+
+      return open(e) && ca === cb && size[ca] >= MIN_COMPONENT_NODES;
+    };
     const cellOf = (p: number) => {
       const x = (coords[p * 2] + coords[p * 2 + 2]) / 2;
       const y = (coords[p * 2 + 1] + coords[p * 2 + 3]) / 2;

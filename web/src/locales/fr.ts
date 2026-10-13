@@ -14,7 +14,8 @@ export const fr: Messages = {
   region: {
     label: 'Région',
     follows: 'Suit la carte : déplacez-vous dans une autre région pour la charger.',
-    noTransit: 'Routes seulement : les transports en commun ne couvrent que l’Île-de-France pour l’instant.',
+    noTransit: 'Pas d’horaires de transports en commun ici : routes seulement.',
+    trainsOnly: 'Transports en commun : trains seulement (SNCF) pour l’instant, les réseaux urbains suivront.',
     loading: (name) => `Chargement de ${name}…`,
   },
   perspective: {

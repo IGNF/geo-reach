@@ -12,7 +12,8 @@ export const en = {
   region: {
     label: 'Region',
     follows: 'Follows the map: move into another region to load it.',
-    noTransit: 'Roads only: public transport is in Île-de-France for now.',
+    noTransit: 'No public transport timetables here: roads only.',
+    trainsOnly: 'Public transport: trains only (SNCF) for now, the urban networks will follow.',
     loading: (name: string): string => `Loading ${name}…`,
   },
   perspective: {

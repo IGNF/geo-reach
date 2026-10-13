@@ -136,10 +136,19 @@ fn read_stops(zip: &mut Archive, zone: &Zone) -> Res<(Platforms, Stations)> {
     Ok((platforms, stations))
 }
 
-/// Services running on the date: the calendar, then its exceptions
+/// Services running on the date: the calendar, then its exceptions. Some feeds (regional aggregates) list every
+/// running date in `calendar_dates.txt` and have no `calendar.txt`: the GTFS allows it.
 fn read_services(zip: &mut Archive, date: u32) -> Res<HashSet<String>> {
     let day = feed::weekday_column(date);
     let mut services = HashSet::new();
+    if zip.index_for_name("calendar.txt").is_none() {
+        feed::read_csv(zip, "calendar_dates.txt", |r| {
+            if r.get("date").parse::<u32>().ok() == Some(date) && r.get("exception_type") == "1" {
+                services.insert(r.get("service_id").to_string());
+            }
+        })?;
+        return Ok(services);
+    }
     feed::read_csv(zip, "calendar.txt", |r| {
         let (start, end) = (
             r.get("start_date").parse().unwrap_or(0),
@@ -170,11 +179,25 @@ fn read_routes(zip: &mut Archive) -> Res<HashMap<String, Route>> {
                 name: r.get("route_short_name").into(),
                 color: feed::hex(r.get("route_color"), 0x66_6666),
                 text: feed::hex(r.get("route_text_color"), 0xff_ffff),
-                kind: r.get("route_type").parse().unwrap_or(3),
+                kind: basic_route_type(r.get("route_type").parse().unwrap_or(3)),
             },
         );
     })?;
     Ok(routes)
+}
+
+/// The basic GTFS route type the app knows (0 tram, 1 metro, 2 rail, 3 bus, 7 funicular) from any route type:
+/// ferries and the extended codes of the regional aggregates (100 rail, 200 coach, 400 urban rail, 700 bus, 900
+/// tram…). Ferries go with the buses: small river crossings, not lines to draw like a tram.
+fn basic_route_type(kind: u32) -> u32 {
+    match kind {
+        0..=2 | 5..=7 => kind,
+        100..=199 => 2,
+        400..=499 => 1,
+        900..=999 => 0,
+        1400..=1499 => 7,
+        _ => 3,
+    }
 }
 
 /// Trips of the day: route, direction, shape
@@ -266,6 +289,10 @@ fn read_shapes(zip: &mut Archive, segments: &Segments) -> Res<HashMap<String, Ve
         .filter(|s| !s.is_empty())
         .collect();
     let mut points: HashMap<String, Vec<(u32, f64, f64)>> = HashMap::new();
+    // Optional in the GTFS (the SNCF feed has none): the rides then go straight from stop to stop
+    if zip.index_for_name("shapes.txt").is_none() {
+        return Ok(HashMap::new());
+    }
     feed::read_csv(zip, "shapes.txt", |r| {
         if wanted.contains(r.get("shape_id")) {
             points.entry(r.get("shape_id").into()).or_default().push((

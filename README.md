@@ -57,7 +57,10 @@ It is a proof of concept, good for comparing places and modes, not for planning 
   BD TOPO roads. The Géoplateforme route service ignores them, so its walking times differ on hills.
 - **Zone**: the 13 regions of metropolitan France, one network each. The region follows the map: move the view into
   another region (or use "My location") and its network loads in the background, the map staying where it is. Full street network in the main city centres; beyond, no footpaths, tracks nor service roads (main
-  roads, streets and station access are kept). Public transport: Île-de-France only for now; elsewhere, the roads.
+  roads, streets and station access are kept). Public transport: every network in Île-de-France and in the seven
+  regions with a GTFS aggregate (Normandy, Brittany, Pays de la Loire, Centre-Val de Loire, Grand Est,
+  Nouvelle-Aquitaine, Auvergne-Rhône-Alpes); trains only (SNCF) in four others; none in Corsica. Details by region:
+  [web/public/data/README.md](web/public/data/README.md).
 
 The first visit downloads the network (about 13 MB compressed); the browser then keeps it, so later visits load
 locally.
@@ -168,6 +171,7 @@ cargo clippy --workspace --all-targets   # pedantic lints, set in Cargo.toml
 ```sh
 bun run data                                        # BD TOPO road network of Île-de-France → web/public/data/graph.bin
 bun run data -- bretagne                            # another region → web/public/data/regions/bretagne.bin.gz
+bun scripts/buildTransit.ts bretagne                # its public transport (GTFS feeds in scripts/transitFeeds.ts)
 mkdir -p .cache/gtfs
 curl -L -o .cache/gtfs/idfm.zip https://www.data.gouv.fr/api/1/datasets/r/413988ed-d340-467b-8be2-7b999fcd207a
 cargo run -p gtfs-prep --release -- .cache/gtfs/idfm.zip web/public/data/graph.bin web/public/data/transit.bin
