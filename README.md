@@ -53,8 +53,9 @@ It is a proof of concept, good for comparing places and modes, not for planning 
 - **Walk**: 4 km/h on the flat, as the Géoplateforme route service. **Bike**: 15 km/h, a little faster on cycle lanes.
 - **Slopes**: walking and cycling slow down uphill (Tobler's hiking function for walking), using the heights of the
   BD TOPO roads. The Géoplateforme route service ignores them, so its walking times differ on hills.
-- **Zone**: Île-de-France. Full street network in Paris and the inner suburbs; beyond, no footpaths, tracks nor
-  service roads (main roads, streets and station access are kept).
+- **Zone**: the 13 regions of metropolitan France, one network each, chosen in the settings (or loaded by "My
+  location"). Full street network in the main city centres; beyond, no footpaths, tracks nor service roads (main
+  roads, streets and station access are kept). Public transport: Île-de-France only for now; elsewhere, the roads.
 
 The first visit downloads the network (about 13 MB compressed); the browser then keeps it, so later visits load
 locally.
@@ -143,7 +144,7 @@ Details: [architecture](docs/architecture.md), [engine](docs/engine.md), [render
 web/                 React + MapLibre app (Vite), UI built with @ign-junn/design-system
 crates/engine/       travel time engine in Rust, compiled to WebAssembly
 crates/gtfs-prep/    Rust tool: GTFS timetables → public transport layer (transit.bin)
-scripts/             road network preparation (graph.bin), engine build
+scripts/             road network preparation (graph.bin, one file per region), engine build
 docs/                technical documentation
 ```
 
@@ -163,13 +164,18 @@ cargo clippy --workspace --all-targets   # pedantic lints, set in Cargo.toml
 ### Rebuild the data
 
 ```sh
-bun run data                                        # BD TOPO road network → web/public/data/graph.bin
+bun run data                                        # BD TOPO road network of Île-de-France → web/public/data/graph.bin
+bun run data -- bretagne                            # another region → web/public/data/regions/bretagne.bin.gz
 mkdir -p .cache/gtfs
 curl -L -o .cache/gtfs/idfm.zip https://www.data.gouv.fr/api/1/datasets/r/413988ed-d340-467b-8be2-7b999fcd207a
 cargo run -p gtfs-prep --release -- .cache/gtfs/idfm.zip web/public/data/graph.bin web/public/data/transit.bin
 ```
 
-The zone is set in `scripts/buildGraph.ts` (`BBOX`), the reference day in `crates/gtfs-prep`.
+The regions are listed in `web/src/lib/regions.ts` (box, opening point), the city centres kept in full in
+`scripts/denseAreas.ts`, the reference day of the timetables in `crates/gtfs-prep`. Away from the city centres the
+WFS filters the paths and service roads out itself; a region takes about a minute (one to three million sections).
+The region files are stored gzipped (20 to 45 MB each, under the 100 MB a file of GitHub); the browser inflates
+them.
 
 ### Deployment
 

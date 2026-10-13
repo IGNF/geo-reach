@@ -6,8 +6,10 @@ stored in `graph.bin`.
 
 ## graph.bin (road network)
 
-Written by `scripts/buildGraph.ts`, read by `web/src/engine/network.ts` (`loadRoadNetwork`), which rebuilds the full
-geometries (`coords`, `coordStart`) once at load.
+Written by `scripts/buildGraph.ts`, read by `web/src/engine/network.ts` (`readRoadNetwork`), which rebuilds the full
+geometries (`coords`, `coordStart`) once at load. One file per region, same format: `graph.bin` for Île-de-France,
+`regions/<id>.bin.gz` for the others, gzipped (inflated by the browser, `lib/dataCache.ts`) (their box plus a 0.25° margin, about 20 km, for the trips crossing their edge).
+Each file has its own origin, at the centre of its box.
 
 | Section | Type | Content |
 |---|---|---|
@@ -88,14 +90,16 @@ so that the app builds without Rust.
 ## Rebuilding
 
 ```sh
-bun run data   # graph.bin, WFS read tile by tile, about a minute
+bun run data                # graph.bin (Île-de-France), WFS read tile by tile, about a minute
+bun run data -- occitanie   # regions/occitanie.bin.gz, the ids are in web/src/lib/regions.ts
 mkdir -p .cache/gtfs
 curl -L -o .cache/gtfs/idfm.zip https://www.data.gouv.fr/api/1/datasets/r/413988ed-d340-467b-8be2-7b999fcd207a
 cargo run -p gtfs-prep --release -- .cache/gtfs/idfm.zip web/public/data/graph.bin web/public/data/transit.bin
 ```
 
-`transit.bin` depends on `graph.bin` (origin and bbox): rebuild it whenever the zone changes. The zone is `BBOX` in
-`scripts/buildGraph.ts`. On the IGN network, set `HTTPS_PROXY=http://proxy.ign.fr:3128` for these tools.
+`transit.bin` depends on `graph.bin` (origin and bbox): rebuild it whenever the Île-de-France box changes
+(`web/src/lib/regions.ts`). Away from the city centres (`scripts/denseAreas.ts`) the WFS filters the paths, tracks,
+stairs and service roads out itself (`CQL_FILTER`, cached apart as `-f` pages). On the IGN network, set `HTTPS_PROXY=http://proxy.ign.fr:3128` for these tools.
 
 ## In the browser
 

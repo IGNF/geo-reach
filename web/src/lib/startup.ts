@@ -3,8 +3,8 @@ import { type Network, readRoadNetwork } from '@/engine/network';
 import type { ProfileOptions } from '@/engine/profile';
 import { readTransit } from '@/engine/transit';
 import { TravelEngine } from '@/engine/travelEngine';
-import { GRAPH_URL, TRANSIT_URL } from '@/lib/config';
 import { loadData } from '@/lib/dataCache';
+import { graphUrl, type Region, transitUrl } from '@/lib/regions';
 
 /** Steps of the start, in order; the map and the first computation happen once the engine is handed over */
 export type StartupStep = 'download' | 'roads' | 'transit' | 'engine' | 'map' | 'firstRun';
@@ -28,10 +28,10 @@ export const STEP_START: Record<StartupStep, number> = {
 };
 
 /**
- * Size of both files when the server does not tell it (compressed transfer), only to move the bar: a little off
- * after a data update, the bar then jumps at the end of the download
+ * When the server does not tell the size (compressed transfer), the bar follows 1 - e^(-bytes / this): it slows down
+ * as the download goes on, never stops, and jumps to its step at the end
  */
-const EXPECTED_BYTES = 36_600_000;
+const UNKNOWN_SIZE_SCALE = 12_000_000;
 
 /** Lets the browser paint the bar before a long synchronous step */
 const nextPaint = (): Promise<void> =>
@@ -46,10 +46,11 @@ export interface Started {
 }
 
 /**
- * Downloads the two data files, decodes them and builds the engine, reporting the progress. The transit layer is
- * optional: without it the app runs on the roads alone.
+ * Downloads the data files of a region, decodes them and builds the engine, reporting the progress. The transit layer
+ * is optional: without it (every region but Île-de-France for now) the app runs on the roads alone.
  */
 export const startEngine = async (
+  region: Region,
   options: Omit<ProfileOptions, 'closed'>,
   cuts: Cut[],
   onProgress: (p: StartupProgress) => void,
@@ -59,8 +60,10 @@ export const startEngine = async (
   const report = (): void => {
     const bytes = files.graph.bytes + files.transit.bytes;
     const known = files.graph.total > 0 && files.transit.total > 0;
-    const total = known ? files.graph.total + files.transit.total : Math.max(EXPECTED_BYTES, bytes);
-    onProgress({ step: 'download', percent: (STEP_START.roads * bytes) / total, mb: bytes / 1e6 });
+    const share = known
+      ? bytes / (files.graph.total + files.transit.total)
+      : 1 - Math.exp(-bytes / UNKNOWN_SIZE_SCALE);
+    onProgress({ step: 'download', percent: STEP_START.roads * share, mb: bytes / 1e6 });
   };
   const track =
     (file: keyof typeof files) =>
@@ -69,9 +72,12 @@ export const startEngine = async (
       report();
     };
 
+  const transit = transitUrl(region);
+  // Without a transit file, the bar measures the roads alone
+  if (!transit) files.transit.total = 1;
   const [graphBuffer, transitBuffer] = await Promise.all([
-    loadData(GRAPH_URL, track('graph')),
-    loadData(TRANSIT_URL, track('transit')).catch(() => undefined),
+    loadData(graphUrl(region), track('graph')),
+    transit ? loadData(transit, track('transit')).catch(() => undefined) : undefined,
   ]);
 
   onProgress({ step: 'roads', percent: STEP_START.roads });

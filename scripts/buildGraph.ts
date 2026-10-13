@@ -1,11 +1,15 @@
 /**
- * Builds the routing graph of Île-de-France from the BD TOPO road sections of the Géoplateforme (WFS), once, into a
- * compact binary file served with the app (web/public/data/graph.bin). Run: `bun scripts/buildGraph.ts`.
+ * Builds the routing graph of a region from the BD TOPO road sections of the Géoplateforme (WFS), once, into a compact
+ * binary file served with the app: web/public/data/graph.bin for Île-de-France (the box its transit.bin was built on),
+ * web/public/data/regions/<id>.bin.gz for the others (gzipped), with a margin beyond the region for the trips that
+ * cross its edge.
+ * Run: `bun scripts/buildGraph.ts [region id]` (Île-de-France by default; the ids are in web/src/lib/regions.ts).
  *
  * The region is downloaded tile by tile (short WFS requests: deep paging over a million objects is slow), cached
- * gzipped in .cache/bdtopo/ (delete it to download again); sections crossing tiles are kept once. To stay light at
+ * gzipped in .cache/bdtopo-z/ (delete it to download again); sections crossing tiles are kept once. To stay light at
  * the scale of the region:
- * - density: every section in Paris and the inner suburbs; beyond, no footpaths, stairs, tracks nor service roads;
+ * - density: every section in the city centres (scripts/denseAreas.ts); beyond, no footpaths, stairs, tracks nor
+ *   service roads, filtered by the WFS itself (a third less to download);
  * - merging: consecutive sections with the same attributes become one edge (BD TOPO cuts a street at every change);
  * - simplification: geometries simplified to 3 m (Douglas-Peucker);
  * - encoding: interior points as 16 bit deltas in metres, lengths as 16 bit metres.
@@ -30,11 +34,25 @@
  *   utf8 names                        JSON array of street names
  */
 import { existsSync, mkdirSync } from 'node:fs';
+import { DEFAULT_REGION, regionById } from '@/lib/regions';
+import { DENSE_AREAS } from './denseAreas';
 
-/** Île-de-France */
-const BBOX = { minLng: 1.44, minLat: 48.12, maxLng: 3.56, maxLat: 49.24 };
-/** Paris and the inner suburbs: the full network */
-const INNER = { minLng: 2.15, minLat: 48.72, maxLng: 2.6, maxLat: 48.96 };
+const REGION = regionById(process.argv[2] ?? DEFAULT_REGION);
+if (process.argv[2] && REGION.id !== process.argv[2]) throw new Error(`Unknown region: ${process.argv[2]}`);
+const IDF = REGION.id === DEFAULT_REGION;
+/** Beyond the region, degrees (about 20 km): trips crossing its edge; none for Île-de-France (its transit.bin box) */
+const MARGIN = IDF ? 0 : 0.25;
+
+interface Box {
+  minLng: number;
+  minLat: number;
+  maxLng: number;
+  maxLat: number;
+}
+const box = ([minLng, minLat, maxLng, maxLat]: readonly number[]): Box => ({ minLng, minLat, maxLng, maxLat });
+const BBOX = box(REGION.bbox.map((v, i) => (i < 2 ? v - MARGIN : v + MARGIN)));
+/** City centres: the full network */
+const DENSE: Box[] = DENSE_AREAS.map(box);
 const PAGE = 5000;
 const CONCURRENCY = 6;
 /** Tile size, degrees */
@@ -42,7 +60,10 @@ const TILE = { lng: 0.1, lat: 0.08 };
 const SIMPLIFY_METRES = 3;
 /** Pages with their Z (bdtopo/ held 2D pages, before slopes) */
 const CACHE = new URL('../.cache/bdtopo-z/', import.meta.url);
-const OUT = new URL('../web/public/data/graph.bin', import.meta.url);
+/** Gzipped for the other regions: every file under the 100 MB of GitHub, half the download */
+const OUT = new URL(IDF ? '../web/public/data/graph.bin' : `../web/public/data/regions/${REGION.id}.bin.gz`, import.meta.url);
+/** Server-side filter of the tiles away from the city centres: what addSection would drop anyway */
+const OUTER_FILTER = "nature NOT IN ('Sentier','Chemin','Escalier','Route empierrée') AND importance <> '6'";
 /** Climb or descent counted only once the terrain has moved this much from the last turning point, metres */
 const HYSTERESIS = 0.5;
 /** BD TOPO value of an unknown Z */
@@ -70,8 +91,7 @@ interface Section {
   };
 }
 
-type Box = typeof BBOX;
-const wfs = (box: Box, extra: Record<string, string>) =>
+const wfs = (box: Box, extra: Record<string, string>): string =>
   `https://data.geopf.fr/wfs/ows?${new URLSearchParams({
     SERVICE: 'WFS',
     VERSION: '2.0.0',
@@ -81,23 +101,39 @@ const wfs = (box: Box, extra: Record<string, string>) =>
     ...extra,
   })}`;
 
-/** One page of one tile, from the cache when there */
-const fetchPage = async (tile: string, box: Box, start: number): Promise<Section[]> => {
-  const file = new URL(`${tile}-${start}.json.gz`, CACHE);
+const intersects = (a: Box, b: Box): boolean =>
+  a.minLng < b.maxLng && a.maxLng > b.minLng && a.minLat < b.maxLat && a.maxLat > b.minLat;
+
+/**
+ * One page of one tile, from the cache when there. Away from the city centres the WFS filters the sections out
+ * itself (cached apart, `-f`); a tile downloaded whole before is read from its full pages.
+ */
+const fetchPage = async (tile: string, area: Box, start: number, filtered: boolean): Promise<Section[]> => {
+  const full = new URL(`${tile}-${start}.json.gz`, CACHE);
+  const file = filtered && !existsSync(new URL(`${tile}-0.json.gz`, CACHE)) ? new URL(`${tile}-f-${start}.json.gz`, CACHE) : full;
   if (existsSync(file)) return JSON.parse(new TextDecoder().decode(Bun.gunzipSync(await Bun.file(file).bytes())));
+  // The bounding box goes into the filter: the WFS takes one or the other
+  const where: Record<string, string> =
+    file === full
+      ? {}
+      : { CQL_FILTER: `${OUTER_FILTER} AND BBOX(geometrie,${area.minLng},${area.minLat},${area.maxLng},${area.maxLat},'EPSG:4326')` };
   for (let attempt = 1; ; attempt += 1) {
-    const res = await fetch(
-      wfs(box, {
-        OUTPUTFORMAT: 'application/json',
-        COUNT: String(PAGE),
-        STARTINDEX: String(start),
-        SORTBY: 'cleabs',
-        PROPERTYNAME:
-          'nature,sens_de_circulation,acces_vehicule_leger,acces_pieton,vitesse_moyenne_vl,nom_voie_ban_droite,nom_collaboratif_droite,importance,amenagement_cyclable_gauche,amenagement_cyclable_droit,sens_amenagement_cyclable_gauche,sens_amenagement_cyclable_droit,itineraire_vert,geometrie',
-      }),
-    ).catch(() => undefined);
-    if (res?.ok) {
-      const features = ((await res.json()) as { features: Section[] }).features.map((f) => ({
+    const url = wfs(area, {
+      OUTPUTFORMAT: 'application/json',
+      COUNT: String(PAGE),
+      STARTINDEX: String(start),
+      SORTBY: 'cleabs',
+      PROPERTYNAME:
+        'nature,sens_de_circulation,acces_vehicule_leger,acces_pieton,vitesse_moyenne_vl,nom_voie_ban_droite,nom_collaboratif_droite,importance,amenagement_cyclable_gauche,amenagement_cyclable_droit,sens_amenagement_cyclable_gauche,sens_amenagement_cyclable_droit,itineraire_vert,geometrie',
+      ...where,
+    });
+    // CQL and BBOX exclude each other
+    // A timeout can come while the body is read, not only at the request: both are retried
+    const page = await fetch(file === full ? url : url.replace(/&BBOX=[^&]*/, ''))
+      .then(async (res) => (res.ok ? ((await res.json()) as { features: Section[] }) : `HTTP ${res.status}`))
+      .catch((error: unknown) => String(error));
+    if (typeof page !== 'string') {
+      const features = page.features.map((f) => ({
         id: f.id,
         geometry: f.geometry && { coordinates: f.geometry.coordinates.map(([lng, lat, z]) => [lng, lat, z ?? NO_Z]) },
         properties: f.properties,
@@ -106,12 +142,13 @@ const fetchPage = async (tile: string, box: Box, start: number): Promise<Section
 
       return features;
     }
-    if (attempt >= 6) throw new Error(`WFS page ${start}: HTTP ${res?.status ?? 'network error'}`);
+    if (attempt >= 6) throw new Error(`WFS tile ${tile}, page ${start}: ${page}`);
     await Bun.sleep(2000 * attempt);
   }
 };
 
 mkdirSync(CACHE, { recursive: true });
+mkdirSync(new URL('.', OUT), { recursive: true });
 
 const origin = [
   R * ((BBOX.minLng + BBOX.maxLng) / 2) * D2R,
@@ -146,8 +183,9 @@ const relief = (coords: number[][]) => {
 
   return { up, down };
 };
-const inside = ([lng, lat]: number[], b: typeof INNER) =>
+const inside = ([lng, lat]: number[], b: Box): boolean =>
   lng >= b.minLng && lng <= b.maxLng && lat >= b.minLat && lat <= b.maxLat;
+const inDense = (point: number[]): boolean => DENSE.some((b) => inside(point, b));
 
 const NO_PEDESTRIAN = new Set(['Type autoroutier', 'Bretelle']);
 const NO_BIKE = new Set(['Type autoroutier', 'Bretelle', 'Escalier']);
@@ -206,7 +244,7 @@ const addSection = (s: Section) => {
   if (!line || line.length < 2) return;
   const p = s.properties;
   const importance = Number(p.importance) || 0;
-  const innerZone = inside(line[0], INNER) || inside(line[line.length - 1], INNER);
+  const innerZone = inDense(line[0]) || inDense(line[line.length - 1]);
   if (!innerZone && (OUTER_DROPPED.has(p.nature) || importance >= 6)) {
     stats.dropped += 1;
 
@@ -249,20 +287,23 @@ const addSection = (s: Section) => {
   });
 };
 
-const tiles: { id: string; box: Box }[] = [];
+const tiles: { id: string; box: Box; filtered: boolean }[] = [];
 for (let lng = BBOX.minLng; lng < BBOX.maxLng; lng += TILE.lng)
   for (let lat = BBOX.minLat; lat < BBOX.maxLat; lat += TILE.lat)
     tiles.push({
       id: `${lng.toFixed(2)}_${lat.toFixed(2)}`,
       box: { minLng: lng, minLat: lat, maxLng: Math.min(lng + TILE.lng, BBOX.maxLng), maxLat: Math.min(lat + TILE.lat, BBOX.maxLat) },
+      filtered: false,
     });
+for (const tile of tiles) tile.filtered = !DENSE.some((d) => intersects(tile.box, d));
+console.log(`${REGION.name}: ${tiles.length} tiles, ${tiles.filter((t) => t.filtered).length} filtered by the WFS`);
 /** A section crossing tiles comes in each: kept once */
 const seen = new Set<string>();
 let done = 0;
 const pageWorker = async () => {
   for (let tile = tiles.shift(); tile; tile = tiles.shift()) {
     for (let start = 0; ; start += PAGE) {
-      const page = await fetchPage(tile.id, tile.box, start);
+      const page = await fetchPage(tile.id, tile.box, start, tile.filtered);
       for (const s of page) {
         if (s.id && seen.has(s.id)) continue;
         if (s.id) seen.add(s.id);
@@ -496,7 +537,7 @@ put(points, Int16Array);
 offset = align4(offset);
 new Uint8Array(buffer, offset, namesBytes.length).set(namesBytes);
 
-await Bun.write(OUT, buffer);
+await Bun.write(OUT, IDF ? buffer : Bun.gzipSync(new Uint8Array(buffer), { level: 9 }));
 console.log(
-  `graph.bin: ${nodes.length / 2} nodes, ${E} edges, ${points.length / 2} interior points, ${names.length} names, ${(size / 1e6).toFixed(1)} MB`,
+  `${REGION.id}: ${nodes.length / 2} nodes, ${E} edges, ${points.length / 2} interior points, ${names.length} names, ${(size / 1e6).toFixed(1)} MB`,
 );

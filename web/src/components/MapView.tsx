@@ -17,7 +17,7 @@ import type { Cut } from '@/engine/cuts';
 import { type Leg, toLegs } from '@/engine/legs';
 import { EDGE_BOARD, EDGE_RIDE, FLAG_BUS } from '@/engine/network';
 import { type CutImpact, type Result, TravelEngine } from '@/engine/travelEngine';
-import { BASEMAP_STYLE, HILLSHADE_TILES, LANDMARKS, type LngLat, type Perspective, type Mode, START } from '@/lib/config';
+import { BASEMAP_STYLE, HILLSHADE_TILES, LANDMARKS, type LngLat, type Perspective, type Mode } from '@/lib/config';
 import { rampCss } from '@/lib/colors';
 import { formatMinutes } from '@/lib/format';
 import { fromMercator, toMercator } from '@/lib/mercator';
@@ -56,6 +56,8 @@ export interface TargetInfo {
 
 interface MapViewProps {
   engine: TravelEngine;
+  /** Where the map opens and the first run starts (read once per engine) */
+  start: LngLat;
   /** Bumped by the parent after `engine.setProfile` */
   profileVersion: number;
   /** Seconds */
@@ -186,6 +188,7 @@ const markerElement = (className: string) => {
 
 const MapView = ({
   engine,
+  start,
   profileVersion,
   scale,
   contours,
@@ -207,6 +210,7 @@ const MapView = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const props = {
     engine,
+    start,
     scale,
     contours,
     pinned,
@@ -258,16 +262,20 @@ const MapView = ({
       return [x - ox, y - oy];
     };
     const toLngLat = ([x, y]: [number, number]) => fromMercator([x + ox, y + oy]);
-    const landmarkXY = LANDMARKS.map(({ name, at }) => {
-      const [x, y] = toRel(at);
+    // The landmarks of the loaded region only (Paris places mean nothing from Lyon)
+    const [minLng, minLat, maxLng, maxLat] = net.bbox;
+    const landmarkXY = LANDMARKS.filter(({ at: [lng, lat] }) => lng >= minLng && lng <= maxLng && lat >= minLat && lat <= maxLat).map(
+      ({ name, at }) => {
+        const [x, y] = toRel(at);
 
-      return { name, x, y };
-    });
+        return { name, x, y };
+      },
+    );
     const c = ctl.current;
     const map = new MlMap({
       container,
       style: BASEMAP_STYLE,
-      center: live.current.pinned ?? START,
+      center: live.current.pinned ?? live.current.start,
       // The building view opens where the buildings exist
       ...(live.current.perspective === 'flat' ? { zoom: 13.4 } : { ...TILT, zoom: BUILDINGS_MIN_ZOOM + 0.6 }),
       attributionControl: {
@@ -404,7 +412,7 @@ const MapView = ({
       runs.busy = true;
 
       const pin = live.current.pinned;
-      const cursor: [number, number] = c.cursor ?? toRel(pin ?? START);
+      const cursor: [number, number] = c.cursor ?? toRel(pin ?? live.current.start);
       engine
         .run(cursor[0], cursor[1], live.current.scale)
         .then((r) => {
@@ -679,6 +687,8 @@ const MapView = ({
       cancelAnimationFrame(c.frame);
       clearTimeout(c.settleTimer);
       contourLines.terminate();
+      // Its tile worker and its GPU buffers go with the map (another region, another engine)
+      if (map.getLayer(buildings.id)) map.removeLayer(buildings.id);
       map.remove();
       c.ready = false;
     };

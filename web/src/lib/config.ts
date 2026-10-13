@@ -8,8 +8,6 @@ export const PERSPECTIVES: readonly Perspective[] = ['flat', 'buildings'];
 /** Longest time the scale offers, per mode, in minutes */
 export const MAX_SCALE: Record<Mode, number> = { transit: 60, pedestrian: 60, bike: 45, car: 45 };
 
-/** Where the map opens and the first run starts: the IGN head office, Saint-Mandé */
-export const START: LngLat = [2.424573, 48.845726];
 
 /** Places whose travel time the panel lists */
 export const LANDMARKS: { name: string; at: LngLat }[] = [
@@ -40,6 +38,3 @@ export const BASEMAP_STYLE = `${GPF_BASE}/annexes/ressources/vectorTiles/styles/
 export const HILLSHADE_TILES =
   `${GPF_BASE}/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=IGNF_ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW` +
   '&STYLE=normal&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/png';
-
-export const GRAPH_URL = `${import.meta.env.BASE_URL}data/graph.bin`;
-export const TRANSIT_URL = `${import.meta.env.BASE_URL}data/transit.bin`;

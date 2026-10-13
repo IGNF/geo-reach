@@ -1,4 +1,4 @@
-import { Button, CopyButton, PreviewPanel, SegmentedSwitch, Slider, Stack, Switch, Typography } from '@ign-junn/design-system';
+import { Button, CopyButton, Select, PreviewPanel, SegmentedSwitch, Slider, Stack, Switch, Typography } from '@ign-junn/design-system';
 import { IconAdjustmentsHorizontal, IconInfoCircle, IconScissors } from '@ign-junn/design-system/icons';
 import { RAMP_GRADIENT_CSS } from '@/lib/colors';
 import { trafficLevel } from '@/lib/insights';
@@ -8,8 +8,12 @@ import type { ModelOptions } from '@/engine/profile';
 import ModelSection from '@/components/ModelSection';
 import ModePicker from '@/components/ModePicker';
 import type { ReactElement } from 'react';
+import { REGIONS, regionById } from '@/lib/regions';
 
 interface SettingsPanelProps {
+  /** Region whose network is loaded */
+  region: string;
+  onRegionChange: (id: string) => void;
   mode: Mode;
   onModeChange: (mode: Mode) => void;
   transitAvailable: boolean;
@@ -42,6 +46,8 @@ const HOUR_MARKS = [0, 6, 12, 18, 23].map((h) => ({ value: h, label: t.hour(h) }
 
 /** Right panel, as high as the window and foldable: what to compute (mode, its options, time, isochrones) */
 const SettingsPanel = ({
+  region,
+  onRegionChange,
   mode,
   onModeChange,
   transitAvailable,
@@ -88,6 +94,16 @@ const SettingsPanel = ({
     >
       <div className="settings-wrap">
       <div className="settings">
+      <Select
+        label={t.region.label}
+        description={regionById(region).transit ? undefined : t.region.noTransit}
+        options={REGIONS.map((r) => ({ value: r.id, label: r.name }))}
+        value={region}
+        onChange={(id) => {
+          if (id) onRegionChange(id);
+        }}
+        searchable
+      />
       <Button
         label={cutMode ? t.cuts.done : t.cuts.start}
         icon={IconScissors}

@@ -7,6 +7,10 @@ export const fr: Messages = {
   howItWorks: 'Comment ça marche',
   legalNotice: 'Mentions légales',
   tilt: 'Incliner la carte (45°) ou la remettre à plat',
+  region: {
+    label: 'Région',
+    noTransit: 'Routes seulement : les transports en commun ne couvrent que l’Île-de-France pour l’instant.',
+  },
   perspective: {
     label: 'Vue',
     options: { flat: '2D', buildings: '3D' },
@@ -107,7 +111,7 @@ export const fr: Messages = {
   walk: 'À pied',
   unnamedRoad: 'Voie sans nom',
   outsideZone: 'Hors zone',
-  locateOutside: 'Votre position est hors de la zone de démonstration (Paris et petite couronne).',
+  locateOutside: 'Votre position est hors de la France métropolitaine.',
   locateFailed: 'Votre position n’est pas disponible (autorisation refusée ou pas de signal).',
   insight: {
     transit: (stations, lines, min) => `${stations} stations et ${lines} lignes accessibles en ${min} min`,

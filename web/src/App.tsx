@@ -11,6 +11,7 @@ import { DEFAULT_MODEL } from '@/engine/profile';
 import type { TravelEngine } from '@/engine/travelEngine';
 import { contourMinutes, type LngLat, MAX_SCALE, type Mode } from '@/lib/config';
 import { insight } from '@/lib/insights';
+import { regionAt, regionById } from '@/lib/regions';
 import { STEP_START, startEngine, type StartupProgress } from '@/lib/startup';
 import { useAddress, useGpfRoute } from '@/lib/useRoute';
 import { readUrlState, urlHash, type ViewState } from '@/lib/urlState';
@@ -34,20 +35,45 @@ const App = (): ReactElement => {
   const [previewWidth, setPreviewWidth] = useState(320);
   const [cutMode, setCutMode] = useState(false);
   const { pinned, mode, direction, bus, hour, scale, contours, model, cuts, perspective } = view;
+  const region = regionById(view.region);
   const hash = urlHash(view);
   const contourSeconds = useMemo(() => (contours ? contourMinutes(scale).map((c) => c * 60) : []), [contours, scale]);
 
+  // The network of the region: loaded at the start and at every change of region (a new engine, a new map)
   useEffect(() => {
-    startEngine({ mode, direction, bus, hour, model }, cuts, setStartup)
+    const load = { cancelled: false };
+    setEngine(undefined);
+    setReady(false);
+    setStartupGone(false);
+    setLive(undefined);
+    setTarget(undefined);
+    setStartup({ step: 'download', percent: 0 });
+
+    startEngine(region, { mode, direction, bus, hour, model }, cuts, (p) => {
+      if (!load.cancelled) setStartup(p);
+    })
       .then((started) => {
+        if (load.cancelled) return started.engine.dispose();
         setTransitAvailable(started.transit);
-        if (started.cuts.length !== cuts.length) setView((v) => ({ ...v, cuts: started.cuts }));
+        setView((v) => ({
+          ...v,
+          cuts: started.cuts,
+          // No transit layer in this region: on foot instead
+          mode: !started.transit && v.mode === 'transit' ? 'pedestrian' : v.mode,
+        }));
         setEngine(started.engine);
       })
       .catch((error: unknown) => console.error(error));
-    // Loaded once; the profile follows the view in the effect below
+
+    return () => {
+      load.cancelled = true;
+    };
+    // A new region only; the profile follows the view in the effect below
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [region.id]);
+
+  // An engine replaced (new region) lets its workers go
+  useEffect(() => () => engine?.dispose(), [engine]);
 
   const closed = useMemo(() => engine && closedEdges(engine.net, cuts), [engine, cuts]);
 
@@ -85,6 +111,15 @@ const App = (): ReactElement => {
     [update],
   );
   const onModeChange = (m: Mode) => update({ mode: m, scale: Math.min(scale, MAX_SCALE[m]) });
+  /** Another region: its network replaces this one; the pinned point and the cuts belonged to the old one */
+  const onRegionChange = useCallback(
+    (id: string, focusAt?: LngLat) => {
+      setCutMode(false);
+      setFocus(focusAt ? { point: focusAt } : undefined);
+      update({ region: id, pinned: undefined, cuts: [] });
+    },
+    [update],
+  );
   const onCutToggle = useCallback(
     (cut: Cut) =>
       setView((v) => {
@@ -103,14 +138,21 @@ const App = (): ReactElement => {
         const point: LngLat = [coords.longitude, coords.latitude];
         const [minLng, minLat, maxLng, maxLat] = engine?.net.bbox ?? [0, 0, 0, 0];
         const inside = point[0] >= minLng && point[0] <= maxLng && point[1] >= minLat && point[1] <= maxLat;
-        if (!inside) return setNotice(t.locateOutside);
-        // Only centers the map: the user decides whether to pin a point there
-        setFocus({ point });
+        if (inside) {
+          // Only centers the map: the user decides whether to pin a point there
+          setFocus({ point });
+
+          return;
+        }
+        // Elsewhere in France: the region of the position is loaded, the map opens on it
+        const other = regionAt(point);
+        if (!other) return setNotice(t.locateOutside);
+        onRegionChange(other.id, point);
       },
       () => setNotice(t.locateFailed),
       { enableHighAccuracy: true, timeout: 10000 },
     );
-  }, [engine]);
+  }, [engine, onRegionChange]);
 
   const originAddress = useAddress(pinned ?? live?.point, pinned ? 0 : 300);
   const targetAddress = useAddress(pinned ? settled : undefined, 0);
@@ -128,6 +170,7 @@ const App = (): ReactElement => {
     >
       <MapView
         engine={engine}
+        start={focus?.point ?? region.start}
         profileVersion={profileVersion}
         scale={scale * 60}
         contours={contourSeconds}
@@ -173,6 +216,8 @@ const App = (): ReactElement => {
       </div>
       <div className="right-slot">
         <SettingsPanel
+          region={region.id}
+          onRegionChange={onRegionChange}
           mode={mode}
           onModeChange={onModeChange}
           transitAvailable={transitAvailable}

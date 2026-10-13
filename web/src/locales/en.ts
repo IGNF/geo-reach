@@ -5,6 +5,10 @@ export const en = {
   howItWorks: 'How it works',
   legalNotice: 'Legal notice',
   tilt: 'Tilt the map (45°) or flatten it',
+  region: {
+    label: 'Region',
+    noTransit: 'Roads only: public transport is in Île-de-France for now.',
+  },
   perspective: {
     label: 'View',
     options: { flat: '2D', buildings: '3D' },
@@ -105,7 +109,7 @@ export const en = {
   walk: 'Walk',
   unnamedRoad: 'Unnamed road',
   outsideZone: 'Outside the zone',
-  locateOutside: 'Your position is outside the demo zone (Paris and inner suburbs).',
+  locateOutside: 'Your position is outside metropolitan France.',
   locateFailed: 'Your position is not available (permission refused or no signal).',
   insight: {
     transit: (stations: number, lines: number, min: number): string =>

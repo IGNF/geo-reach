@@ -47,6 +47,10 @@ class EngineWorker {
     return answer;
   }
 
+  terminate(): void {
+    this.worker.terminate();
+  }
+
   recycle(buffers: ArrayBuffer[]) {
     if (!buffers[0].byteLength) return;
     this.post({ type: 'recycle', buffers }, buffers);
@@ -171,6 +175,12 @@ export class TravelEngine {
     this.baseline = buildProfile(this.net, { ...p, closed: new Uint32Array(0) });
     this.baseWorker ??= new EngineWorker();
     this.baseWorker.graph(this.net.nodeCount, this.baseline);
+  }
+
+  /** Stops the workers: the engine of another region takes over */
+  dispose(): void {
+    this.worker.terminate();
+    this.baseWorker?.terminate();
   }
 
   /** Metres per second on foot, from the model */

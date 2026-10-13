@@ -21,16 +21,27 @@ const openCache = async () => {
   }
 };
 
+/** Gzip files start with these two bytes */
+const isGzip = (bytes: Uint8Array): boolean => bytes[0] === 0x1f && bytes[1] === 0x8b;
+
+/**
+ * The region files are stored gzipped (`.bin.gz`, under the 100 MB a file of GitHub): the browser inflates them
+ * itself. A server may already have inflated them on the way (Content-Encoding): the first bytes tell.
+ */
+const inflate = async (bytes: Uint8Array<ArrayBuffer>): Promise<ArrayBuffer> =>
+  isGzip(bytes) ? new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer() : bytes.buffer;
+
 /** The file, from the browser cache when there, else downloaded (with its progress) and cached */
 export const loadData = async (url: string, onProgress?: Progress): Promise<ArrayBuffer> => {
   const cache = await openCache();
   const hit = await cache?.match(url).catch(() => undefined);
   if (hit) {
-    const buffer = await hit.arrayBuffer();
-    onProgress?.(buffer.byteLength, buffer.byteLength);
+    const bytes = new Uint8Array(await hit.arrayBuffer());
+    onProgress?.(bytes.byteLength, bytes.byteLength);
 
-    return buffer;
+    return inflate(bytes);
   }
+
   const res = await fetch(url);
   if (!res.ok || !res.body) throw new Error(`${url}: HTTP ${res.status}`);
 
@@ -38,7 +49,7 @@ export const loadData = async (url: string, onProgress?: Progress): Promise<Arra
   const length = Number(res.headers.get('content-length'));
   const total = !res.headers.get('content-encoding') && length > 0 ? length : undefined;
 
-  const chunks: Uint8Array[] = [];
+  const chunks: Uint8Array<ArrayBuffer>[] = [];
   let received = 0;
   const reader = res.body.getReader();
   for (;;) {
@@ -48,13 +59,10 @@ export const loadData = async (url: string, onProgress?: Progress): Promise<Arra
     received += value.byteLength;
     onProgress?.(received, total);
   }
-  const bytes = new Uint8Array(received);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
+
+  // Kept as downloaded (compressed for the regions): half the room in the browser cache
+  const bytes = new Uint8Array(await new Blob(chunks).arrayBuffer());
   await cache?.put(url, new Response(bytes.slice())).catch(() => undefined);
 
-  return bytes.buffer;
+  return inflate(bytes);
 };
