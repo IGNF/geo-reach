@@ -36,6 +36,8 @@ public transport, and the map lights up from green (close) to red (far).
   it; the whole map is recomputed around it, and the panel counts the stations within reach that lose more than
   5 min (e.g. line 1 closed between Château de Vincennes and Bérault: Nation goes from 10 to 18 min, by the RER A).
   "Default values" reopens everything.
+- **Compare the modes**: with a pinned point, the same trip on foot, by bike, by car and by public transport, side by
+  side once the cursor stops (a worker of its own); a click shows the map of that mode.
 - **Adjust the calculation**: walking and cycling speed, traffic, average or worst-case wait, transfer time.
 - **Read the figures**: stations and lines you can board, nearest station, cycle lanes, travel times to well-known
   places (Châtelet, Gare de Lyon, La Défense…).
@@ -53,8 +55,8 @@ It is a proof of concept, good for comparing places and modes, not for planning 
 - **Walk**: 4 km/h on the flat, as the Géoplateforme route service. **Bike**: 15 km/h, a little faster on cycle lanes.
 - **Slopes**: walking and cycling slow down uphill (Tobler's hiking function for walking), using the heights of the
   BD TOPO roads. The Géoplateforme route service ignores them, so its walking times differ on hills.
-- **Zone**: the 13 regions of metropolitan France, one network each, chosen in the settings (or loaded by "My
-  location"). Full street network in the main city centres; beyond, no footpaths, tracks nor service roads (main
+- **Zone**: the 13 regions of metropolitan France, one network each. The region follows the map: move the view into
+  another region (or use "My location") and its network loads in the background, the map staying where it is. Full street network in the main city centres; beyond, no footpaths, tracks nor service roads (main
   roads, streets and station access are kept). Public transport: Île-de-France only for now; elsewhere, the roads.
 
 The first visit downloads the network (about 13 MB compressed); the browser then keeps it, so later visits load

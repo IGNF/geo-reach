@@ -1,7 +1,6 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type * as GeoJSON from 'geojson';
 import {
-  type ExpressionSpecification,
   type FilterSpecification,
   type GeoJSONSource,
   type IControl,
@@ -17,12 +16,13 @@ import type { Cut } from '@/engine/cuts';
 import { type Leg, toLegs } from '@/engine/legs';
 import { EDGE_BOARD, EDGE_RIDE, FLAG_BUS } from '@/engine/network';
 import { type CutImpact, type Result, TravelEngine } from '@/engine/travelEngine';
-import { BASEMAP_STYLE, HILLSHADE_TILES, LANDMARKS, type LngLat, type Perspective, type Mode } from '@/lib/config';
+import { BASEMAP_STYLE, type Camera, HILLSHADE_TILES, LANDMARKS, type LngLat, type Perspective, type Mode } from '@/lib/config';
 import { rampCss } from '@/lib/colors';
 import { formatMinutes } from '@/lib/format';
 import { fromMercator, toMercator } from '@/lib/mercator';
 import { t } from '@/locales';
-import { BuildingGlLayer, BUILDINGS_MIN_ZOOM } from '@/map/buildingGlLayer';
+import { BuildingGlLayer } from '@/map/buildingGlLayer';
+import { BUILDINGS_ZOOM, TILT, TILT_PITCH } from '@/lib/camera';
 import { CutLayer } from '@/map/cutLayer';
 import { ContourLines } from '@/map/contourLines';
 import { NetworkLayer } from '@/map/networkLayer';
@@ -57,7 +57,9 @@ export interface TargetInfo {
 interface MapViewProps {
   engine: TravelEngine;
   /** Where the map opens and the first run starts (read once per engine) */
-  start: LngLat;
+  camera: Camera;
+  /** The map stopped moving: where it looks now */
+  onCamera: (camera: Camera) => void;
   /** Bumped by the parent after `engine.setProfile` */
   profileVersion: number;
   /** Seconds */
@@ -131,10 +133,9 @@ const railFeatures = (engine: TravelEngine): GeoJSON.FeatureCollection => {
   return { type: 'FeatureCollection', features };
 };
 
-/** Tilt of the tilt button and of the 3D views, degrees */
-const TILT_PITCH = 45;
-/** Tilt and heading of the 3D views */
-const TILT = { pitch: TILT_PITCH, bearing: -17 };
+/** The trip on the map: an indigo no travel time has */
+const ROUTE_COLOR = '#3b3fb6';
+
 
 /** The rail lines drawn on the ground show in transit mode only */
 const styleGroundLayers = (map: MlMap, mode: Mode): void => {
@@ -188,7 +189,8 @@ const markerElement = (className: string) => {
 
 const MapView = ({
   engine,
-  start,
+  camera,
+  onCamera,
   profileVersion,
   scale,
   contours,
@@ -210,7 +212,8 @@ const MapView = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const props = {
     engine,
-    start,
+    camera,
+    onCamera,
     scale,
     contours,
     pinned,
@@ -275,9 +278,10 @@ const MapView = ({
     const map = new MlMap({
       container,
       style: BASEMAP_STYLE,
-      center: live.current.pinned ?? live.current.start,
-      // The building view opens where the buildings exist
-      ...(live.current.perspective === 'flat' ? { zoom: 13.4 } : { ...TILT, zoom: BUILDINGS_MIN_ZOOM + 0.6 }),
+      center: live.current.camera.center,
+      zoom: live.current.camera.zoom,
+      pitch: live.current.camera.pitch,
+      bearing: live.current.camera.bearing,
       attributionControl: {
         compact: true,
         customAttribution: [t.attribution, `<a href="${import.meta.env.BASE_URL}legal.html">${t.legalNotice}</a>`],
@@ -315,28 +319,12 @@ const MapView = ({
     const labelEl = markerElement('time-label');
     const label = new Marker({ element: labelEl, anchor: 'bottom', offset: [0, -14] });
 
-    const setRoute = (coords: LngLat[] | undefined, seconds = 0) => {
-      const source = map.getSource<GeoJSONSource>('route');
-      if (!source) return;
-      source.setData(
+    const setRoute = (coords: LngLat[] | undefined) => {
+      map.getSource<GeoJSONSource>('route')?.setData(
         coords && coords.length > 1
           ? { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords } }
           : EMPTY,
       );
-      if (coords) {
-        const { scale: s } = live.current;
-        const pinnedDir = engine.profile.direction;
-        const stops = [0, 0.25, 0.5, 0.75, 1].flatMap((p) => [
-          p,
-          rampCss(((pinnedDir === 'departure' ? p : 1 - p) * seconds) / s),
-        ]);
-        map.setPaintProperty('route', 'line-gradient', [
-          'interpolate',
-          ['linear'],
-          ['line-progress'],
-          ...stops,
-        ] as ExpressionSpecification);
-      }
     };
 
     /** Path from the pinned origin to the cursor, as map coordinates */
@@ -412,7 +400,7 @@ const MapView = ({
       runs.busy = true;
 
       const pin = live.current.pinned;
-      const cursor: [number, number] = c.cursor ?? toRel(pin ?? live.current.start);
+      const cursor: [number, number] = c.cursor ?? toRel(pin ?? live.current.camera.center);
       engine
         .run(cursor[0], cursor[1], live.current.scale)
         .then((r) => {
@@ -474,7 +462,7 @@ const MapView = ({
       labelEl.textContent = formatMinutes(at.seconds / 60);
       labelEl.style.setProperty('--label-color', rampCss(at.seconds / s));
       const { coords, steps } = routeCoords(r, at.node, anchored, [at.snap.x, at.snap.y]);
-      setRoute(coords, at.seconds);
+      setRoute(coords);
       if (due) {
         const legs = toLegs(net, steps, engine.profile.mode);
         if (at.walk > 20) legs.push({ kind: 'walk', label: '', seconds: at.walk, metres: at.walk * engine.walkSpeed });
@@ -521,6 +509,10 @@ const MapView = ({
       c.settleTimer = setTimeout(() => live.current.onSettle(live.current.pinned ? point : undefined), SETTLE_MS);
     });
     map.getCanvas().addEventListener('mouseleave', () => clearTimeout(c.settleTimer));
+    map.on('moveend', () => {
+      const { lng, lat } = map.getCenter();
+      live.current.onCamera({ center: [lng, lat], zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing() });
+    });
     map.on('click', (e) => {
       if (!live.current.cutMode) return live.current.onPin(e.lngLat.toArray());
       const { hovered } = cutLayer;
@@ -659,7 +651,7 @@ const MapView = ({
       });
       cutLayer.addLayers();
       c.drawCuts();
-      map.addSource('route', { type: 'geojson', data: EMPTY, lineMetrics: true });
+      map.addSource('route', { type: 'geojson', data: EMPTY });
       map.addLayer({
         id: 'route-casing',
         type: 'line',
@@ -672,7 +664,8 @@ const MapView = ({
         type: 'line',
         source: 'route',
         layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: { 'line-color': '#1a9850', 'line-width': 5 },
+        // A color the time ramp never takes: the route stands out over green and red streets alike
+        paint: { 'line-color': ROUTE_COLOR, 'line-width': 5 },
       });
       // The attribution starts folded: its button only
       const attribution = container.querySelector('.maplibregl-ctrl-attrib');
@@ -707,16 +700,20 @@ const MapView = ({
   // New profile (mode, cuts…): the buildings join their streets again; not when only the max time changes
   useEffect(() => ctl.current.buildings?.setProfile(), [engine, profileVersion]);
 
-  // Flat or 3D: the map tilts and the buildings stand up
+  // Flat or 3D: the map tilts and the buildings stand up. A new map (another region) keeps the camera it got.
+  const shownPerspective = useRef(perspective);
   useEffect(() => {
     const { map, buildings } = ctl.current;
     if (!map) return;
 
+    buildings?.setVisible(perspective === 'buildings');
+    if (shownPerspective.current === perspective) return;
+    shownPerspective.current = perspective;
+
     const tilted = perspective !== 'flat';
     // The buildings exist from zoom 15 only: the building view zooms in to them
-    const zoom = perspective === 'buildings' ? Math.max(map.getZoom(), BUILDINGS_MIN_ZOOM + 0.6) : map.getZoom();
+    const zoom = perspective === 'buildings' ? Math.max(map.getZoom(), BUILDINGS_ZOOM) : map.getZoom();
     map.easeTo({ ...(tilted ? TILT : { pitch: 0, bearing: 0 }), zoom, duration: 900 });
-    buildings?.setVisible(perspective === 'buildings');
   }, [engine, perspective]);
 
   useEffect(() => {

@@ -1,6 +1,6 @@
-import { sizes } from '@ign-junn/design-system';
+import { ProgressBar, sizes } from '@ign-junn/design-system';
 import type { CSSProperties, ReactElement } from 'react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import CutsPanel from '@/components/CutsPanel';
 import MapView, { type LiveInfo, type TargetInfo } from '@/components/MapView';
 import SettingsPanel from '@/components/SettingsPanel';
@@ -9,13 +9,15 @@ import TripPanel from '@/components/TripPanel';
 import { closedEdges, type Cut, cutKey } from '@/engine/cuts';
 import { DEFAULT_MODEL } from '@/engine/profile';
 import type { TravelEngine } from '@/engine/travelEngine';
-import { contourMinutes, type LngLat, MAX_SCALE, type Mode } from '@/lib/config';
+import { contourMinutes, type LngLat, MAX_SCALE, type Mode, type Camera } from '@/lib/config';
 import { insight } from '@/lib/insights';
-import { regionAt, regionById } from '@/lib/regions';
+import { regionAt, regionById, regionHolds } from '@/lib/regions';
+import { cameraFor } from '@/lib/camera';
 import { STEP_START, startEngine, type StartupProgress } from '@/lib/startup';
 import { useAddress, useGpfRoute } from '@/lib/useRoute';
 import { readUrlState, urlHash, type ViewState } from '@/lib/urlState';
 import { t } from '@/locales';
+import { toMercator } from '@/lib/mercator';
 
 const App = (): ReactElement => {
   const [view, setView] = useState<ViewState>(readUrlState);
@@ -37,23 +39,32 @@ const App = (): ReactElement => {
   const { pinned, mode, direction, bus, hour, scale, contours, model, cuts, perspective } = view;
   const region = regionById(view.region);
   const hash = urlHash(view);
+  /** Where the map looks: a new region's map opens on it, so that crossing a border does not move the view */
+  const camera = useRef<Camera>(cameraFor(view.pinned ?? region.start, perspective));
+  /** Another region loading while the current map stays: its name and progress */
+  const [switching, setSwitching] = useState<{ name: string; progress: StartupProgress }>();
+  const engineRef = useRef(engine);
+  engineRef.current = engine;
   const contourSeconds = useMemo(() => (contours ? contourMinutes(scale).map((c) => c * 60) : []), [contours, scale]);
 
-  // The network of the region: loaded at the start and at every change of region (a new engine, a new map)
+  // The network of the region: at the start behind the startup screen, then, when the view enters another region,
+  // in the background while the current map stays; the new engine and its map replace them once ready
   useEffect(() => {
     const load = { cancelled: false };
-    setEngine(undefined);
-    setReady(false);
-    setStartupGone(false);
-    setLive(undefined);
-    setTarget(undefined);
-    setStartup({ step: 'download', percent: 0 });
+    const first = !engineRef.current;
+    const report = (progress: StartupProgress): void => {
+      if (load.cancelled) return;
+      if (first) setStartup(progress);
+      else setSwitching({ name: region.name, progress });
+    };
+    report({ step: 'download', percent: 0 });
 
-    startEngine(region, { mode, direction, bus, hour, model }, cuts, (p) => {
-      if (!load.cancelled) setStartup(p);
-    })
+    startEngine(region, { mode, direction, bus, hour, model }, cuts, report)
       .then((started) => {
         if (load.cancelled) return started.engine.dispose();
+        setSwitching(undefined);
+        setLive(undefined);
+        setTarget(undefined);
         setTransitAvailable(started.transit);
         setView((v) => ({
           ...v,
@@ -111,14 +122,29 @@ const App = (): ReactElement => {
     [update],
   );
   const onModeChange = (m: Mode) => update({ mode: m, scale: Math.min(scale, MAX_SCALE[m]) });
-  /** Another region: its network replaces this one; the pinned point and the cuts belonged to the old one */
+  /**
+   * Another region: its network replaces this one. The cuts belonged to the old network; the pinned point stays when
+   * the new region holds it.
+   */
   const onRegionChange = useCallback(
-    (id: string, focusAt?: LngLat) => {
+    (id: string, lookAt?: LngLat) => {
+      const next = regionById(id);
+      if (lookAt) camera.current = { ...camera.current, center: lookAt };
       setCutMode(false);
-      setFocus(focusAt ? { point: focusAt } : undefined);
-      update({ region: id, pinned: undefined, cuts: [] });
+      setView((v) => ({ ...v, region: id, cuts: [], pinned: v.pinned && regionHolds(next, v.pinned) ? v.pinned : undefined }));
     },
-    [update],
+    [],
+  );
+
+  /** The map stopped: its camera is kept, and a view gone into another region loads that region */
+  const onCamera = useCallback(
+    (c: Camera) => {
+      camera.current = c;
+      if (regionHolds(region, c.center)) return;
+      const next = regionAt(c.center);
+      if (next && next.id !== region.id) onRegionChange(next.id);
+    },
+    [region, onRegionChange],
   );
   const onCutToggle = useCallback(
     (cut: Cut) =>
@@ -154,6 +180,28 @@ const App = (): ReactElement => {
     );
   }, [engine, onRegionChange]);
 
+  // The same trip in each mode, once the cursor stops on a destination (a worker of its own: the map stays fluid)
+  const compareModes = useMemo<Mode[]>(
+    () => (transitAvailable ? ['transit', 'pedestrian', 'bike', 'car'] : ['pedestrian', 'bike', 'car']),
+    [transitAvailable],
+  );
+  const [comparison, setComparison] = useState<Partial<Record<Mode, number>>>();
+  useEffect(() => {
+    setComparison(undefined);
+    if (!engine || !pinned || !settled) return;
+
+    const toZone = (p: LngLat): [number, number] => {
+      const [x, y] = toMercator(p);
+
+      return [x - engine.net.origin[0], y - engine.net.origin[1]];
+    };
+    // As in the trip panel: from the map's point to the pinned one (departure), or the reverse (arrival)
+    const [from, to] = direction === 'departure' ? [settled, pinned] : [pinned, settled];
+    engine.compare(toZone(from), toZone(to), compareModes).then((seconds) => {
+      if (seconds) setComparison(seconds);
+    });
+  }, [engine, pinned, settled, direction, compareModes, profileVersion]);
+
   const originAddress = useAddress(pinned ?? live?.point, pinned ? 0 : 300);
   const targetAddress = useAddress(pinned ? settled : undefined, 0);
   const gpfRoute = useGpfRoute(pinned, settled, mode, direction);
@@ -170,7 +218,8 @@ const App = (): ReactElement => {
     >
       <MapView
         engine={engine}
-        start={focus?.point ?? region.start}
+        camera={camera.current}
+        onCamera={onCamera}
         profileVersion={profileVersion}
         scale={scale * 60}
         contours={contourSeconds}
@@ -202,6 +251,8 @@ const App = (): ReactElement => {
           gpfRoute={gpfRoute}
           scale={scale}
           notice={notice}
+          comparison={pinned && settled ? { modes: compareModes, seconds: comparison } : undefined}
+          onModeChange={onModeChange}
         />
         <CutsPanel
           net={engine.net}
@@ -216,8 +267,7 @@ const App = (): ReactElement => {
       </div>
       <div className="right-slot">
         <SettingsPanel
-          region={region.id}
-          onRegionChange={onRegionChange}
+          region={region}
           mode={mode}
           onModeChange={onModeChange}
           transitAvailable={transitAvailable}
@@ -246,6 +296,11 @@ const App = (): ReactElement => {
         />
       </div>
       {insightText && <div className="insight-bar glass">{insightText}</div>}
+      {switching && (
+        <div className="region-loading glass" role="status">
+          <ProgressBar label={t.region.loading(switching.name)} value={Math.round(switching.progress.percent)} animated size="sm" />
+        </div>
+      )}
       {!startupGone && <StartupScreen progress={startup} done={ready} />}
     </div>
   );

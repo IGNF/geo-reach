@@ -5,6 +5,14 @@ export type Direction = 'departure' | 'arrival';
 export type Perspective = 'flat' | 'buildings';
 export const PERSPECTIVES: readonly Perspective[] = ['flat', 'buildings'];
 
+/** Where the map looks: kept when another region replaces the network */
+export interface Camera {
+  center: LngLat;
+  zoom: number;
+  pitch: number;
+  bearing: number;
+}
+
 /** Longest time the scale offers, per mode, in minutes */
 export const MAX_SCALE: Record<Mode, number> = { transit: 60, pedestrian: 60, bike: 45, car: 45 };
 

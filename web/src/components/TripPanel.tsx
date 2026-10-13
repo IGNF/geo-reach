@@ -16,6 +16,7 @@ import type { Route } from '@/lib/gpf';
 import { t } from '@/locales';
 import type { LiveInfo, TargetInfo } from '@/components/MapView';
 import type { ReactElement } from 'react';
+import ModeComparison from '@/components/ModeComparison';
 
 interface TripPanelProps {
   mode: Mode;
@@ -33,6 +34,9 @@ interface TripPanelProps {
   scale: number;
   /** Message about the last action (e.g. location unavailable) */
   notice?: string;
+  /** The same trip in each mode */
+  comparison?: { modes: Mode[]; seconds?: Partial<Record<Mode, number>> };
+  onModeChange: (mode: Mode) => void;
 }
 
 const Place = ({ caption, text }: { caption: string; text?: string }) => (
@@ -125,6 +129,8 @@ const TripPanel = ({
   gpfRoute,
   scale,
   notice,
+  comparison,
+  onModeChange,
 }: TripPanelProps): ReactElement => {
   // Map from the departure: the cursor is the departure, the anchored point the arrival; and the reverse
   const [from, to] = direction === 'departure' ? [targetAddress, originAddress] : [originAddress, targetAddress];
@@ -156,6 +162,9 @@ const TripPanel = ({
                 {gpfRoute && <Typography variant="hint">{t.gpfDuration(formatMinutes(gpfRoute.duration))}</Typography>}
                 <Relief legs={target.legs} />
               </Stack>
+              {comparison && (
+                <ModeComparison modes={comparison.modes} seconds={comparison.seconds} mode={mode} onModeChange={onModeChange} />
+              )}
               <ol className="trip-steps">
                 {target.legs.slice(0, 12).map((leg, i) => (
                   <LegRow key={`${i}-${leg.kind}-${leg.label}`} leg={leg} />

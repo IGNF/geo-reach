@@ -5,9 +5,15 @@ export const en = {
   howItWorks: 'How it works',
   legalNotice: 'Legal notice',
   tilt: 'Tilt the map (45°) or flatten it',
+  compare: {
+    title: 'Same trip by',
+    none: 'not possible or over 4 h',
+  },
   region: {
     label: 'Region',
+    follows: 'Follows the map: move into another region to load it.',
     noTransit: 'Roads only: public transport is in Île-de-France for now.',
+    loading: (name: string): string => `Loading ${name}…`,
   },
   perspective: {
     label: 'View',

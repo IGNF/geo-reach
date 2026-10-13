@@ -3,16 +3,12 @@ import type { WorkerRequest, WorkerResult } from '@/engine/engineWorker';
 import { EDGE_BOARD, EDGE_ROAD, FLAG_CYCLEWAY, type Network } from '@/engine/network';
 import { buildProfile, type Profile, type ProfileOptions } from '@/engine/profile';
 import { type Snap, SnapIndex } from '@/engine/snap';
+import { MAX_SNAP_METRES, part, type ZoneXY } from '@/engine/trip';
+import type { CompareRequest, CompareResult } from '@/engine/compareWorker';
+import type { Mode } from '@/lib/config';
 
 const NONE = 0xffffffff;
 
-/**
- * Seconds of a share of an edge: none at all when the share is zero, even along a forbidden way (0 × ∞ would give NaN,
- * which the engine refuses: the cursor at the very end of a one-way street must still start from that end)
- */
-const part = (share: number, seconds: number) => (share > 0 ? share * seconds : 0);
-/** Beyond this, the cursor is off the network */
-const MAX_SNAP_METRES = 600;
 
 /** One engine worker (WebAssembly) and its graph */
 class EngineWorker {
@@ -126,6 +122,12 @@ export class TravelEngine {
   private baseWorker?: EngineWorker;
   /** Profile without the closed sections, while some are closed */
   private baseline?: Profile;
+  /** The worker comparing the modes on one trip, started at the first comparison */
+  private comparer?: {
+    worker: Worker;
+    lastId: number;
+    pending: Map<number, (seconds: Partial<Record<Mode, number>> | undefined) => void>;
+  };
 
   private constructor(net: Network) {
     this.net = net;
@@ -181,6 +183,39 @@ export class TravelEngine {
   dispose(): void {
     this.worker.terminate();
     this.baseWorker?.terminate();
+    this.comparer?.worker.terminate();
+  }
+
+  /**
+   * Seconds of one trip in each mode, for the current settings, computed by a worker of its own (it gets a copy of
+   * the network once). Only the latest request is answered: an older one resolves to undefined.
+   */
+  compare(from: ZoneXY, to: ZoneXY, modes: Mode[]): Promise<Partial<Record<Mode, number>> | undefined> {
+    const comparer = (this.comparer ??= this.startComparer());
+    comparer.lastId += 1;
+    const id = comparer.lastId;
+    const { bus, hour, model, closed } = this.profile;
+    const request: CompareRequest = { type: 'compare', id, from, to, options: { bus, hour, model, closed }, modes };
+    comparer.worker.postMessage(request);
+
+    return new Promise((resolve) => comparer.pending.set(id, resolve));
+  }
+
+  private startComparer(): NonNullable<TravelEngine['comparer']> {
+    const worker = new Worker(new URL('./compareWorker.ts', import.meta.url), { type: 'module' });
+    const comparer: NonNullable<TravelEngine['comparer']> = { worker, lastId: 0, pending: new Map() };
+    worker.onmessage = (event: MessageEvent<CompareResult>) => {
+      const { id, seconds } = event.data;
+      // Older requests overtaken meanwhile get nothing
+      for (const [pendingId, resolve] of comparer.pending) {
+        if (pendingId > id) continue;
+        resolve(pendingId === id && id === comparer.lastId ? seconds : undefined);
+        comparer.pending.delete(pendingId);
+      }
+    };
+    worker.postMessage({ type: 'network', net: this.net } satisfies CompareRequest);
+
+    return comparer;
   }
 
   /** Metres per second on foot, from the model */

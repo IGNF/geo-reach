@@ -52,5 +52,8 @@ export const regionById = (id: string | undefined): Region =>
 const inBox = ([lng, lat]: LngLat, [minLng, minLat, maxLng, maxLat]: LngLatBox): boolean =>
   lng >= minLng && lng <= maxLng && lat >= minLat && lat <= maxLat;
 
+/** The point is in the region's box (its network reaches a little further, its margin) */
+export const regionHolds = (region: Region, point: LngLat): boolean => inBox(point, region.bbox);
+
 /** The region a point is in (the first whose box holds it), if any */
 export const regionAt = (point: LngLat): Region | undefined => REGIONS.find((r) => inBox(point, r.bbox));

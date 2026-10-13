@@ -7,9 +7,15 @@ export const fr: Messages = {
   howItWorks: 'Comment ça marche',
   legalNotice: 'Mentions légales',
   tilt: 'Incliner la carte (45°) ou la remettre à plat',
+  compare: {
+    title: 'Le même trajet',
+    none: 'impossible ou plus de 4 h',
+  },
   region: {
     label: 'Région',
+    follows: 'Suit la carte : déplacez-vous dans une autre région pour la charger.',
     noTransit: 'Routes seulement : les transports en commun ne couvrent que l’Île-de-France pour l’instant.',
+    loading: (name) => `Chargement de ${name}…`,
   },
   perspective: {
     label: 'Vue',
