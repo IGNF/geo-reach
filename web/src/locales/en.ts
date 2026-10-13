@@ -5,6 +5,10 @@ export const en = {
   howItWorks: 'How it works',
   legalNotice: 'Legal notice',
   tilt: 'Tilt the map (45°) or flatten it',
+  search: {
+    label: 'Search for an address or a place',
+    placeholder: 'Address, station, town…',
+  },
   compare: {
     title: 'Same trip by',
     none: 'not possible or over 4 h',

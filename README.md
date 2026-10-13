@@ -21,6 +21,8 @@ public transport, and the map lights up from green (close) to red (far).
 
 ## What you can do
 
+- **Search an address or a place** (top left): the Géoplateforme suggests addresses, stations, monuments and towns
+  while you type; the map goes there, loading its region if it is elsewhere in France.
 - **Hover anywhere**: the map is recolored by travel time from the cursor, at every mouse move.
 - **Click to pin a point**: then hover a destination to see the time, the route drawn on the map and the trip
   step by step (streets, waits, metro or bus lines).

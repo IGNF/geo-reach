@@ -273,6 +273,11 @@ body,
   border-radius: 50%;
 }
 
+/* Address search, at the top of the left column: the field alone */
+.address-search {
+  flex-shrink: 0;
+}
+
 /* Another region loading, over the current map */
 .region-loading {
   position: absolute;

@@ -7,6 +7,10 @@ export const fr: Messages = {
   howItWorks: 'Comment ça marche',
   legalNotice: 'Mentions légales',
   tilt: 'Incliner la carte (45°) ou la remettre à plat',
+  search: {
+    label: 'Rechercher une adresse ou un lieu',
+    placeholder: 'Adresse, gare, commune…',
+  },
   compare: {
     title: 'Le même trajet',
     none: 'impossible ou plus de 4 h',

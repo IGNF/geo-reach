@@ -1,6 +1,7 @@
 import { ProgressBar, sizes } from '@ign-junn/design-system';
 import type { CSSProperties, ReactElement } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import AddressSearch from '@/components/AddressSearch';
 import CutsPanel from '@/components/CutsPanel';
 import MapView, { type LiveInfo, type TargetInfo } from '@/components/MapView';
 import SettingsPanel from '@/components/SettingsPanel';
@@ -156,29 +157,36 @@ const App = (): ReactElement => {
       }),
     [],
   );
+  /**
+   * The map goes to a point (an address searched, the user's position): in this region it flies there and marks it,
+   * elsewhere in France the region of the point loads and the map opens on it. Only centers the map: the user
+   * decides whether to pin a point there.
+   */
+  const goTo = useCallback(
+    (point: LngLat) => {
+      setNotice(undefined);
+      if (regionHolds(region, point)) {
+        setFocus({ point });
+
+        return;
+      }
+
+      const other = regionAt(point);
+      if (!other) return setNotice(t.locateOutside);
+      onRegionChange(other.id, point);
+    },
+    [region, onRegionChange],
+  );
+
   const onLocate = useCallback(() => {
     setNotice(undefined);
     if (!navigator.geolocation) return setNotice(t.locateFailed);
     navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        const point: LngLat = [coords.longitude, coords.latitude];
-        const [minLng, minLat, maxLng, maxLat] = engine?.net.bbox ?? [0, 0, 0, 0];
-        const inside = point[0] >= minLng && point[0] <= maxLng && point[1] >= minLat && point[1] <= maxLat;
-        if (inside) {
-          // Only centers the map: the user decides whether to pin a point there
-          setFocus({ point });
-
-          return;
-        }
-        // Elsewhere in France: the region of the position is loaded, the map opens on it
-        const other = regionAt(point);
-        if (!other) return setNotice(t.locateOutside);
-        onRegionChange(other.id, point);
-      },
+      ({ coords }) => goTo([coords.longitude, coords.latitude]),
       () => setNotice(t.locateFailed),
       { enableHighAccuracy: true, timeout: 10000 },
     );
-  }, [engine, onRegionChange]);
+  }, [goTo]);
 
   // The same trip in each mode, once the cursor stops on a destination (a worker of its own: the map stays fluid)
   const compareModes = useMemo<Mode[]>(
@@ -239,6 +247,7 @@ const App = (): ReactElement => {
         perspective={perspective}
       />
       <div className="left-slot">
+        <AddressSearch onGo={goTo} />
         <TripPanel
           mode={mode}
           direction={direction}

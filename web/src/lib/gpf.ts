@@ -91,3 +91,31 @@ export const reverseGeocode = async ([lon, lat]: LngLat, signal?: AbortSignal): 
 
   return p ? [p.name, p.city].filter(Boolean).join(', ') || p.label : undefined;
 };
+
+/** An address or a place offered while typing */
+export interface Suggestion {
+  label: string;
+  point: LngLat;
+}
+
+/**
+ * Addresses and places (stations, monuments, towns) of metropolitan France matching the typed text: the completion
+ * service of the Géoplateforme, made for typing (a few tens of milliseconds)
+ */
+export const completeAddress = async (text: string, signal?: AbortSignal): Promise<Suggestion[]> => {
+  const body = await getJson<{ results?: { fulltext: string; x: number; y: number }[] }>(
+    '/geocodage/completion/',
+    { text, type: 'StreetAddress,PositionOfInterest', terr: 'METROPOLE', maximumResponses: '6' },
+    signal,
+  );
+
+  // One suggestion per label: a town comes back as several kinds of place
+  const seen = new Set<string>();
+
+  return (body.results ?? []).flatMap(({ fulltext, x, y }) => {
+    if (seen.has(fulltext)) return [];
+    seen.add(fulltext);
+
+    return [{ label: fulltext, point: [x, y] }];
+  });
+};
