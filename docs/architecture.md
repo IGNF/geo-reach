@@ -9,9 +9,9 @@ tiles and two optional Géoplateforme queries made when the cursor stops (route 
 ```mermaid
 flowchart LR
   subgraph prep["Offline, once (developer machine)"]
-    WFS["GPF WFS<br/>BD TOPO troncon_de_route"] -->|scripts/buildGraph.ts| G["regions/&lt;id&gt;.bin.gz<br/>13 regions, 1 to 52 MB"]
+    WFS["GPF WFS<br/>BD TOPO troncon_de_route"] -->|crates/prep<br/>prep roads| G["regions/&lt;id&gt;.bin.gz<br/>13 regions, 1 to 52 MB"]
     Z["BD TOPO heights (Z)<br/>RGE ALTI"] -->|climb, descent| G
-    GTFS["GTFS feeds<br/>(transport.data.gouv.fr)"] -->|scripts/buildTransit.ts<br/>crates/gtfs-prep| T["regions/&lt;id&gt;.transit.bin.gz<br/>13 regions, 14,000 lines"]
+    GTFS["GTFS feeds<br/>(transport.data.gouv.fr)"] -->|crates/prep<br/>prep transit| T["regions/&lt;id&gt;.transit.bin.gz<br/>13 regions, 14,000 lines"]
     G -. zone origin + bbox .-> T
     RS[crates/engine] -->|scripts/buildEngine.ts<br/>cargo → wasm32| W[engine.wasm]
   end
@@ -64,8 +64,7 @@ Workers are named `*.worker.ts`. The UI is built with `@ign-junn/design-system` 
 
 | Path | Language | Role |
 |---|---|---|
-| `scripts/buildGraph.ts` | TypeScript (Bun) | Downloads the BD TOPO road sections of a region from the GPF WFS and writes its road file |
-| `scripts/buildTransit.ts`, `crates/gtfs-prep` | TypeScript (Bun), Rust (native) | Downloads a region's GTFS feeds and writes its transit file, aligned on the origin of its road file |
+| `crates/prep` | Rust (native) | `prep roads`: downloads the BD TOPO road sections of a region from the GPF WFS and writes its road file; `prep transit`: downloads its GTFS feeds and writes its transit file, aligned on the origin of its road file |
 | `crates/engine` | Rust → WebAssembly | Bounded multi-source Dijkstra, ~180 lines, no dependencies |
 | `scripts/buildEngine.ts` | TypeScript (Bun) | `cargo build --target wasm32-unknown-unknown`, copies the result to `web/src/features/routing/engine.wasm` |
 

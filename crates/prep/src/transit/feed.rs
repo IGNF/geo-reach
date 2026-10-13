@@ -89,7 +89,11 @@ pub fn weekday_column(date: u32) -> &'static str {
 
 /// Days since 1970-01-01 of a `YYYYMMDD` date (proleptic Gregorian calendar, Howard Hinnant's algorithm)
 pub fn days(date: u32) -> i64 {
-    let (y, m, d) = (i64::from(date / 10_000), i64::from((date / 100) % 100), i64::from(date % 100));
+    let (y, m, d) = (
+        i64::from(date / 10_000),
+        i64::from((date / 100) % 100),
+        i64::from(date % 100),
+    );
     let y = if m <= 2 { y - 1 } else { y };
     let era = y.div_euclid(400);
     let yoe = y - era * 400;

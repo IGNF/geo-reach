@@ -56,7 +56,7 @@ export const DEFAULT_MODEL: ModelOptions = {
   relief: true,
 };
 
-/** Boarding penalty already counted in the waits of the transit files (crates/gtfs-prep) */
+/** Boarding penalty already counted in the waits of the transit files (crates/prep) */
 const BOARD_PENALTY = 60;
 
 /**

@@ -23,7 +23,7 @@ const NO_SERVICE = 0xffff;
 const css = (rgb: number) => `#${rgb.toString(16).padStart(6, '0')}`;
 
 /**
- * Loads a transit file, TRN3 (crates/gtfs-prep), and returns how to graft it on the road network: stations and line stops
+ * Loads a transit file, TRN3 (crates/prep), and returns how to graft it on the road network: stations and line stops
  * become nodes; boarding (the wait), rides, alighting and walking links become edges.
  */
 export const loadTransit = async (url: string, onProgress?: Progress): Promise<(roads: Network) => Network> =>

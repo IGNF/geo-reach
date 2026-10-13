@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/engine", "crates/gtfs-prep"]
+members = ["crates/engine", "crates/prep"]
 resolver = "2"
 
 [workspace.lints.clippy]

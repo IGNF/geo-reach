@@ -12,9 +12,9 @@
 //!   coords:    f32[coordCount * 2]
 //!   strings:   JSON array
 
-use crate::HOURS;
-use crate::schedule::{Route, Schedule, Segment};
-use crate::zone::Zone;
+use super::HOURS;
+use super::schedule::{Route, Schedule, Segment};
+use super::zone::Zone;
 use std::collections::HashMap;
 use std::fmt::Write;
 

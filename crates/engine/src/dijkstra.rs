@@ -100,7 +100,12 @@ impl Engine {
             settled += 1;
 
             for arc in self.offsets[i] as usize..self.offsets[i + 1] as usize {
-                self.relax(self.heads[arc], d + self.costs[arc], max_cost, Some((n, self.arc_edge[arc])));
+                self.relax(
+                    self.heads[arc],
+                    d + self.costs[arc],
+                    max_cost,
+                    Some((n, self.arc_edge[arc])),
+                );
             }
         }
 

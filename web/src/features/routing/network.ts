@@ -2,8 +2,8 @@ import { BinaryReader } from '@/shared/binaryReader';
 import { loadData, type Progress } from '@/shared/dataCache';
 
 /**
- * The network the engine runs on: the BD TOPO road sections of a region (GRF4 file, scripts/buildGraph.ts), and its
- * public transport layer when it has one (TRN3 file, scripts/buildTransit.ts). Positions are Web Mercator metres
+ * The network the engine runs on: the BD TOPO road sections of a region (GRF4 file, crates/prep), and its
+ * public transport layer when it has one (TRN3 file, crates/prep). Positions are Web Mercator metres
  * relative to the zone origin, so that they fit in 32 bit floats.
  */
 
@@ -125,7 +125,7 @@ const rebuildGeometries = (
 export const loadRoadNetwork = async (url: string, onProgress?: Progress): Promise<Network> =>
   readRoadNetwork(await loadData(url, onProgress));
 
-/** Decodes a road network file, GRF4 (scripts/buildGraph.ts) */
+/** Decodes a road network file, GRF4 (crates/prep) */
 export const readRoadNetwork = (buffer: ArrayBuffer): Network => {
   const header = new Uint32Array(buffer, 0, 5);
   const [magic, nodeCount, E, pointCount, namesBytes] = header;

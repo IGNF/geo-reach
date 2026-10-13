@@ -1,8 +1,10 @@
 //! The zone of the road network: its origin and bounding box, read from the header of the region's road file (GRF4).
 
 use crate::Res;
+use flate2::read::GzDecoder;
 use std::fs::File;
 use std::io::Read;
+use std::path::Path;
 
 const R: f64 = 6_378_137.0;
 
@@ -14,11 +16,11 @@ pub struct Zone {
 }
 
 impl Zone {
-    /// Reads the origin and the bounding box from the header of a road file, uncompressed (see scripts/buildGraph.ts)
-    pub fn read(path: &str) -> Res<Self> {
+    /// Reads the origin and the bounding box from the header of a region's road file (gzipped, GRF4)
+    pub fn read(path: &Path) -> Res<Self> {
         let mut head = [0u8; 72];
-        File::open(path)?.read_exact(&mut head)?;
-        let f = |o: usize| f64::from_le_bytes(head[o..o + 8].try_into().unwrap());
+        GzDecoder::new(File::open(path)?).read_exact(&mut head)?;
+        let f = |o: usize| f64::from_le_bytes(head[o..o + 8].try_into().unwrap_or_default());
         Ok(Zone {
             origin: (f(24), f(32)),
             bbox: (f(40), f(48), f(56), f(64)),

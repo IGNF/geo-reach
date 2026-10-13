@@ -9,8 +9,8 @@
     "lint": "bun --filter web lint",
     "typecheck": "tsc -p scripts && tsc -b web",
     "engine": "bun scripts/buildEngine.ts",
-    "data": "bun scripts/buildGraph.ts",
-    "transit": "bun scripts/buildTransit.ts"
+    "data": "cargo run -q -p prep --release -- roads",
+    "transit": "cargo run -q -p prep --release -- transit"
   },
   "devDependencies": {
     "@types/bun": "^1.4.3",

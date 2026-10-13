@@ -29,7 +29,7 @@ const BOXES: { id: StepId; parent: 'offline' | 'browser'; tone: FlowDiagramTone;
   { id: 'wfs', parent: 'offline', tone: 'primary', icon: IconRoad },
   { id: 'gtfs', parent: 'offline', tone: 'neutral', icon: IconBus },
   { id: 'relief', parent: 'offline', tone: 'primary', icon: IconMountain },
-  { id: 'buildGraph', parent: 'offline', tone: 'accent', icon: IconFileCode },
+  { id: 'buildGraph', parent: 'offline', tone: 'warning', icon: IconBrandRust },
   { id: 'gtfsPrep', parent: 'offline', tone: 'warning', icon: IconBrandRust },
   { id: 'graphBin', parent: 'offline', tone: 'neutral', icon: IconBinary },
   { id: 'transitBin', parent: 'offline', tone: 'neutral', icon: IconBinary },

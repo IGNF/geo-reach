@@ -8,7 +8,7 @@ file: `web/public/data/README.md`.
 
 ## Road network (GRF4, `<id>.bin.gz`)
 
-Written by `scripts/buildGraph.ts`, read by `web/src/features/routing/network.ts` (`readRoadNetwork`), which rebuilds the full
+Written by `crates/prep` (`prep roads`, `src/roads.rs`), read by `web/src/features/routing/network.ts` (`readRoadNetwork`), which rebuilds the full
 geometries (`coords`, `coordStart`) once at load. Each file covers its region's box plus a 0.25° margin (about 20 km),
 for the trips crossing its edge, and has its own origin at the centre of that box.
 
@@ -54,9 +54,9 @@ dropped.
 
 ## Public transport (TRN3, `<id>.transit.bin.gz`)
 
-Written by `crates/gtfs-prep` (run by `scripts/buildTransit.ts` on the feed of `scripts/transitFeeds.ts`), read by
+Written by `crates/prep` (`prep transit`, `src/transit.rs`, feeds in `src/transit/feeds.rs`), read by
 `web/src/features/routing/transit.ts` (`readTransit`). A region can have several feeds (the SNCF trains with the urban
-networks): `gtfs-prep` reads them one by one and merges them, each feed's ids prefixed with its index. It takes feeds
+networks): `prep` reads them one by one and merges them, each feed's ids prefixed with its index. It takes feeds
 without `calendar.txt` or `shapes.txt` (the rides then go straight from stop to stop), values padded with spaces,
 stray control characters in the names (written as JSON escapes), and turns the extended GTFS route types into the
 basic ones (ferries go with the buses). A feed with no service on the reference day is read on the nearest same day
@@ -75,7 +75,7 @@ of the week (logged).
 
 ### Frequency model
 
-For a reference day (default Tuesday 2026-10-13, 4th argument of `gtfs-prep`), hour by hour:
+For a reference day (default Tuesday 2026-10-13, `prep transit <region> --date YYYYMMDD` to change it), hour by hour:
 
 - **ride** = median of the scheduled times between two consecutive stations of a line;
 - **wait** = 3600 / (departures in the hour) / 2, capped at 12 min, plus 60 s.
@@ -97,11 +97,13 @@ so that the app builds without Rust.
 ## Rebuilding
 
 ```sh
-bun run data -- occitanie      # roads: WFS read tile by tile, about a minute (the ids are in web/src/features/regions/regions.ts)
-bun run transit -- occitanie   # public transport: gtfs-prep on the region's feed, needs cargo
+bun run data -- occitanie      # roads: WFS read tile by tile (the ids are in web/src/features/regions/regions.json)
+bun run transit -- occitanie   # public transport: the region's feeds, merged
+bun run data -- all            # every region (same for transit)
 ```
 
-A region's transit file depends on its road file (origin and box): rebuild it after the roads. Away from the city centres (`scripts/denseAreas.ts`) the WFS filters the paths, tracks,
+A region's transit file depends on its road file (origin and box): rebuild it after the roads. Both run `crates/prep` in release mode. Its roads are deterministic: the tiles are downloaded six at a time but read
+back in order. Away from the city centres (`crates/prep/src/regions.rs`) the WFS filters the paths, tracks,
 stairs and service roads out itself (`CQL_FILTER`, cached apart as `-f` pages). On the IGN network, set `HTTPS_PROXY=http://proxy.ign.fr:3128` for
 these tools.
 

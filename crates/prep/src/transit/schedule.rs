@@ -1,9 +1,10 @@
 //! The trips of the reference day in the zone, aggregated by line segment (two consecutive stations of a line, in
 //! one direction) and by hour of departure.
 
-use crate::feed::{self, Archive};
-use crate::zone::Zone;
-use crate::{HOURS, Res};
+use super::HOURS;
+use super::feed::{self, Archive};
+use super::zone::Zone;
+use crate::Res;
 use std::collections::{HashMap, HashSet};
 
 /// A station of the zone (a GTFS parent station, or a stop without one)
@@ -98,19 +99,24 @@ impl Schedule {
         // Empty shape ids stay empty: no shape
         let shape_id = |s: &str| if s.is_empty() { String::new() } else { id(s) };
 
-        self.stations.extend(other.stations.into_iter().map(|(k, v)| (id(&k), v)));
-        self.routes.extend(other.routes.into_iter().map(|(k, v)| (id(&k), v)));
-        self.shapes.extend(other.shapes.into_iter().map(|(k, v)| (id(&k), v)));
+        self.stations
+            .extend(other.stations.into_iter().map(|(k, v)| (id(&k), v)));
+        self.routes
+            .extend(other.routes.into_iter().map(|(k, v)| (id(&k), v)));
+        self.shapes
+            .extend(other.shapes.into_iter().map(|(k, v)| (id(&k), v)));
         self.departures.extend(
             other
                 .departures
                 .into_iter()
                 .map(|((route, dir, station), v)| ((id(&route), dir, id(&station)), v)),
         );
-        self.segments.extend(other.segments.into_iter().map(|((route, dir, from, to), mut seg)| {
-            seg.shape = shape_id(&seg.shape);
-            ((id(&route), dir, id(&from), id(&to)), seg)
-        }));
+        self.segments.extend(other.segments.into_iter().map(
+            |((route, dir, from, to), mut seg)| {
+                seg.shape = shape_id(&seg.shape);
+                ((id(&route), dir, id(&from), id(&to)), seg)
+            },
+        ));
     }
 
     pub fn read(path: &str, zone: &Zone, date: u32) -> Res<Self> {
@@ -191,7 +197,9 @@ fn services_near(zip: &mut Archive, date: u32) -> Res<HashSet<String>> {
             let services = read_services(zip, day)?;
             if !services.is_empty() {
                 if day != date {
-                    eprintln!("  no service on {date}: the feed is read on {day}, the same day of the week");
+                    eprintln!(
+                        "  no service on {date}: the feed is read on {day}, the same day of the week"
+                    );
                 }
                 return Ok(services);
             }

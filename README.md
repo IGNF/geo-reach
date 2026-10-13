@@ -157,8 +157,8 @@ web/                 React + MapLibre app (Vite), UI built with @ign-junn/design
   src/shared/        generic code (config, formatting, WebGL helpers, Géoplateforme client, ui/)
   src/pages/         how it works, legal notice
 crates/engine/       travel time engine in Rust, compiled to WebAssembly
-crates/gtfs-prep/    Rust tool: GTFS timetables → public transport layer of a region
-scripts/             region networks (roads, public transport), engine build
+crates/prep/        Rust tool: BD TOPO roads and GTFS timetables → the network files of a region
+scripts/             engine build, analysis tools (regionData, benchFrame, calibrate)
 web/public/data/     the network files, one pair per region (see its README)
 docs/                technical documentation
 ```
@@ -174,22 +174,25 @@ rustup target add wasm32-unknown-unknown
 bun run engine     # also run by `bun run dev` and `bun run build` when cargo is found
 cargo test --workspace
 cargo clippy --workspace --all-targets   # pedantic lints, set in Cargo.toml
+cargo fmt --all --check
 ```
 
 ### Rebuild the data
 
 ```sh
 bun run data -- bretagne         # BD TOPO roads of a region → web/public/data/regions/bretagne.bin.gz
-bun run transit -- bretagne      # its public transport → regions/bretagne.transit.bin.gz (needs cargo)
-bun run transit -- all           # every region's public transport
+bun run transit -- bretagne      # its public transport → regions/bretagne.transit.bin.gz
+bun run data -- all              # every region (same for transit)
 ```
 
-Without an id, `bun run data` builds Île-de-France. Every region follows the same scheme, Île-de-France included.
+Both run `crates/prep` (`cargo run -p prep --release -- roads|transit <region>|all`), so they need cargo. Every
+region follows the same scheme, Île-de-France included.
 
-The regions are listed in `web/src/features/regions/regions.ts` (box, opening point), the city centres kept in full in
-`scripts/denseAreas.ts`, the reference day of the timetables in `crates/gtfs-prep`. Away from the city centres the
-WFS filters the paths and service roads out itself; a region takes about a minute (one to three million sections).
-The GTFS feeds are listed in `scripts/transitFeeds.ts` and cached in `.cache/gtfs/`. The region files are stored
+The regions are listed in `web/src/features/regions/regions.json`, shared by the app and the tool (box, opening
+point), the city centres kept in full in `crates/prep/src/regions.rs`, the reference day of the timetables in
+`crates/prep/src/transit.rs` (`--date YYYYMMDD` to change it). Away from the city centres the WFS filters the paths
+and service roads out itself. The WFS pages are cached in `.cache/bdtopo-z/`, the GTFS feeds, listed in
+`crates/prep/src/transit/feeds.rs`, in `.cache/gtfs/`. The region files are stored
 gzipped (1 to 52 MB each, under the 100 MB a file of GitHub); the browser inflates them.
 
 ### Deployment

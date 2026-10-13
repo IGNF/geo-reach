@@ -35,7 +35,7 @@ by the browser (`web/src/shared/dataCache.ts`): every file stays under the 100 M
 | Pays de la Loire | 1.61 M | 29.8 MB | regional aggregate | 1.3 MB |
 | Provence-Alpes-Côte d’Azur | 1.05 M | 20.2 MB | SNCF, Aix-Marseille-Provence (RTM…), Lignes d’Azur (Nice), Mistral, Orizo | 1.0 MB |
 
-Sizes of the files as stored (gzipped). Where several feeds are listed, gtfs-prep merges them into one layer; a feed
+Sizes of the files as stored (gzipped). Where several feeds are listed, `crates/prep` merges them into one layer; a feed
 that has no service on the reference day (an outdated one, like the Corsican railways) is read on the nearest same
 day of the week.
 
@@ -44,7 +44,7 @@ day of the week.
 | Data | Source | Licence |
 |---|---|---|
 | Road network, heights | IGN BD TOPO, `troncon_de_route`, Géoplateforme WFS | Licence Ouverte Etalab 2.0 |
-| Timetables | Île-de-France Mobilités, aggregates of the urban and interurban networks, SNCF feed, on [transport.data.gouv.fr](https://transport.data.gouv.fr) (feeds listed in [scripts/transitFeeds.ts](../../../scripts/transitFeeds.ts)) | per feed, mostly Licence Ouverte or ODbL |
+| Timetables | Île-de-France Mobilités, aggregates of the urban and interurban networks, SNCF feed, on [transport.data.gouv.fr](https://transport.data.gouv.fr) (feeds listed in [crates/prep/src/transit/feeds.rs](../../../crates/prep/src/transit/feeds.rs)) | per feed, mostly Licence Ouverte or ODbL |
 
 The `.transit` files are databases derived from these timetables, under the licence of their feed.
 
