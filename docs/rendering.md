@@ -48,8 +48,9 @@ Fragment shader:
 
 Blending is premultiplied (`ONE, ONE_MINUS_SRC_ALPHA`), depth test off.
 
-The map stops zooming out at zoom 9 (`MIN_ZOOM`, `features/map/camera.ts`), about a département across the screen:
-further out, the glow of hundreds of thousands of streets would merge into one solid patch of color, and every frame
+The map stops zooming out at 55 km across (`WIDEST_VIEW_METRES`, `features/map/camera.ts`): the minimum zoom is
+computed from the width of the map and its latitude, and again when the window is resized. Further out, the glow
+of hundreds of thousands of streets would merge into one solid patch of color, and every frame
 would draw the whole region for nothing.
 
 ## 3D views

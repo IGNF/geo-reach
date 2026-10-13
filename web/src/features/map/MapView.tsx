@@ -22,7 +22,7 @@ import { formatMinutes } from '@/shared/format';
 import { fromMercator, toMercator } from '@/shared/mercator';
 import { t } from '@/locales';
 import { BuildingGlLayer } from '@/features/buildings';
-import { BUILDINGS_ZOOM, MIN_ZOOM, TILT, TILT_PITCH } from './camera';
+import { BUILDINGS_ZOOM, minZoomFor, TILT, TILT_PITCH } from './camera';
 import { ContourLines } from './contourLines';
 import { NetworkLayer } from './networkLayer';
 
@@ -279,7 +279,7 @@ const MapView = ({
       style: BASEMAP_STYLE,
       center: live.current.camera.center,
       zoom: live.current.camera.zoom,
-      minZoom: MIN_ZOOM,
+      minZoom: minZoomFor(container.clientWidth, live.current.camera.center[1]),
       pitch: live.current.camera.pitch,
       bearing: live.current.camera.bearing,
       attributionControl: {
@@ -509,6 +509,8 @@ const MapView = ({
       c.settleTimer = setTimeout(() => live.current.onSettle(live.current.pinned ? point : undefined), SETTLE_MS);
     });
     map.getCanvas().addEventListener('mouseleave', () => clearTimeout(c.settleTimer));
+    // The widest view stays the same distance across, whatever the width of the window
+    map.on('resize', () => map.setMinZoom(minZoomFor(map.getContainer().clientWidth, map.getCenter().lat)));
     map.on('moveend', () => {
       const { lng, lat } = map.getCenter();
       live.current.onCamera({ center: [lng, lat], zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing() });
