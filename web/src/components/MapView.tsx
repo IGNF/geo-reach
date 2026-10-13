@@ -17,11 +17,12 @@ import type { Cut } from '@/engine/cuts';
 import { type Leg, toLegs } from '@/engine/legs';
 import { EDGE_BOARD, EDGE_RIDE, FLAG_BUS } from '@/engine/network';
 import { type CutImpact, type Result, TravelEngine } from '@/engine/travelEngine';
-import { BASEMAP_STYLE, LANDMARKS, type LngLat, START } from '@/lib/config';
+import { BASEMAP_STYLE, HILLSHADE_TILES, LANDMARKS, type LngLat, type Perspective, type Mode, START } from '@/lib/config';
 import { rampCss } from '@/lib/colors';
 import { formatMinutes } from '@/lib/format';
 import { fromMercator, toMercator } from '@/lib/mercator';
 import { t } from '@/locales';
+import { BuildingLayer, BUILDINGS_MIN_ZOOM } from '@/map/buildingLayer';
 import { CutLayer } from '@/map/cutLayer';
 import { ContourLines } from '@/map/contourLines';
 import { NetworkLayer } from '@/map/networkLayer';
@@ -82,6 +83,8 @@ interface MapViewProps {
   onMapLoad: () => void;
   /** The first computed map is on screen: the app is ready */
   onFirstFrame: () => void;
+  /** Flat, or tilted with the buildings colored by time */
+  perspective: Perspective;
 }
 
 const PANEL_THROTTLE_MS = 60;
@@ -126,6 +129,21 @@ const railFeatures = (engine: TravelEngine): GeoJSON.FeatureCollection => {
   return { type: 'FeatureCollection', features };
 };
 
+/** Tilt of the tilt button and of the 3D views, degrees */
+const TILT_PITCH = 45;
+/** Tilt and heading of the 3D views */
+const TILT = { pitch: TILT_PITCH, bearing: -17 };
+
+/** The rail lines drawn on the ground show in transit mode only */
+const styleGroundLayers = (map: MlMap, mode: Mode): void => {
+  if (!map.getLayer('rail-lines')) return;
+
+  const rail = mode === 'transit' ? 1 : 0;
+  map.setPaintProperty('rail-lines', 'line-opacity', rail);
+  map.setPaintProperty('rail-stations', 'circle-opacity', rail);
+  map.setPaintProperty('rail-stations', 'circle-stroke-opacity', rail);
+};
+
 const LOCATE_ICON =
   '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2M12 20v2M20 12h2M2 12h2"/></svg>';
 
@@ -145,7 +163,7 @@ class ButtonControl implements IControl {
     this.button = button;
   }
 
-  onAdd() {
+  onAdd(): HTMLDivElement {
     const container = document.createElement('div');
     container.className = 'maplibregl-ctrl maplibregl-ctrl-group';
     container.append(this.button);
@@ -154,7 +172,7 @@ class ButtonControl implements IControl {
     return container;
   }
 
-  onRemove() {
+  onRemove(): void {
     this.container?.remove();
   }
 }
@@ -184,6 +202,7 @@ const MapView = ({
   onCutToggle,
   onMapLoad,
   onFirstFrame,
+  perspective,
 }: MapViewProps): ReactElement => {
   const containerRef = useRef<HTMLDivElement>(null);
   const props = {
@@ -202,6 +221,7 @@ const MapView = ({
     onCutToggle,
     onMapLoad,
     onFirstFrame,
+    perspective,
   };
   const live = useRef(props);
   live.current = props;
@@ -209,6 +229,7 @@ const MapView = ({
   const ctl = useRef<{
     map?: MlMap;
     layer?: NetworkLayer;
+    buildings?: BuildingLayer;
     ready: boolean;
     /** Latest cursor position, Mercator metres relative to the zone */
     cursor?: [number, number];
@@ -247,7 +268,8 @@ const MapView = ({
       container,
       style: BASEMAP_STYLE,
       center: live.current.pinned ?? START,
-      zoom: 13.4,
+      // The building view opens where the buildings exist
+      ...(live.current.perspective === 'flat' ? { zoom: 13.4 } : { ...TILT, zoom: BUILDINGS_MIN_ZOOM + 0.6 }),
       attributionControl: {
         compact: true,
         customAttribution: [t.attribution, `<a href="${import.meta.env.BASE_URL}legal.html">${t.legalNotice}</a>`],
@@ -256,9 +278,24 @@ const MapView = ({
     });
     // Bottom corners stack upwards: the locate button, added first, sits under the zoom buttons
     map.addControl(new ButtonControl(LOCATE_ICON, t.locate, () => live.current.onLocate()), 'bottom-right');
-    map.addControl(new NavigationControl({ showCompass: false }), 'bottom-right');
+    // The compass resets the heading and the tilt of the 3D views
+    map.addControl(new NavigationControl({ showCompass: true, visualizePitch: true }), 'bottom-right');
+    // Tilted at 45° or flat, without dragging with the mouse; pressed while the map is tilted
+    const tilt = new ButtonControl('<span class="tilt-label">45°</span>', t.tilt, () =>
+      map.easeTo({ pitch: map.getPitch() > 1 ? 0 : TILT_PITCH, duration: 600 }),
+    );
+    map.addControl(tilt, 'bottom-right');
+    const showTilt = (): void => {
+      tilt.button.classList.toggle('active', map.getPitch() > 1);
+      tilt.button.setAttribute('aria-pressed', String(map.getPitch() > 1));
+    };
+    map.on('pitchend', showTilt);
+    map.once('load', showTilt);
     c.map = map;
     const layer = new NetworkLayer(net);
+    const buildings = new BuildingLayer(map, engine);
+    buildings.setVisible(live.current.perspective === 'buildings');
+    c.buildings = buildings;
     layer.setProfile(engine.profile);
     c.layer = layer;
 
@@ -391,6 +428,7 @@ const MapView = ({
       layer.setStyle({ scale: s, contours: [] });
       // The colors always follow the cursor: from it (departure) or towards it (arrival)
       layer.setTimes(r?.dist);
+      buildings.colorFrom(() => runs.shown);
 
       // The first result drawn (even an empty one, a point off the network): the startup screen can go
       if (!firstFrame.done) {
@@ -475,6 +513,13 @@ const MapView = ({
       c.settleTimer = setTimeout(() => live.current.onSettle(live.current.pinned ? point : undefined), SETTLE_MS);
     });
     map.getCanvas().addEventListener('mouseleave', () => clearTimeout(c.settleTimer));
+    // New buildings in view, or their tiles just loaded: colored from the result shown
+    map.on('moveend', () => buildings.colorFrom(() => runs.shown));
+    map.on('sourcedata', (e) => {
+      if (e.sourceId !== 'bdtopo' || !e.tile) return;
+      buildings.indexTiles();
+      buildings.colorFrom(() => runs.shown);
+    });
     map.on('click', (e) => {
       if (!live.current.cutMode) return live.current.onPin(e.lngLat.toArray());
       const { hovered } = cutLayer;
@@ -528,7 +573,19 @@ const MapView = ({
         },
       });
       map.addLayer({ id: 'veil', type: 'fill', source: 'veil', paint: { 'fill-color': '#fff', 'fill-opacity': 0.5 } }, firstSymbol);
+      // The relief, over the veil so that it is not washed out, under the network
+      map.addSource('hillshade', {
+        type: 'raster',
+        tiles: [HILLSHADE_TILES],
+        tileSize: 256,
+        minzoom: 6,
+        maxzoom: 17,
+        attribution: '© IGN RGE ALTI',
+      });
+      map.addLayer({ id: 'hillshade', type: 'raster', source: 'hillshade', paint: { 'raster-opacity': 0.55 } }, firstSymbol);
       map.addLayer(layer, firstSymbol);
+      // Under the network: the colored streets stay visible across the buildings
+      buildings.addLayer(layer.id, live.current.scale);
       if (net.lines.length) {
         map.addSource('rail', { type: 'geojson', data: railFeatures(engine) });
         map.addLayer(
@@ -557,11 +614,6 @@ const MapView = ({
           },
           firstSymbol,
         );
-      }
-      if (net.lines.length && engine.profile.mode !== 'transit') {
-        map.setPaintProperty('rail-lines', 'line-opacity', 0);
-        map.setPaintProperty('rail-stations', 'circle-opacity', 0);
-        map.setPaintProperty('rail-stations', 'circle-stroke-opacity', 0);
       }
       map.addSource('contours', { type: 'geojson', data: EMPTY });
       // A multi-line cut into tiles can come back as a LineString: everything but the label points
@@ -625,6 +677,7 @@ const MapView = ({
       const attribution = container.querySelector('.maplibregl-ctrl-attrib');
       attribution?.classList.remove('maplibregl-compact-show');
       attribution?.removeAttribute('open');
+      styleGroundLayers(map, engine.profile.mode);
       c.ready = true;
       c.refresh();
     });
@@ -644,14 +697,22 @@ const MapView = ({
   useEffect(() => {
     const c = ctl.current;
     c.layer?.setProfile(engine.profile);
-    const transit = engine.profile.mode === 'transit';
-    if (c.ready && c.map?.getLayer('rail-lines')) {
-      c.map.setPaintProperty('rail-lines', 'line-opacity', transit ? 1 : 0);
-      c.map.setPaintProperty('rail-stations', 'circle-opacity', transit ? 1 : 0);
-      c.map.setPaintProperty('rail-stations', 'circle-stroke-opacity', transit ? 1 : 0);
-    }
+    c.buildings?.setScale(scale);
+    if (c.ready && c.map) styleGroundLayers(c.map, engine.profile.mode);
     if (c.ready) c.refresh();
   }, [engine, profileVersion, scale]);
+
+  // Flat or 3D: the map tilts and the buildings stand up
+  useEffect(() => {
+    const { map, buildings } = ctl.current;
+    if (!map) return;
+
+    const tilted = perspective !== 'flat';
+    // The buildings exist from zoom 15 only: the building view zooms in to them
+    const zoom = perspective === 'buildings' ? Math.max(map.getZoom(), BUILDINGS_MIN_ZOOM + 0.6) : map.getZoom();
+    map.easeTo({ ...(tilted ? TILT : { pitch: 0, bearing: 0 }), zoom, duration: 900 });
+    buildings?.setVisible(perspective === 'buildings');
+  }, [engine, perspective]);
 
   useEffect(() => {
     const c = ctl.current;

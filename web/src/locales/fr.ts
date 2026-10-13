@@ -6,6 +6,14 @@ export const fr: Messages = {
   tagline: 'Accessibilité en temps réel · Géoplateforme',
   howItWorks: 'Comment ça marche',
   legalNotice: 'Mentions légales',
+  tilt: 'Incliner la carte (45°) ou la remettre à plat',
+  perspective: {
+    label: 'Vue',
+    options: { flat: '2D', buildings: '3D' },
+    hints: {
+      buildings: 'Les bâtiments BD TOPO prennent la couleur de leur temps de trajet quand le curseur s’arrête (vue rapprochée).',
+    },
+  },
   startup: {
     download: (mb) => `Téléchargement du réseau d’Île-de-France… ${mb} Mo`,
     roads: 'Lecture des routes BD TOPO…',

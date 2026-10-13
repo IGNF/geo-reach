@@ -1,6 +1,6 @@
 import { type Cut, cutKey, parseCut } from '@/engine/cuts';
 import { DEFAULT_MODEL, type ModelOptions } from '@/engine/profile';
-import { type Direction, type LngLat, MAX_SCALE, type Mode } from '@/lib/config';
+import { type Direction, type LngLat, MAX_SCALE, type Mode, PERSPECTIVES, type Perspective } from '@/lib/config';
 
 export interface ViewState {
   /** Pinned origin; undefined: the origin follows the cursor */
@@ -18,6 +18,8 @@ export interface ViewState {
   model: ModelOptions;
   /** Closed sections (what-if) */
   cuts: Cut[];
+  /** Flat, or 3D buildings colored by time (the default) */
+  perspective: Perspective;
 }
 
 export const DEFAULT_STATE: ViewState = {
@@ -29,6 +31,7 @@ export const DEFAULT_STATE: ViewState = {
   contours: true,
   model: DEFAULT_MODEL,
   cuts: [],
+  perspective: 'buildings',
 };
 
 /** `walk,bike,traffic,wait,transfer,scenario,relief`, e.g. `4,15,e,h,1.5,n,r` (`f` flat ground) */
@@ -55,9 +58,9 @@ const MODES: readonly Mode[] = ['transit', 'pedestrian', 'bike', 'car'];
 
 const isMode = (value: string | undefined): value is Mode => MODES.some((m) => m === value);
 
-/** `#mode/direction/scale/contours/bus/lng,lat/hour/model/cuts`, so that a shared link opens the same view */
+/** `#mode/direction/scale/contours/bus/lng,lat/hour/model/cuts/view`, so that a shared link opens the same view */
 export const readUrlState = (): ViewState => {
-  const [mode, direction, scale, contours, bus, pin, hour, model, cuts] = window.location.hash.slice(1).split('/');
+  const [mode, direction, scale, contours, bus, pin, hour, model, cuts, view] = window.location.hash.slice(1).split('/');
   const m = isMode(mode) ? mode : DEFAULT_STATE.mode;
   const p = pin?.split(',').map(Number);
 
@@ -71,10 +74,25 @@ export const readUrlState = (): ViewState => {
     pinned: p?.length === 2 && p.every(Number.isFinite) ? [p[0], p[1]] : undefined,
     model: readModel(model),
     cuts: (cuts ?? '').split(',').flatMap((k) => parseCut(k) ?? []),
+    perspective: PERSPECTIVES.find((v) => v === view) ?? DEFAULT_STATE.perspective,
   };
 };
 
-export const urlHash = ({ mode, direction, scale, contours, bus, pinned, hour, model, cuts }: ViewState): string =>
-  `#${mode}/${direction}/${scale}/${contours ? 'on' : 'off'}/${bus ? 'bus' : 'nobus'}/${
-    pinned ? pinned.map((v) => v.toFixed(5)).join(',') : ''
-  }/${hour}/${writeModel(model)}${cuts.length ? `/${cuts.map(cutKey).join(',')}` : ''}`;
+export const urlHash = ({ mode, direction, scale, contours, bus, pinned, hour, model, cuts, perspective }: ViewState): string => {
+  const segments = [
+    mode,
+    direction,
+    String(scale),
+    contours ? 'on' : 'off',
+    bus ? 'bus' : 'nobus',
+    pinned ? pinned.map((v) => v.toFixed(5)).join(',') : '',
+    String(hour),
+    writeModel(model),
+    cuts.map(cutKey).join(','),
+    perspective === DEFAULT_STATE.perspective ? '' : perspective,
+  ];
+  // The optional segments at the end are left out when empty: short links
+  while (segments.length > 8 && !segments[segments.length - 1]) segments.pop();
+
+  return `#${segments.join('/')}`;
+};

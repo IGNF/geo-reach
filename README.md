@@ -24,6 +24,8 @@ public transport, and the map lights up from green (close) to red (far).
 - **Hover anywhere**: the map is recolored by travel time from the cursor, at every mouse move.
 - **Click to pin a point**: then hover a destination to see the time, the route drawn on the map and the trip
   step by step (streets, waits, metro or bus lines).
+- **See it in 3D** (the default view): the map is tilted and the BD TOPO buildings stand up, each colored by its
+  travel time once the cursor stops; "2D" flattens it. The 45° button of the map controls tilts or flattens it too.
 - **Choose how you travel**: walk, bike, car or public transport (metro, RER, tram, with or without buses).
 - **Choose the time of departure**: car times follow a typical weekday traffic curve, transit times follow the
   real service frequency at that hour.
@@ -89,7 +91,7 @@ comparison. Full text: [legal notice](https://ignf.github.io/geo-reach/legal.htm
 
 | Data | Source | Licence |
 |---|---|---|
-| Road network (BD TOPO) and basemap (Plan IGN) | IGN, Géoplateforme | Licence Ouverte Etalab 2.0 |
+| Road network and buildings (BD TOPO), basemap (Plan IGN), hillshade (RGE ALTI) | IGN, Géoplateforme | Licence Ouverte Etalab 2.0 |
 | Addresses near a point | Géoplateforme reverse geocoding | Licence Ouverte Etalab 2.0 |
 | Public transport timetables | [Île-de-France Mobilités GTFS](https://transport.data.gouv.fr/datasets/reseaux-urbains-et-interurbains-dile-de-france-mobilites-idfm) | ODbL |
 

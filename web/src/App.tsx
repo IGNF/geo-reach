@@ -33,7 +33,7 @@ const App = (): ReactElement => {
   const [previewOpen, setPreviewOpen] = useState(true);
   const [previewWidth, setPreviewWidth] = useState(320);
   const [cutMode, setCutMode] = useState(false);
-  const { pinned, mode, direction, bus, hour, scale, contours, model, cuts } = view;
+  const { pinned, mode, direction, bus, hour, scale, contours, model, cuts, perspective } = view;
   const hash = urlHash(view);
   const contourSeconds = useMemo(() => (contours ? contourMinutes(scale).map((c) => c * 60) : []), [contours, scale]);
 
@@ -144,6 +144,7 @@ const App = (): ReactElement => {
         onCutToggle={onCutToggle}
         onMapLoad={onMapLoad}
         onFirstFrame={onFirstFrame}
+        perspective={perspective}
       />
       <div className="left-slot">
         <TripPanel
@@ -184,6 +185,8 @@ const App = (): ReactElement => {
           onReset={() => update({ model: DEFAULT_MODEL, cuts: [] })}
           cutMode={cutMode}
           onCutModeChange={setCutMode}
+          perspective={perspective}
+          onPerspectiveChange={(p) => update({ perspective: p })}
           direction={direction}
           onDirectionChange={(d) => update({ direction: d })}
           contours={contours}

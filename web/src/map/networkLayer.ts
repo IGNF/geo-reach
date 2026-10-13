@@ -36,6 +36,11 @@ float nodeTime(float i) {
 }
 
 void main() {
+  float tA = nodeTime(a_nodes.x);
+  float tB = nodeTime(a_nodes.y);
+  float t0 = min(tA + a_cost.x, tB + a_cost.y);
+  float t1 = min(tA + a_cost.z, tB + a_cost.w);
+
   vec4 c0 = u_matrix * vec4(a_seg.xy, 0.0, 1.0);
   vec4 c1 = u_matrix * vec4(a_seg.zw, 0.0, 1.0);
   vec2 half_vp = u_viewport * 0.5;
@@ -45,15 +50,11 @@ void main() {
   float len = length(d);
   vec2 dir = len > 0.0 ? d / len : vec2(1.0, 0.0);
   vec2 normal = vec2(-dir.y, dir.x);
-  float tA = nodeTime(a_nodes.x);
-  float tB = nodeTime(a_nodes.y);
   bool atStart = a_corner.x < 0.5;
   float w = u_width * (a_nodes.z > 0.5 ? 1.8 : 1.0);
   vec4 c = atStart ? c0 : c1;
   vec2 s = (atStart ? s0 : s1) + normal * a_corner.y * w * 0.5 + dir * (atStart ? -0.5 : 0.5) * w;
   gl_Position = vec4(s / half_vp * c.w, c.z, c.w);
-  float t0 = min(tA + a_cost.x, tB + a_cost.y);
-  float t1 = min(tA + a_cost.z, tB + a_cost.w);
   // Glow pass: a segment beyond the max time at both ends draws nothing; moved out of the clip space, it costs no
   // pixel at all (over a million wide quads zoomed out would otherwise saturate the graphics card)
   if (u_soft > 0.5 && !(min(t0, t1) <= u_scale)) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);

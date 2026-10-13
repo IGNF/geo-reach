@@ -300,6 +300,16 @@ body,
   place-items: center;
 }
 
+.tilt-label {
+  font: 700 11px/1 system-ui, sans-serif;
+}
+
+/* Tilt button while the map is tilted */
+.maplibregl-ctrl-group .map-button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
 .map.cutting .maplibregl-canvas {
   cursor: cell;
 }

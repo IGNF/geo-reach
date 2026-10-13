@@ -4,6 +4,14 @@ export const en = {
   tagline: 'Real-time accessibility · Géoplateforme',
   howItWorks: 'How it works',
   legalNotice: 'Legal notice',
+  tilt: 'Tilt the map (45°) or flatten it',
+  perspective: {
+    label: 'View',
+    options: { flat: '2D', buildings: '3D' },
+    hints: {
+      buildings: 'The BD TOPO buildings take the color of their travel time when the cursor stops (zoomed in).',
+    },
+  },
   startup: {
     download: (mb: string): string => `Downloading the Île-de-France network… ${mb} MB`,
     roads: 'Reading the BD TOPO roads…',

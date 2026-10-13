@@ -2,7 +2,7 @@ import { Button, CopyButton, PreviewPanel, SegmentedSwitch, Slider, Stack, Switc
 import { IconAdjustmentsHorizontal, IconInfoCircle, IconScissors } from '@ign-junn/design-system/icons';
 import { RAMP_GRADIENT_CSS } from '@/lib/colors';
 import { trafficLevel } from '@/lib/insights';
-import { contourMinutes, type Direction, MAX_SCALE, type Mode } from '@/lib/config';
+import { contourMinutes, type Direction, MAX_SCALE, type Mode, PERSPECTIVES, type Perspective } from '@/lib/config';
 import { t } from '@/locales';
 import type { ModelOptions } from '@/engine/profile';
 import ModelSection from '@/components/ModelSection';
@@ -23,6 +23,8 @@ interface SettingsPanelProps {
   /** Cut mode: a click on the map closes a section */
   cutMode: boolean;
   onCutModeChange: (on: boolean) => void;
+  perspective: Perspective;
+  onPerspectiveChange: (perspective: Perspective) => void;
   direction: Direction;
   onDirectionChange: (direction: Direction) => void;
   contours: boolean;
@@ -52,6 +54,8 @@ const SettingsPanel = ({
   onReset,
   cutMode,
   onCutModeChange,
+  perspective,
+  onPerspectiveChange,
   direction,
   onDirectionChange,
   contours,
@@ -93,6 +97,17 @@ const SettingsPanel = ({
         onClick={() => onCutModeChange(!cutMode)}
       />
       <ModePicker value={mode} onChange={onModeChange} disabled={transitAvailable ? [] : ['transit']} />
+      <Stack gap={4}>
+        <Typography variant="caption">{t.perspective.label}</Typography>
+        <SegmentedSwitch
+          label={t.perspective.label}
+          fullWidth
+          value={perspective}
+          onChange={onPerspectiveChange}
+          options={PERSPECTIVES.map((p) => ({ value: p, label: t.perspective.options[p] }))}
+        />
+        {perspective !== 'flat' && <Typography variant="hint">{t.perspective.hints[perspective]}</Typography>}
+      </Stack>
       {mode === 'transit' && <Switch label={t.bus} checked={bus} onChange={onBusChange} size="xs" />}
       {(mode === 'transit' || mode === 'car') && (
         <Stack gap={4}>

@@ -48,6 +48,17 @@ Fragment shader:
 
 Blending is premultiplied (`ONE, ONE_MINUS_SRC_ALPHA`), depth test off.
 
+## 3D views
+
+- **3D buildings** (the default view): a MapLibre `fill-extrusion` layer on the BD TOPO vector tiles of the Géoplateforme (`batiment`,
+  from zoom 15, `hauteur`), under the network layer so the streets stay visible. Their color comes from a feature
+  state `t`. The middle of each building is indexed once, when its tile loads; 120 ms after the last result (or a
+  move, or a tile loaded), each building in view takes the travel time of the street nearest to its middle
+  (`TravelEngine.timeAt`), and only the buildings whose time moved by 10 s or more are sent to MapLibre. Never at
+  every move, no geometry query, no clearing in between (it made the buildings flash grey, tile by tile).
+- The cursor keeps pointing at the ground: the map that follows the mouse and the cuts work the same in 3D. The
+  custom layer has no depth test: the streets are drawn in their order, which reads well at a 45° tilt.
+
 ## Precision
 
 MapLibre gives `defaultProjectionData.mainMatrix` for Mercator 0..1 coordinates. The layer folds the zone origin
