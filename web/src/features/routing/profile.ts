@@ -26,8 +26,8 @@ export interface ModelOptions {
   bikeKmh: number;
   /** Car: estimated traffic of the hour, or free flow */
   traffic: 'estimated' | 'free';
-  /** Transit wait: half the interval (average, arriving at random) or the whole interval (worst case: the previous
-   * departure just left) */
+  /** Transit wait: the average (half the interval for frequent lines, less for the others, whose timetable passengers
+   * follow) or the whole interval (worst case: the previous departure just left) */
   wait: 'half' | 'full';
   /** Minutes to get off and out of a station, or to change lines */
   transferMin: number;
@@ -75,11 +75,28 @@ const BIKE_PENALTY = 1.5;
 
 /** Steeper is a bump of the terrain model on a short edge (a bridge end, a kerb), not a street */
 const MAX_GRADE = 0.25;
-/** Tobler's hiking function as a time factor, 1 on the flat: 0.84 down a 5 % slope (the fastest), 1.42 up 10 % */
-const tobler = (grade: number) => Math.exp(3.5 * (Math.abs(grade + 0.05) - 0.05));
-/** Cycling, time factors: 7.5 km/h instead of 15 up a 10 % slope; downhill at most 40 % faster (brakes, crossings) */
-const bikeUphill = (grade: number) => 1 + 10 * grade;
-const bikeDownhill = (grade: number) => 1 / Math.min(1 + 5 * grade, 1.4);
+/** Tobler's hiking function (Tobler 1993) as a time factor, 1 on the flat: 0.84 down a 5 % slope (the fastest), 1.42 up 10 % */
+export const tobler = (grade: number): number => Math.exp(3.5 * (Math.abs(grade + 0.05) - 0.05));
+/**
+ * Cycling, from Parkin and Rotheram (2010), GPS tracks of everyday cyclists: 21.6 km/h on the flat, 1.44 km/h less per
+ * percent uphill, 0.86 km/h more per percent downhill. Kept as shares of the flat speed: 6.7 % less per percent
+ * uphill (a third of the speed at 10 %, steeper the cyclist pushes the bike), 4 % more per percent downhill, at most
+ * 40 % faster (brakes, crossings). Time factors, 1 on the flat.
+ */
+export const bikeUphill = (grade: number): number => 1 / Math.max(1 - (1.44 / 21.6) * 100 * grade, 1 / 3);
+export const bikeDownhill = (grade: number): number => 1 / Math.min(1 + (0.86 / 21.6) * 100 * grade, 1.4);
+
+/** Below this headway passengers arrive at random and wait half of it; above, more and more of them time their arrival */
+const RANDOM_HEADWAY = 10 * 60;
+/**
+ * Average wait of a boarding from half the headway, seconds. Random arrivals wait half the headway (Osuna and Newell
+ * 1972); beyond about 10 min, passengers time their arrival (Ingvardson et al. 2018: the switch happens between 5 and
+ * 11 min) and each extra minute of headway adds about a third of a minute of wait (Singh et al. 2021).
+ */
+export const averageWait = (halfHeadway: number): number => {
+  const headway = 2 * halfHeadway;
+  return headway <= RANDOM_HEADWAY ? halfHeadway : RANDOM_HEADWAY / 2 + (headway - RANDOM_HEADWAY) / 3;
+};
 
 /**
  * Time factor of an edge from its climb and descent along the way, metres. Only totals are known: the climbing and
@@ -166,10 +183,10 @@ const edgeCosts = (net: Network, { mode, bus, hour, model, closed }: ProfileOpti
           const cost = row >= 0 ? net.hourCosts[row * HOURS + h] : length;
           if (net.edgeKind[e] === EDGE_RIDE) fwd[e] = cost * scenario.ride;
           else {
-            // A boarding costs half the interval plus the penalty: the whole interval (worst case) doubles the wait,
-            // a disruption stretches the interval
-            const wait = (cost - BOARD_PENALTY) * (model.wait === 'full' ? 2 : 1) * scenario.headway;
-            fwd[e] = wait + BOARD_PENALTY;
+            // The files store half the interval plus the penalty. A disruption stretches the interval; the whole
+            // interval is the worst case (the previous departure just left), else the average wait of the literature
+            const half = (cost - BOARD_PENALTY) * scenario.headway;
+            fwd[e] = (model.wait === 'full' ? 2 * half : averageWait(half)) + BOARD_PENALTY;
           }
         } else if (net.edgeKind[e] === EDGE_ALIGHT) fwd[e] = model.transferMin * 60;
     }

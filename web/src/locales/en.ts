@@ -81,7 +81,7 @@ export const en = {
     wait: 'Transit wait',
     waitOptions: { half: 'average', full: 'worst case' },
     waitHint:
-      'Average: arriving at random, one waits half the time between two departures. Worst case: the train or bus leaves before your eyes, one waits for the next.',
+      'Average: on a frequent line one arrives at random and waits half the time between two departures; beyond 10 min between departures, one follows the timetable and waits less. Worst case: the train or bus leaves before your eyes, one waits for the next.',
     transfer: 'Station exit and transfers',
     relief: 'Slopes',
     reliefHint: 'Slower uphill, a little faster on gentle descents (road heights of the BD TOPO)',

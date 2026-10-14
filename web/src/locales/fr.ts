@@ -83,7 +83,7 @@ export const fr: Messages = {
     wait: 'Attente en TC',
     waitOptions: { half: 'attente moyenne', full: 'pire cas' },
     waitHint:
-      'Attente moyenne : on arrive au hasard, on attend en moyenne la moitié du temps entre deux passages. Pire cas : on voit partir la rame ou le bus, on attend le suivant.',
+      'Attente moyenne : sur une ligne fréquente on arrive au hasard et on attend la moitié du temps entre deux passages ; au-delà de 10 min entre deux passages, on suit l’horaire et on attend moins. Pire cas : on voit partir la rame ou le bus, on attend le suivant.',
     transfer: 'Sortie de station et correspondances',
     relief: 'Pentes',
     reliefHint: 'Plus lent en montée, un peu plus rapide en descente douce (altitudes des routes de la BD TOPO)',

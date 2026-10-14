@@ -6,6 +6,8 @@ import {
 } from '@ign-junn/design-system/icons';
 import { useState, type ReactElement } from 'react';
 import { EDGES, GROUPS, isStepId, NODES } from '@/pages/how-it-works/diagram';
+import Sandbox from '@/pages/how-it-works/Sandbox';
+import StepDetail from '@/pages/how-it-works/StepDetail';
 import { howItWorks as h, type StepId } from '@/locales/howItWorks';
 
 const REPO = 'https://github.com/IGNF/geo-reach';
@@ -98,6 +100,7 @@ const HowItWorks = (): ReactElement => {
                 <Stack gap="xs">
                   <Typography variant="subtitle1">{box.label}</Typography>
                   <Typography variant="body1">{box.text}</Typography>
+                  <StepDetail step={selected} />
                   {'file' in box && box.file && (
                     <Link href={`${REPO}/blob/main/${box.file}`} icon={IconFileCode} size="xs">
                       {box.file}
@@ -107,6 +110,14 @@ const HowItWorks = (): ReactElement => {
               </Card>
             </Box>
           </Box>
+        </Stack>
+
+        <Stack gap="sm">
+          <Typography variant="h2">{h.sandbox.title}</Typography>
+          <Box className="narrow">
+            <Typography variant="body1">{h.sandbox.text}</Typography>
+          </Box>
+          <Sandbox />
         </Stack>
 
         <Box className="narrow">

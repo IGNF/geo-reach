@@ -56,7 +56,7 @@ web/src/
     regions/            the 13 regions, startup (download, decode, engine) and its screen
   shared/               config, formatting, colors, projection, bounds, WebGL helpers, binary reader, data cache,
                         Géoplateforme client, ui/ (Brand, LineBadge)
-  pages/                how-it-works/, legal/: the other pages of the site
+  pages/                how-it-works/ (diagram, step details, made-up town running TravelEngine), legal/
   locales/              UI strings (English, French), picked from the browser language
 ```
 

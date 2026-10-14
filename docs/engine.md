@@ -20,7 +20,7 @@ flowchart LR
 |---|---|---|
 | `EDGE_ROAD` | road node ↔ road node | Length / speed, depends on the mode and on BD TOPO flags |
 | `EDGE_LINK` | station ↔ 3 nearest walkable road nodes | Walking time (min 20 m) |
-| `EDGE_BOARD` | station → line stop | Wait: half the headway (capped at 12 min) + 60 s boarding penalty |
+| `EDGE_BOARD` | station → line stop | Wait: half the headway up to a 10 min headway, then a third of each extra minute (see below) + 60 s boarding penalty |
 | `EDGE_RIDE` | line stop → next line stop | Median scheduled ride time |
 | `EDGE_ALIGHT` | line stop → station | 30 s |
 
@@ -46,7 +46,21 @@ those parts:
 | | Uphill, grade g | Downhill, grade g |
 |---|---|---|
 | walk | `exp(3.5 × (abs(g + 0.05) − 0.05))` (Tobler): ×1.19 at 5 %, ×1.42 at 10 % | same with −g: ×0.84 at 5 % (fastest), ×1 at 10 %, slower beyond |
-| bike | `1 + 10 g`: half the speed at 10 % | `1 / min(1 + 5 g, 1.4)`: at most 40 % faster |
+| bike | `1 / max(1 − 6.67 g, 1/3)` (Parkin and Rotheram): ×1.5 at 5 %, ×3 from 10 % | `1 / min(1 + 3.98 g, 1.4)`: ×0.83 at 5 %, at most 40 % faster |
+
+The bike factors come from the GPS tracks of everyday cyclists in Leeds (Parkin and Rotheram 2010,
+[doi:10.1016/j.tranpol.2010.03.001](https://doi.org/10.1016/j.tranpol.2010.03.001)): 21.6 km/h on the flat, 1.44 km/h
+less per percent uphill, 0.86 km/h more per percent downhill, kept here as shares of the chosen flat speed. Walking
+follows Tobler's hiking function (Tobler 1993, NCGIA technical report 93-1), scaled to 1 on the flat.
+
+**Transit waits** (`averageWait`): the files store half the headway `H/2` of each hour (capped at 12 min, see
+[data-formats.md](data-formats.md)). Random arrivals wait `H/2` (Osuna and Newell 1972,
+[doi:10.1287/trsc.6.1.52](https://doi.org/10.1287/trsc.6.1.52)); on less frequent lines more and more passengers
+follow the timetable (Ingvardson et al. 2018, [doi:10.1016/j.trc.2018.03.006](https://doi.org/10.1016/j.trc.2018.03.006):
+the switch happens between 5 and 11 min), and each extra minute of headway adds about a third of a minute of wait
+(Singh et al. 2021, [doi:10.1016/j.trc.2021.103267](https://doi.org/10.1016/j.trc.2021.103267)). Hence
+`W = H/2` up to `H = 10 min`, then `W = 5 min + (H − 10 min) / 3`: 8.3 min instead of 10 for a bus every 20 min. The
+worst case setting keeps the whole headway `H`.
 
 Cars ignore slopes. The trip panel sums the climb and descent of the path, each edge in its direction of travel.
 
@@ -98,12 +112,21 @@ Implementation details that matter for speed:
 - **Bounded**: a node is never pushed beyond `max_cost` (the scale, e.g. 30 min). The search stops by itself.
 - **Lazy reset**: `touched` lists the nodes reached last time; only those are reset to `Infinity` before the next
   run, instead of the whole array (~100 k road nodes, ~30 k more with transit).
+- **No decrease-key**: a node improved again is pushed again and its stale entry skipped when popped, which is faster
+  in practice than a heap with decrease-key (Chen et al. 2007, UTCS TR-07-54).
 - **Heap key** `(f32 bits, node)`: non-negative floats order like their bit patterns, so a `u32` comparison is
   enough.
 - **No allocation** in `run`: the heap and `touched` keep their capacity.
 - After `reserve`, JS recreates its views on `memory.buffer`, because growing the memory detaches old views.
 
-Typical run: ~1 ms walking, up to ~6 ms in transit with a 60 min scale.
+Measured with `bun scripts/benchEngine.ts [region]` (engine alone, 300 cursor positions in a 30 km square around
+the IGN head office, Île-de-France, 2026-10-14): median 0.2 ms walking 30 min, 1.5–2 ms by bike or car 30 min,
+10–13 ms in transit 60 min (p95 33–41 ms).
+
+**Node order** (tested, not kept): renumbering the nodes along a Hilbert curve, or breadth-first, so that neighbours sit
+next to each other in memory, is a classic speed-up of Dijkstra on road graphs. Here it gains 1 to 5 %, within the
+noise of the measure: the files already list the nodes tile by tile of the WFS download, which is spatially local.
+`--order hilbert|hilbert-all|bfs` of the bench reproduces the test in memory.
 
 ## From the cursor to the graph (`snap.ts`)
 
@@ -143,3 +166,9 @@ consecutive streets of the same name, one wait per boarding, one ride per line (
 Everything is stored in Web Mercator metres **relative to the centre of the zone** (`origin` in the region's road file). With
 absolute Mercator values (~260 000 m, ~6 250 000 m) a 32 bit float has a step of about 0.5 m; relative to the centre,
 it stays under a millimetre. Ground distances use the scale factor `cos(latitude)` of the zone centre.
+
+## Calibration
+
+`bun scripts/calibrate.ts [--gpf] [--transit]` draws random trips on the real graph and prints the effective speed per
+mode and hour; `--gpf` compares night driving with the Géoplateforme route service (free flow; about 15 % apart),
+`--transit` lists transit times from the IGN head office to the landmarks.

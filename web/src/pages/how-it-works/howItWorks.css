@@ -39,3 +39,406 @@
 .narrow {
   max-width: 1100px;
 }
+
+/* Detailed figure of a step: sketch, formula, worked example, sources (as in geo-flood) */
+.step-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.detail-example,
+.detail-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--mantine-color-dimmed);
+}
+
+.detail-example {
+  font-style: italic;
+}
+
+.detail-figure {
+  width: 100%;
+  height: auto;
+}
+
+.detail-figure .fig-text {
+  font: 10px system-ui, sans-serif;
+  fill: var(--mantine-color-dimmed);
+}
+
+.detail-figure .fig-text.strong {
+  font-weight: 600;
+  fill: var(--mantine-color-text);
+}
+
+.detail-figure .fig-text.on-color {
+  font-weight: 600;
+  fill: #ffffff;
+}
+
+.detail-figure .fig-ground {
+  fill: #e8dcc4;
+}
+
+.detail-figure .fig-road {
+  fill: none;
+  stroke: #5c6b7a;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.detail-figure .fig-node,
+.detail-key i.key-node {
+  fill: #1a9850;
+  background: #1a9850;
+  stroke: #ffffff;
+  stroke-width: 1.5;
+}
+
+.detail-figure .fig-node.muted,
+.detail-key i.key-node.muted {
+  fill: #b0b8c1;
+  background: #b0b8c1;
+}
+
+.detail-figure .fig-vertex {
+  stroke: #ffffff;
+  stroke-width: 1.5;
+}
+
+.detail-figure .fig-cursor {
+  fill: #ffffff;
+  stroke: #1d3557;
+  stroke-width: 2.5;
+}
+
+.detail-figure .fig-axis {
+  stroke: var(--mantine-color-dimmed);
+  stroke-width: 1;
+}
+
+.detail-figure .fig-guide {
+  stroke: var(--mantine-color-default-border);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.detail-figure .fig-line {
+  fill: none;
+  stroke: #1565c0;
+  stroke-width: 2;
+}
+
+.detail-figure .fig-line.bike {
+  stroke: #e07b00;
+}
+
+.detail-figure .fig-line.dashed {
+  stroke: #8a96a3;
+  stroke-dasharray: 5 4;
+}
+
+.detail-figure .fig-arc {
+  stroke: #8a96a3;
+  stroke-width: 1.5;
+}
+
+.detail-figure .fig-arrow {
+  fill: #8a96a3;
+}
+
+.detail-figure .fig-cell {
+  fill: none;
+  stroke: var(--mantine-color-default-border);
+  stroke-width: 1;
+}
+
+.detail-figure .fig-isoline {
+  fill: none;
+  stroke: #1d3557;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.detail-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12px;
+  color: var(--mantine-color-dimmed);
+}
+
+.detail-key span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.detail-key i.key-node {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.detail-key i.key-line {
+  width: 16px;
+  border-top: 2px solid #1565c0;
+}
+
+.detail-key i.key-line.dashed {
+  border-top: 2px dashed #8a96a3;
+}
+
+.detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.detail-table th,
+.detail-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--mantine-color-default-border);
+  text-align: left;
+}
+
+.detail-table th {
+  font-weight: 600;
+  color: var(--mantine-color-dimmed);
+}
+
+.detail-formula {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--mantine-color-gray-0);
+  font-size: 12px;
+}
+
+.detail-formula p {
+  margin: 0;
+  white-space: pre-wrap;
+  font: 14px/1.5 'Cambria Math', 'STIX Two Math', Georgia, serif;
+}
+
+.detail-formula var {
+  font-style: italic;
+}
+
+.detail-formula > span {
+  color: var(--mantine-color-dimmed);
+}
+
+.detail-formula dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  margin: 0;
+}
+
+.detail-formula dl > div {
+  display: contents;
+}
+
+.detail-formula dt {
+  font: 13px/1.45 'Cambria Math', 'STIX Two Math', Georgia, serif;
+  white-space: nowrap;
+}
+
+.detail-formula dd {
+  margin: 0;
+  line-height: 1.45;
+  color: var(--mantine-color-dimmed);
+}
+
+.detail-calc {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #e7f2fc;
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.detail-references {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* The made-up town: its settings beside it on large screens, above it on small ones */
+.sandbox {
+  display: grid;
+  max-width: 1240px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mantine-spacing-lg);
+  align-items: start;
+}
+
+@media (min-width: 62em) {
+  .sandbox {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+}
+
+.sandbox-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: var(--mantine-spacing-md);
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: 12px;
+}
+
+.sandbox-view {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sandbox-canvas {
+  overflow: hidden;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: 12px;
+}
+
+.sandbox-canvas canvas {
+  display: block;
+  width: 100%;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.sandbox-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--mantine-color-dimmed);
+}
+
+.sandbox-legend i {
+  width: 160px;
+  height: 8px;
+  border-radius: 4px;
+}
+
+.sandbox-figures {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 24px;
+}
+
+/* Sketches of the code steps: boxes, memory cells, data flows */
+.detail-figure .fig-box {
+  fill: var(--mantine-color-gray-0);
+  stroke: var(--mantine-color-default-border);
+  stroke-width: 1.2;
+}
+
+.detail-figure .fig-box.memory {
+  fill: #fff4e5;
+  stroke: #e0a050;
+}
+
+.detail-figure .fig-cell-box {
+  fill: #ffffff;
+  stroke: #b0b8c1;
+  stroke-width: 1;
+}
+
+.detail-figure .fig-cell-box.focus {
+  fill: #e7f2fc;
+  stroke: #1565c0;
+}
+
+.detail-figure .fig-vertex.plain {
+  fill: #ffffff;
+  stroke: #1d3557;
+}
+
+.detail-figure .fig-vertex.focus {
+  fill: #e7f2fc;
+  stroke: #1565c0;
+  stroke-width: 2;
+}
+
+.detail-figure .fig-arc.focus {
+  stroke: #1565c0;
+  stroke-width: 2.5;
+}
+
+.detail-figure .fig-pointer {
+  fill: none;
+  stroke: #1565c0;
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+
+.detail-figure .fig-pointer-dot {
+  fill: #1d3557;
+}
+
+.detail-figure .fig-flow {
+  stroke: #5c6b7a;
+  stroke-width: 1.5;
+}
+
+.detail-figure .fig-metro {
+  stroke: #1a7fd4;
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.detail-figure .fig-cut {
+  stroke: #d7301f;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.detail-figure .fig-text.warn {
+  fill: #b42318;
+}
+
+.detail-figure .fig-bracket {
+  fill: none;
+  stroke: #8a96a3;
+  stroke-width: 1.2;
+}
+
+.detail-figure .fig-leg.walk,
+.detail-figure .fig-leg.link {
+  fill: #b9c4cf;
+}
+
+.detail-figure .fig-leg.link {
+  opacity: 0.6;
+}
+
+.detail-figure .fig-leg.wait {
+  fill: #ffffff;
+  stroke: #1a7fd4;
+  stroke-dasharray: 3 2;
+}
+
+.detail-figure .fig-leg.ride {
+  fill: #1a7fd4;
+}
+
+.detail-figure .fig-leg.alight {
+  fill: #1a7fd4;
+  opacity: 0.45;
+}
+
+.detail-figure .fig-text.small {
+  font-size: 8.5px;
+}
