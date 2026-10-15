@@ -1,11 +1,15 @@
-/** Travel time ramp, near (green) to far (dark red), as in the reference dataviz */
+/**
+ * Travel time ramp, near (green) to far: yellow, orange, red as in the reference dataviz, then crimson and violet for
+ * the last minutes, so that the far end reads apart from the middle reds
+ */
 const STOPS: [number, [number, number, number]][] = [
   [0, [26, 152, 80]],
-  [0.22, [102, 189, 99]],
-  [0.42, [254, 224, 139]],
-  [0.62, [253, 174, 97]],
-  [0.8, [215, 48, 39]],
-  [1, [165, 0, 38]],
+  [0.18, [102, 189, 99]],
+  [0.36, [254, 224, 139]],
+  [0.52, [253, 174, 97]],
+  [0.68, [215, 48, 39]],
+  [0.84, [165, 0, 80]],
+  [1, [106, 27, 154]],
 ];
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -36,3 +40,4 @@ export const rampCss = (t: number): string => {
 };
 
 export const RAMP_GRADIENT_CSS = `linear-gradient(90deg, ${STOPS.map(([s]) => `${rampCss(s)} ${s * 100}%`).join(', ')})`;
+

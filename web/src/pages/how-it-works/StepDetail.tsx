@@ -435,80 +435,6 @@ const Dijkstra = (): ReactElement => {
   );
 };
 
-/** Times of a few cells of the grid, minutes, and the duration whose line is traced */
-const GRID = [
-  [6, 8, 12, 15],
-  [7, 9, 11, 14],
-  [9, 11, 13, 16],
-];
-const LEVEL = 10;
-
-/** Marching squares on one cell: where the level crosses its sides, as fractions along them */
-const crossings = (r: number, c: number): [number, number][] => {
-  const at = (rr: number, cc: number): number => GRID[rr]?.[cc] ?? Infinity;
-  const corners: [number, number, number][] = [
-    [c, r, at(r, c)],
-    [c + 1, r, at(r, c + 1)],
-    [c + 1, r + 1, at(r + 1, c + 1)],
-    [c, r + 1, at(r + 1, c)],
-  ];
-  const points: [number, number][] = [];
-  corners.forEach(([x0, y0, t0], i) => {
-    const [x1, y1, t1] = corners[(i + 1) % 4] ?? corners[0] ?? [0, 0, 0];
-    if ((t0 - LEVEL) * (t1 - LEVEL) < 0) {
-      const k = (LEVEL - t0) / (t1 - t0);
-      points.push([x0 + k * (x1 - x0), y0 + k * (y1 - y0)]);
-    }
-  });
-
-  return points;
-};
-
-const Contours = (): ReactElement => {
-  const size = 52;
-  const [ox, oy] = [24, 14];
-  const px = (x: number): number => ox + x * size;
-  const py = (y: number): number => oy + y * size;
-  const segments = GRID.slice(1)
-    .flatMap((row, r) => row.slice(1).map((_, c) => crossings(r, c)))
-    .filter((s) => s.length > 0);
-
-  return (
-    <>
-      <svg className="detail-figure" viewBox="0 0 360 140" aria-hidden>
-        {GRID.slice(1).map((row, r) =>
-          row.slice(1).map((_, c) => (
-            // eslint-disable-next-line react/no-array-index-key -- fixed grid
-            <rect key={`${r}-${c}`} x={px(c)} y={py(r)} width={size} height={size} className="fig-cell" />
-          )),
-        )}
-        {segments.map((s) => (
-          <polyline key={s.join()} points={s.map(([x, y]) => `${px(x)},${py(y)}`).join(' ')} className="fig-isoline" />
-        ))}
-        {GRID.map((row, r) =>
-          row.map((time, c) => (
-            // eslint-disable-next-line react/no-array-index-key -- fixed grid
-            <g key={`${r}-${c}`}>
-              <circle cx={px(c)} cy={py(r)} r={9} fill={rampCss(time / 20)} className="fig-vertex" />
-              <text x={px(c)} y={py(r) + 3.5} textAnchor="middle" className="fig-text on-color">
-                {time}
-              </text>
-            </g>
-          )),
-        )}
-        <text x={px(3) + 20} y={py(1)} className="fig-text strong">
-          {d.contours.level(String(LEVEL))}
-        </text>
-        <line x1={px(3) + 20} y1={py(1) + 8} x2={px(3) + 60} y2={py(1) + 8} className="fig-isoline" />
-      </svg>
-      <p className="detail-calc">{`x = (${LEVEL} − 9) / (11 − 9) = ${n(0.5, 1)}`}</p>
-      <Formula formula={d.contours.formula} />
-      <Note>{d.contours.note}</Note>
-      <References keys={['borgefors', 'lorensen']} />
-    </>
-  );
-};
-
 /** One street reached from both ends: the times of A and B, its cost each way, minutes */
 const EDGE = { tA: 4, tB: 5, cost: 3, scale: 10 };
 
@@ -939,7 +865,6 @@ const FIGURES: Partial<Record<StepId, () => ReactElement>> = {
   profile: Profile,
   snap: Snap,
   dijkstra: Dijkstra,
-  contours: Contours,
   layer: Layer,
   engineCrate: EngineCrate,
   wasm: Wasm,

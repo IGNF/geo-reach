@@ -7,6 +7,11 @@ const EARTH = 2 * Math.PI * 6378137;
 
 /** Width of the node times texture: node n is at (n % TIMES_WIDTH, n / TIMES_WIDTH) */
 export const TIMES_WIDTH = 2048;
+/**
+ * The time of an unreached node in the times texture: beyond any scale, still finite. Some drivers (Chrome on Linux,
+ * ANGLE over OpenGL) read Infinity back from a float texture as 0, which would color the whole network as reached.
+ */
+export const UNREACHED = 1e30;
 
 /** Where a zone sits in the 0..1 Mercator world, from its origin in Mercator metres: positions are drawn relative to it */
 export const zoneOrigin = ([ox, oy]: readonly [number, number]): { tx: number; ty: number } => ({

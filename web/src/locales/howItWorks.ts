@@ -15,7 +15,6 @@ export type StepId =
   | 'cuts'
   | 'snap'
   | 'dijkstra'
-  | 'contours'
   | 'layer'
   | 'buildings'
   | 'buildingTiles'
@@ -53,7 +52,6 @@ const en = {
       loaded: 'loaded once',
       csr: 'graph arrays',
       sources: '2 start points',
-      contours: 'node times',
       instance: 'runs in',
       times: 'node times',
       path: 'path',
@@ -125,9 +123,9 @@ const en = {
       },
       loaders: {
         label: 'Loaders',
-        detail: 'network.ts · transit.ts',
-        text: 'Download the files of the region in view (once: the browser keeps them for the next visits, even offline), inflate them, read them as typed arrays and merge the transit layer into the road graph. When the view moves into another region, its files load in the background while the map stays, then the new network takes over at the same place.',
-        file: 'web/src/features/routing/network.ts',
+        detail: 'in a worker',
+        text: 'Download the files of the region in view (once: the browser keeps them for the next visits, even offline), inflate them, read them as typed arrays, merge the transit layer into the road graph and prepare the first mode. All of it runs in a Web Worker, a background thread: when the view moves into another region, its files load while the map in view keeps following the mouse, then the new network takes over at the same place.',
+        file: 'web/src/features/routing/network.worker.ts',
       },
       profile: {
         label: 'Profile',
@@ -149,20 +147,14 @@ const en = {
       },
       dijkstra: {
         label: 'Dijkstra',
-        detail: 'WebAssembly, in a worker',
-        text: 'Starts from the two ends of the snapped street and spreads out until the maximum time. It runs in a Web Worker, a background thread: even a run over the whole region never freezes the map. The times are handed to the page without being copied, and only the crossings reached last time are reset, not the whole network.',
+        detail: 'WebAssembly, page or worker',
+        text: 'Starts from the two ends of the snapped street and spreads out until the maximum time. A long run is made in a Web Worker, a background thread: even a run over the whole region never freezes the map. A short one (a few milliseconds, the usual case) is made on the page itself, right when the mouse moves, so that the very next image shows it. The times of the worker are handed to the page without being copied, and only the crossings reached last time are reset, not the whole network.',
         file: 'crates/engine/src/dijkstra.rs',
-      },
-      contours: {
-        label: 'Isochrone lines',
-        detail: '150 m grid',
-        text: 'The times of the streets, and of the transit lines taken (all along their track), are spread on a 150 m grid, at walking pace and never more than 300 m away from them. The lines are traced where the grid crosses each duration: they follow the reached streets, and a metro or RER line draws a tube between its stations rather than circles around them.',
-        file: 'web/src/features/map/contours.ts',
       },
       layer: {
         label: 'WebGL layer',
         detail: 'colors on the GPU',
-        text: 'The geometry of the streets is sent to the graphics card once. At each move, only the time of each crossing is sent (one number per crossing); the graphics card works out the color of every piece of street, then draws a wide glow (the heat map) and thin lines on top.',
+        text: 'The geometry of the streets is prepared by a worker and sent to the graphics card once per mode, sorted in squares of about 2 km: each image draws only the squares in view (some 20,000 pieces of street out of several million). At each move, only the time of each crossing is sent (one number per crossing); the graphics card works out the color of every piece of street, then draws a wide glow (the heat map) and thin lines on top.',
         file: 'web/src/features/map/networkLayer.ts',
       },
       buildings: {
@@ -302,7 +294,6 @@ const fr: typeof en = {
       loaded: 'chargé une fois',
       csr: 'tableaux du graphe',
       sources: '2 points de départ',
-      contours: 'temps des nœuds',
       instance: 'tourne dans',
       times: 'temps des nœuds',
       path: 'chemin',
@@ -374,9 +365,9 @@ const fr: typeof en = {
       },
       loaders: {
         label: 'Chargement',
-        detail: 'network.ts · transit.ts',
-        text: 'Télécharge les fichiers de la région affichée (une seule fois : le navigateur les garde pour les visites suivantes, même hors ligne), les décompresse, les lit comme tableaux typés et fusionne la couche transports en commun dans le graphe routier. Quand la vue passe dans une autre région, ses fichiers se chargent en arrière-plan, la carte restant affichée, puis le nouveau réseau prend le relais au même endroit.',
-        file: 'web/src/features/routing/network.ts',
+        detail: 'dans un worker',
+        text: 'Télécharge les fichiers de la région affichée (une seule fois : le navigateur les garde pour les visites suivantes, même hors ligne), les décompresse, les lit comme tableaux typés, fusionne la couche transports en commun dans le graphe routier et prépare le premier mode. Tout cela tourne dans un Web Worker, un fil d’exécution en arrière-plan : quand la vue passe dans une autre région, ses fichiers se chargent pendant que la carte affichée continue de suivre la souris, puis le nouveau réseau prend le relais au même endroit.',
+        file: 'web/src/features/routing/network.worker.ts',
       },
       profile: {
         label: 'Profil',
@@ -398,20 +389,14 @@ const fr: typeof en = {
       },
       dijkstra: {
         label: 'Dijkstra',
-        detail: 'WebAssembly, dans un worker',
-        text: 'Part des deux extrémités de la rue accrochée et s’étend jusqu’au temps maximum. Il tourne dans un Web Worker, un fil d’exécution en arrière-plan : même un calcul sur toute la région ne fige jamais la carte. Les temps sont transmis à la page sans copie, et seuls les carrefours atteints la fois précédente sont remis à zéro, pas tout le réseau.',
+        detail: 'WebAssembly, page ou worker',
+        text: 'Part des deux extrémités de la rue accrochée et s’étend jusqu’au temps maximum. Un calcul long tourne dans un Web Worker, un fil d’exécution en arrière-plan : même un calcul sur toute la région ne fige jamais la carte. Un calcul court (quelques millisecondes, le cas courant) tourne dans la page elle-même, dès que la souris bouge, pour que l’image suivante le montre. Les temps du worker sont transmis à la page sans copie, et seuls les carrefours atteints la fois précédente sont remis à zéro, pas tout le réseau.',
         file: 'crates/engine/src/dijkstra.rs',
-      },
-      contours: {
-        label: 'Lignes d’isochrones',
-        detail: 'grille de 150 m',
-        text: 'Les temps des rues, et des lignes de transport empruntées (sur tout leur tracé), sont étalés sur une grille de 150 m, au pas de marche et jamais à plus de 300 m d’elles. Les lignes sont tracées là où la grille franchit chaque durée : elles suivent les rues atteintes, et une ligne de métro ou de RER dessine un tube entre ses stations plutôt que des cercles autour.',
-        file: 'web/src/features/map/contours.ts',
       },
       layer: {
         label: 'Couche WebGL',
         detail: 'couleurs sur le GPU',
-        text: 'La géométrie des rues est envoyée une fois à la carte graphique. À chaque mouvement, seul le temps de chaque carrefour est envoyé (un nombre par carrefour) ; la carte graphique calcule la couleur de chaque bout de rue, puis dessine un halo large (la carte de chaleur) et des lignes fines par-dessus.',
+        text: 'La géométrie des rues est préparée par un worker et envoyée une fois par mode à la carte graphique, rangée en carrés d’environ 2 km : chaque image ne dessine que les carrés à l’écran (quelque 20 000 bouts de rue sur plusieurs millions). À chaque mouvement, seul le temps de chaque carrefour est envoyé (un nombre par carrefour) ; la carte graphique calcule la couleur de chaque bout de rue, puis dessine un halo large (la carte de chaleur) et des lignes fines par-dessus.',
         file: 'web/src/features/map/networkLayer.ts',
       },
       buildings: {

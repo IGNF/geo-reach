@@ -133,7 +133,14 @@ noise of the measure: the files already list the nodes tile by tile of the WFS d
 The cursor can be anywhere (a park, a roof). `SnapIndex` is a uniform grid (80 m cells) of the road segments the
 mode can use. `nearest(x, y)` scans rings of cells around the cursor and projects the point on each segment. It
 returns the edge, the fraction `f` along it, the distance and the projected point. Beyond 600 m, the cursor is off
-the network.
+the network ("No street within 600 m" at a pinned point: a summit, a lake).
+
+Streets that form a small island for the mode (fewer than 500 nodes one can leave and come back to: a one-way street
+into a dead end, a car street inside a pedestrian zone) are left out of the index: a point there could not leave it.
+The islands are found on the network **without the closed sections**. Otherwise a village cut off by a closed bridge
+would leave the index, and its points (the cursor, its buildings) would snap to streets across the river: by car,
+with the bridge of La Salle-les-Alpes closed, the buildings north of the torrent took the times of the road south of
+it, 125 m away, and looked reached. Now they snap to their own streets, which the closure leaves unreached.
 
 `TravelEngine.run` then seeds Dijkstra with **two sources**, the two ends of the snapped edge:
 
@@ -154,8 +161,6 @@ consecutive streets of the same name, one wait per boarding, one ride per line (
 
 ## Statistics
 
-- `stationShare`: share of the metro, RER, train and tram stations (`railStations`) reached within each contour.
-- `reachedKm`: kilometres of road whose two ends are reached within each contour.
 - `reachedTransit`, `nearestStation`: stations and lines one can board, first rail station reached.
 - `cyclewayKm`: kilometres of cycle lanes and greenways reached.
 - `cutImpact`: with closed sections, the rail stations within reach with everything open, and the delay of each

@@ -2,7 +2,7 @@ import { Box, Button, CopyButton, PreviewPanel, SegmentedSwitch, Slider, Stack, 
 import { IconAdjustmentsHorizontal, IconInfoCircle, IconScissors } from '@ign-junn/design-system/icons';
 import { RAMP_GRADIENT_CSS } from '@/shared/colors';
 import { trafficLevel } from '@/features/trip';
-import { contourMinutes, type Direction, MAX_SCALE, type Mode, PERSPECTIVES, type Perspective } from '@/shared/config';
+import { type Direction, MAX_SCALE, type Mode, PERSPECTIVES, type Perspective } from '@/shared/config';
 import { t } from '@/locales';
 import type { ModelOptions } from '@/features/routing';
 import ModelSection from './ModelSection';
@@ -30,8 +30,6 @@ interface SettingsPanelProps {
   onPerspectiveChange: (perspective: Perspective) => void;
   direction: Direction;
   onDirectionChange: (direction: Direction) => void;
-  contours: boolean;
-  onContoursChange: (contours: boolean) => void;
   scale: number;
   onScaleChange: (scale: number) => void;
   shareUrl: string;
@@ -62,8 +60,6 @@ const SettingsPanel = ({
   onPerspectiveChange,
   direction,
   onDirectionChange,
-  contours,
-  onContoursChange,
   scale,
   onScaleChange,
   shareUrl,
@@ -162,13 +158,6 @@ const SettingsPanel = ({
           <Typography variant="caption">{Math.min(scale, max)} min</Typography>
         </Stack>
       </Stack>
-      <Switch
-        label={t.contours(contourMinutes(Math.min(scale, max))[0] ?? 10)}
-        description={t.contoursHint}
-        checked={contours}
-        onChange={onContoursChange}
-        size="xs"
-      />
       {/* Under its caption, the whole width: the labels are never cut */}
       <Stack gap={4}>
         <Typography variant="caption">{t.mapFrom}</Typography>

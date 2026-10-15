@@ -2,12 +2,29 @@ import wasmUrl from './engine.wasm?url';
 import type { WorkerRequest, WorkerResult } from './engine.worker';
 import { EDGE_BOARD, EDGE_ROAD, FLAG_CYCLEWAY, type Network } from './network';
 import { buildProfile, type Profile, type ProfileOptions } from './profile';
-import { type Snap, SnapIndex } from './snap';
+import { type Snap, SnapIndex, type SnapParts } from './snap';
 import { MAX_SNAP_METRES, part, type ZoneXY } from './trip';
 import type { CompareRequest, CompareResult } from './compare.worker';
+import { EngineCore } from './engineCore';
+import { isEngine } from './wasm';
 import type { Mode } from '@/shared/config';
 
 const NONE = 0xffffffff;
+
+/** The engine compiled once per page: the main thread instantiates it again for each region */
+let compiled: Promise<WebAssembly.Module> | undefined;
+
+/** An instance of the engine on the main thread, for the short runs; undefined if it cannot start */
+const startInlineCore = async (): Promise<EngineCore | undefined> => {
+  try {
+    compiled ??= WebAssembly.compileStreaming(fetch(new URL(wasmUrl, window.location.href)));
+    const instance = await WebAssembly.instantiate(await compiled, {});
+
+    return isEngine(instance.exports) ? new EngineCore(instance.exports) : undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 
 /** One engine worker (WebAssembly) and its graph */
@@ -34,11 +51,11 @@ class EngineWorker {
     this.post({ type: 'graph', nodes, offsets: p.offsets, heads: p.heads, costs: p.costs, arcEdge: p.arcEdge });
   }
 
-  run(sources: number[], costs: number[], maxCost: number) {
+  run(sources: number[], costs: number[], maxCost: number, texture: boolean, paths: boolean) {
     this.nextId += 1;
     const id = this.nextId;
     const answer = new Promise<WorkerResult>((resolve) => this.pending.set(id, resolve));
-    this.post({ type: 'run', id, sources, costs, maxCost });
+    this.post({ type: 'run', id, sources, costs, maxCost, texture, paths });
 
     return answer;
   }
@@ -48,8 +65,9 @@ class EngineWorker {
   }
 
   recycle(buffers: ArrayBuffer[]) {
-    if (!buffers[0].byteLength) return;
-    this.post({ type: 'recycle', buffers }, buffers);
+    const kept = buffers.filter((b) => b.byteLength);
+    if (!kept.length) return;
+    this.post({ type: 'recycle', buffers: kept }, kept);
   }
 }
 
@@ -58,8 +76,11 @@ export interface Result {
   profile: Profile;
   /** Seconds per node, Infinity unreached */
   dist: Float32Array;
+  /** Predecessors, empty when the run was asked without paths */
   predNode: Uint32Array;
   predEdge: Uint32Array;
+  /** The times laid out for the network texture */
+  times: Float32Array;
   /** Where the origin joined the network */
   snap: Snap;
   /** Seconds walked from the origin to the network */
@@ -69,6 +90,8 @@ export interface Result {
   runMs: number;
   /** With closed sections: the times of the same run with every section open */
   baseDist?: Float32Array;
+  /** Computed on the main thread: its buffers go back to its pool there */
+  inline?: boolean;
 }
 
 /** What the closed sections cost from the origin: rail stations within reach without them, and their delays */
@@ -118,10 +141,16 @@ export class TravelEngine {
 
   readonly net: Network;
   private readonly worker = new EngineWorker();
+  /** The same engine on the main thread, for the runs short enough to be drawn in the frame of the mouse move */
+  private inline?: EngineCore;
   /** Runs without the closed sections, side by side, to measure what they cost; started on the first cut */
   private baseWorker?: EngineWorker;
   /** Profile without the closed sections, while some are closed */
   private baseline?: Profile;
+  /** Boardings of the current profile, for the transit figures */
+  private boardingCache?: { profile: Profile; station: Uint32Array; line: Uint32Array };
+  /** Cycle lanes and greenways of the network */
+  private cycleways?: Uint32Array;
   /** The worker comparing the modes on one trip, started at the first comparison */
   private comparer?: {
     worker: Worker;
@@ -135,24 +164,29 @@ export class TravelEngine {
     this.groundScale = Math.cos(lat);
   }
 
-  static async create(net: Network, options: ProfileOptions): Promise<TravelEngine> {
+  /** `first`: the profile and snap index built by the worker that loaded the network, used if they match `options` */
+  static async create(net: Network, options: ProfileOptions, first?: { profile: Profile; snap: SnapParts }): Promise<TravelEngine> {
     const engine = new TravelEngine(net);
-    engine.setProfile(options);
+    engine.inline = await startInlineCore();
+    engine.setProfile(options, first);
 
     return engine;
   }
 
-  setProfile(options: ProfileOptions): Profile {
-    const p = buildProfile(this.net, options);
+  setProfile(options: ProfileOptions, built?: { profile: Profile; snap: SnapParts }): Profile {
+    const fits = built && !options.closed.length && built.profile.mode === options.mode && !built.profile.closed.length;
+    // The options keep their identity (the page compares them, the model by reference)
+    const p = fits ? { ...built.profile, ...options } : buildProfile(this.net, options);
     this.profile = p;
     this.worker.graph(this.net.nodeCount, p);
+    this.inline?.graph({ nodes: this.net.nodeCount, offsets: p.offsets, heads: p.heads, costs: p.costs, arcEdge: p.arcEdge });
 
     this.setBaseline(p);
 
     // The roads one can start from depend on the mode, and on the closed roads (never cached: one per set of cuts)
     const roadCut = options.closed.some((e) => this.net.edgeKind[e] === EDGE_ROAD);
     const key = `${options.mode}/${options.bus}`;
-    const index = (!roadCut && this.snapIndexes.get(key)) || new SnapIndex(this.net, p);
+    const index = (!roadCut && this.snapIndexes.get(key)) || new SnapIndex(this.net, fits ? built.snap : p, this.baseline);
     if (!roadCut) this.snapIndexes.set(key, index);
     this.snapIndex = index;
 
@@ -241,32 +275,31 @@ export class TravelEngine {
 
   /**
    * Shortest times from (or towards) a point, up to `maxSeconds`, computed by the worker. Hand the result back with
-   * `recycle` once done with it: its buffers are reused.
+   * `recycle` once done with it: its buffers are reused. Without `paths`, no trip can be traced from it (`path`).
    */
-  async run(x: number, y: number, maxSeconds: number): Promise<Result | undefined> {
-    const snap = this.snap(x, y);
-    if (!snap) return undefined;
+  async run(x: number, y: number, maxSeconds: number, { paths = true }: { paths?: boolean } = {}): Promise<Result | undefined> {
+    const start = this.start(x, y);
+    if (!start) return undefined;
 
     const { profile, baseline } = this;
-    const access = (snap.distance * this.groundScale) / this.walkSpeed;
-    const [toA, toB] = this.endCosts(profile, snap);
-    const sources = [this.net.edgeA[snap.edge], this.net.edgeB[snap.edge]];
+    const { snap, access, sources, toA, toB } = start;
 
     // With closed sections, the same run with every section open, side by side in the second worker. The snapped edge
     // is open in both profiles (the snap index leaves out closed roads).
     const [r, base] = await Promise.all([
-      this.worker.run(sources, [access + toA, access + toB], maxSeconds),
-      baseline && this.baseWorker?.run(sources, this.endCosts(baseline, snap).map((c) => access + c), maxSeconds),
+      this.worker.run(sources, [access + toA, access + toB], maxSeconds, true, paths),
+      baseline && this.baseWorker?.run(sources, this.endCosts(baseline, snap).map((c) => access + c), maxSeconds, false, false),
     ]);
 
     // Only the times of the baseline are kept
-    if (base) this.baseWorker?.recycle([base.predNode.buffer, base.predEdge.buffer] as ArrayBuffer[]);
+    if (base) this.baseWorker?.recycle([base.times.buffer] as ArrayBuffer[]);
 
     return {
       profile,
       dist: r.dist,
       predNode: r.predNode,
       predEdge: r.predEdge,
+      times: r.times,
       snap,
       access,
       settled: r.settled,
@@ -275,9 +308,41 @@ export class TravelEngine {
     };
   }
 
-  /** Gives the buffers of a result back to the workers */
+  /** The run can be made on the main thread (`runNow`): the engine started there, and no closed section */
+  get canRunNow(): boolean {
+    return !!this.inline && !this.baseline;
+  }
+
+  /**
+   * The same run as `run`, on the main thread, synchronously: for runs of a few milliseconds, whose times then make
+   * the frame of the mouse move. Undefined off the network, or when it cannot run here (`canRunNow`).
+   */
+  runNow(x: number, y: number, maxSeconds: number, { paths = true }: { paths?: boolean } = {}): Result | undefined {
+    const { inline, profile } = this;
+    const start = this.start(x, y);
+    if (!inline || this.baseline || !start) return undefined;
+
+    const { snap, access, sources, toA, toB } = start;
+    const r = inline.run(sources, [access + toA, access + toB], maxSeconds, { texture: true, paths });
+
+    return { profile, ...r, snap, access, inline: true };
+  }
+
+  /** Where a run from (x, y) starts: the snapped street, the walk to it, its two ends and the seconds to each */
+  private start(x: number, y: number) {
+    const snap = this.snap(x, y);
+    if (!snap) return undefined;
+
+    const access = (snap.distance * this.groundScale) / this.walkSpeed;
+    const [toA, toB] = this.endCosts(this.profile, snap);
+
+    return { snap, access, sources: [this.net.edgeA[snap.edge], this.net.edgeB[snap.edge]], toA, toB };
+  }
+
+  /** Gives the buffers of a result back to the engine that made them */
   recycle(r: Result): void {
-    this.worker.recycle([r.dist.buffer, r.predNode.buffer, r.predEdge.buffer] as ArrayBuffer[]);
+    if (r.inline) return this.inline?.recycle([r.dist.buffer, r.predNode.buffer, r.predEdge.buffer, r.times.buffer] as ArrayBuffer[]);
+    this.worker.recycle([r.dist.buffer, r.predNode.buffer, r.predEdge.buffer, r.times.buffer] as ArrayBuffer[]);
     if (r.baseDist) this.baseWorker?.recycle([r.baseDist.buffer] as ArrayBuffer[]);
   }
 
@@ -335,6 +400,7 @@ export class TravelEngine {
   /** Edges from the origin to `node`, in travel order */
   path(r: Result, node: number): PathStep[] {
     const steps: PathStep[] = [];
+    if (!r.predNode.length) return steps;
     for (let n = node; r.predNode[n] !== NONE && steps.length < 5000; n = r.predNode[n]) {
       // Reversed graph (arrival): the predecessor is the node one travels to
       const from = r.profile.direction === 'departure' ? r.predNode[n] : n;
@@ -357,18 +423,32 @@ export class TravelEngine {
 
   /** Stations and lines one can board within `limit` seconds (bus lines only when the profile takes them) */
   reachedTransit(dist: Float32Array, limit: number): { stations: number; lines: number } {
-    const { net, profile } = this;
+    const { station, line } = this.boardings();
     const stations = new Set<number>();
     const lines = new Set<number>();
-    for (let e = 0; e < net.edgeCount; e += 1) {
-      if (net.edgeKind[e] !== EDGE_BOARD || !(profile.fwd[e] < Infinity)) continue;
-      if (dist[net.edgeA[e]] <= limit) {
-        stations.add(net.edgeA[e]);
-        lines.add(net.edgeName[e]);
+    for (let i = 0; i < station.length; i += 1)
+      if (dist[station[i]] <= limit) {
+        stations.add(station[i]);
+        lines.add(line[i]);
       }
-    }
 
     return { stations: stations.size, lines: lines.size };
+  }
+
+  /** The boardings the profile can take, station and line: read at every move, listed once per profile */
+  private boardings(): { station: Uint32Array; line: Uint32Array } {
+    const { net, profile } = this;
+    if (this.boardingCache?.profile === profile) return this.boardingCache;
+
+    const edges: number[] = [];
+    for (let e = 0; e < net.edgeCount; e += 1) if (net.edgeKind[e] === EDGE_BOARD && profile.fwd[e] < Infinity) edges.push(e);
+    this.boardingCache = {
+      profile,
+      station: Uint32Array.from(edges, (e) => net.edgeA[e]),
+      line: Uint32Array.from(edges, (e) => net.edgeName[e]),
+    };
+
+    return this.boardingCache;
   }
 
   /** The metro, RER or tram station reached first */
@@ -385,10 +465,11 @@ export class TravelEngine {
   /** Kilometres of cycle lanes and greenways reached within `limit` seconds */
   cyclewayKm(dist: Float32Array, limit: number): number {
     const { edgeA, edgeB, edgeLength, edgeKind, edgeFlags, edgeCount } = this.net;
+    this.cycleways ??= Uint32Array.from(
+      Array.from({ length: edgeCount }, (_, e) => e).filter((e) => edgeKind[e] === EDGE_ROAD && edgeFlags[e] & FLAG_CYCLEWAY),
+    );
     let m = 0;
-    for (let e = 0; e < edgeCount; e += 1)
-      if (edgeKind[e] === EDGE_ROAD && edgeFlags[e] & FLAG_CYCLEWAY && Math.max(dist[edgeA[e]], dist[edgeB[e]]) <= limit)
-        m += edgeLength[e];
+    for (const e of this.cycleways) if (Math.max(dist[edgeA[e]], dist[edgeB[e]]) <= limit) m += edgeLength[e];
 
     return m / 1000;
   }

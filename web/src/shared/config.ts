@@ -31,13 +31,6 @@ export const LANDMARKS: { name: string; at: LngLat }[] = [
   { name: 'IGN Saint-Mandé', at: [2.4246, 48.8457] },
 ];
 
-/** Contour lines up to the max time: every 10 min up to 30 min, every 15 min beyond */
-export const contourMinutes = (scale: number): number[] => {
-  const step = scale <= 30 ? 10 : 15;
-
-  return Array.from({ length: Math.floor(scale / step) }, (_, i) => (i + 1) * step);
-};
-
 /** GPF routing resource, to check a local route against the Géoplateforme */
 export const GPF_RESOURCE = 'bdtopo-valhalla';
 export const GPF_BASE = 'https://data.geopf.fr';

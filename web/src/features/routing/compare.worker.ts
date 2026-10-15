@@ -47,7 +47,9 @@ const prepare = (net: Network, mode: Mode, options: CompareOptions): { profile: 
   if (ready) return ready;
 
   const profile = buildProfile(net, { ...options, mode, direction: 'departure' });
-  const prepared = { profile, index: new SnapIndex(net, profile) };
+  // The islands of the network with every section open (see SnapIndex.build)
+  const open = options.closed.length ? buildProfile(net, { ...options, mode, direction: 'departure', closed: new Uint32Array(0) }) : profile;
+  const prepared = { profile, index: new SnapIndex(net, profile, open) };
   state.prepared.set(mode, prepared);
 
   return prepared;

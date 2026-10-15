@@ -5,10 +5,11 @@ import { AddressSearch } from '@/features/search';
 import { closedEdges, type Cut, cutKey, CutsPanel } from '@/features/cuts';
 import { cameraFor, type LiveInfo, MapView, type TargetInfo } from '@/features/map';
 import { SettingsPanel } from '@/features/settings';
+import { PerfPanel } from '@/features/perf';
 import { regionAt, regionById, regionHolds, startEngine, type StartupProgress, StartupScreen, STEP_START } from '@/features/regions';
 import { insight, TripPanel, useAddress, useGpfRoute } from '@/features/trip';
 import { DEFAULT_MODEL, type TravelEngine } from '@/features/routing';
-import { contourMinutes, type LngLat, MAX_SCALE, type Mode, type Camera } from '@/shared/config';
+import { type LngLat, MAX_SCALE, type Mode, type Camera } from '@/shared/config';
 import { readUrlState, urlHash, type ViewState } from '@/app/urlState';
 import { t } from '@/locales';
 import { toMercator } from '@/shared/mercator';
@@ -23,6 +24,8 @@ const App = (): ReactElement => {
   const [settled, setSettled] = useState<LngLat>();
   const [focus, setFocus] = useState<{ point: LngLat }>();
   const [notice, setNotice] = useState<string>();
+  /** The first region could not be loaded: the startup screen says so */
+  const [startupFailed, setStartupFailed] = useState(false);
   const [startup, setStartup] = useState<StartupProgress>({ step: 'download', percent: 0 });
   /** The first map is drawn: the startup screen fades out, then goes */
   const [ready, setReady] = useState(false);
@@ -30,16 +33,16 @@ const App = (): ReactElement => {
   const [previewOpen, setPreviewOpen] = useState(true);
   const [previewWidth, setPreviewWidth] = useState(320);
   const [cutMode, setCutMode] = useState(false);
-  const { pinned, mode, direction, bus, hour, scale, contours, model, cuts, perspective } = view;
+  const { pinned, mode, direction, bus, hour, scale, model, cuts, perspective } = view;
   const region = regionById(view.region);
   const hash = urlHash(view);
   /** Where the map looks: a new region's map opens on it, so that crossing a border does not move the view */
-  const camera = useRef<Camera>(cameraFor(view.pinned ?? region.start, perspective));
+  // The camera of the link (a reload opens where the map was), else the pinned point or the region's start
+  const camera = useRef<Camera>(view.camera ?? cameraFor(view.pinned ?? region.start, perspective));
   /** Another region loading while the current map stays: its name and progress */
   const [switching, setSwitching] = useState<{ name: string; progress: StartupProgress }>();
   const engineRef = useRef(engine);
   engineRef.current = engine;
-  const contourSeconds = useMemo(() => (contours ? contourMinutes(scale).map((c) => c * 60) : []), [contours, scale]);
 
   // The network of the region: at the start behind the startup screen, then, when the view enters another region,
   // in the background while the current map stays; the new engine and its map replace them once ready
@@ -68,7 +71,14 @@ const App = (): ReactElement => {
         }));
         setEngine(started.engine);
       })
-      .catch((error: unknown) => console.error(error));
+      .catch((error: unknown) => {
+        console.error(error);
+        if (load.cancelled) return;
+        // At the start, the startup screen says it; later, the current map stays
+        if (first) return setStartupFailed(true);
+        setSwitching(undefined);
+        setNotice(t.region.failed(region.name));
+      });
 
     return () => {
       load.cancelled = true;
@@ -115,7 +125,7 @@ const App = (): ReactElement => {
     },
     [update],
   );
-  const onModeChange = (m: Mode) => update({ mode: m, scale: Math.min(scale, MAX_SCALE[m]) });
+  const onModeChange = useCallback((m: Mode) => update({ mode: m, scale: Math.min(scale, MAX_SCALE[m]) }), [update, scale]);
   /**
    * Another region: its network replaces this one. The cuts belonged to the old network; the pinned point stays when
    * the new region holds it.
@@ -134,6 +144,7 @@ const App = (): ReactElement => {
   const onCamera = useCallback(
     (c: Camera) => {
       camera.current = c;
+      setView((v) => ({ ...v, camera: c }));
       if (regionHolds(region, c.center)) return;
       const next = regionAt(c.center);
       if (next && next.id !== region.id) onRegionChange(next.id);
@@ -207,7 +218,59 @@ const App = (): ReactElement => {
   const targetAddress = useAddress(pinned ? settled : undefined, 0);
   const gpfRoute = useGpfRoute(pinned, settled, mode, direction);
 
-  if (!engine) return <StartupScreen progress={startup} done={false} />;
+  // The panels that do not show the cursor's figures stay as they are while it moves (a render per move otherwise)
+  const net = engine?.net;
+  const cutImpact = cuts.length ? live?.cutImpact : undefined;
+  const addressSearch = useMemo(() => <AddressSearch onGo={goTo} />, [goTo]);
+  const cutsPanel = useMemo(
+    () =>
+      net && (
+        <CutsPanel
+          net={net}
+          cuts={cuts}
+          cutMode={cutMode}
+          onCutModeChange={setCutMode}
+          onToggle={onCutToggle}
+          onClear={() => update({ cuts: [] })}
+          impact={cutImpact}
+          scale={scale}
+        />
+      ),
+    [net, cuts, cutMode, cutImpact, onCutToggle, update, scale],
+  );
+  const settingsPanel = useMemo(
+    () => (
+      <SettingsPanel
+        region={region}
+        mode={mode}
+        onModeChange={onModeChange}
+        transitAvailable={transitAvailable}
+        bus={bus}
+        onBusChange={(b) => update({ bus: b })}
+        hour={hour}
+        onHourChange={(h) => update({ hour: h })}
+        model={model}
+        onModelChange={(patch) => update({ model: { ...model, ...patch } })}
+        onReset={() => update({ model: DEFAULT_MODEL, cuts: [] })}
+        cutMode={cutMode}
+        onCutModeChange={setCutMode}
+        perspective={perspective}
+        onPerspectiveChange={(p) => update({ perspective: p })}
+        direction={direction}
+        onDirectionChange={(d) => update({ direction: d })}
+        scale={scale}
+        onScaleChange={(s) => update({ scale: s })}
+        shareUrl={`${window.location.origin}${window.location.pathname}${hash}`}
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        width={previewWidth}
+        onWidthChange={setPreviewWidth}
+      />
+    ),
+    [region, mode, onModeChange, transitAvailable, bus, hour, model, update, cutMode, perspective, direction, scale, hash, previewOpen, previewWidth],
+  );
+
+  if (!engine) return <StartupScreen progress={startup} region={region.name} done={false} failed={startupFailed} />;
 
   const insightText = live && insight(mode, live, hour);
 
@@ -223,7 +286,6 @@ const App = (): ReactElement => {
         onCamera={onCamera}
         profileVersion={profileVersion}
         scale={scale * 60}
-        contours={contourSeconds}
         pinned={pinned}
         onPin={onPin}
         onLive={setLive}
@@ -240,7 +302,7 @@ const App = (): ReactElement => {
         perspective={perspective}
       />
       <Box className="left-slot">
-        <AddressSearch onGo={goTo} />
+        {addressSearch}
         <TripPanel
           mode={mode}
           direction={direction}
@@ -256,54 +318,19 @@ const App = (): ReactElement => {
           comparison={pinned && settled ? { modes: compareModes, seconds: comparison } : undefined}
           onModeChange={onModeChange}
         />
-        <CutsPanel
-          net={engine.net}
-          cuts={cuts}
-          cutMode={cutMode}
-          onCutModeChange={setCutMode}
-          onToggle={onCutToggle}
-          onClear={() => update({ cuts: [] })}
-          impact={cuts.length ? live?.cutImpact : undefined}
-          scale={scale}
-        />
+        {cutsPanel}
       </Box>
       <Box className="right-slot">
-        <SettingsPanel
-          region={region}
-          mode={mode}
-          onModeChange={onModeChange}
-          transitAvailable={transitAvailable}
-          bus={bus}
-          onBusChange={(b) => update({ bus: b })}
-          hour={hour}
-          onHourChange={(h) => update({ hour: h })}
-          model={model}
-          onModelChange={(patch) => update({ model: { ...model, ...patch } })}
-          onReset={() => update({ model: DEFAULT_MODEL, cuts: [] })}
-          cutMode={cutMode}
-          onCutModeChange={setCutMode}
-          perspective={perspective}
-          onPerspectiveChange={(p) => update({ perspective: p })}
-          direction={direction}
-          onDirectionChange={(d) => update({ direction: d })}
-          contours={contours}
-          onContoursChange={(c) => update({ contours: c })}
-          scale={scale}
-          onScaleChange={(s) => update({ scale: s })}
-          shareUrl={`${window.location.origin}${window.location.pathname}${hash}`}
-          open={previewOpen}
-          onOpenChange={setPreviewOpen}
-          width={previewWidth}
-          onWidthChange={setPreviewWidth}
-        />
+        {settingsPanel}
       </Box>
       {insightText && <Box className="insight-bar glass">{insightText}</Box>}
+      <PerfPanel />
       {switching && (
         <Box className="region-loading glass" role="status">
           <ProgressBar label={t.region.loading(switching.name)} value={Math.round(switching.progress.percent)} animated size="sm" />
         </Box>
       )}
-      {!startupGone && <StartupScreen progress={startup} done={ready} />}
+      {!startupGone && <StartupScreen progress={startup} region={region.name} done={ready} />}
     </Box>
   );
 };

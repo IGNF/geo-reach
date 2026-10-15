@@ -15,9 +15,7 @@ export type ReferenceKey =
   | 'gtfs'
   | 'dijkstra'
   | 'chen'
-  | 'sharir'
-  | 'borgefors'
-  | 'lorensen';
+  | 'sharir';
 
 const en = {
   example: 'Made-up example: the values show the computation.',
@@ -35,8 +33,6 @@ const en = {
     dijkstra: 'Dijkstra (1959), “A note on two problems in connexion with graphs”, Numerische Mathematik 1',
     chen: 'Chen, Chowdhury, Ramachandran, Roche and Tong (2007), “Priority queues and Dijkstra’s algorithm”, UTCS TR-07-54',
     sharir: 'Sharir (1981), “A strong-connectivity algorithm and its applications in data flow analysis” (Kosaraju’s algorithm)',
-    borgefors: 'Borgefors (1986), “Distance transformations in digital images”, Computer Vision, Graphics, and Image Processing 34',
-    lorensen: 'Lorensen and Cline (1987), “Marching cubes”, ACM SIGGRAPH Computer Graphics 21 (marching squares in 2D)',
   } satisfies Record<ReferenceKey, string>,
   buildGraph: {
     head: ['Point', 'Height', 'Counted'],
@@ -120,19 +116,6 @@ const en = {
       ],
     } satisfies FormulaText,
     note: 'Starts from the two ends of the street under the cursor at once. No decrease-key: an improved node is pushed again and its old entry is skipped when it comes out, which is faster in practice.',
-  },
-  contours: {
-    level: (t: string): string => `${t} min line`,
-    formula: {
-      lines: ['t(c) = min(t(c), t(n) + w × k)', 'x = (T − t_0) / (t_1 − t_0)'],
-      terms: [
-        ['t(c)', 'time of a 150 m cell: its best street node first'],
-        ['w', 'walk across a cell (150 m at 4 km/h = 135 s), at most 2 cells from a street'],
-        ['k', '1 to a side neighbour n, √2 to a diagonal one'],
-        ['x', 'where the line of duration T crosses the side of a cell, between its corners t_0 and t_1'],
-      ],
-    } satisfies FormulaText,
-    note: 'Two passes over the grid (chamfer distance) spread the times between the streets; each cell then gives a piece of line where its corners fall on both sides of the duration (marching squares).',
   },
   layer: {
     meet: 'two waves meet',
@@ -310,19 +293,6 @@ const fr: typeof en = {
     },
     note: 'Part des deux extrémités de la rue sous le curseur à la fois. Pas de « decrease-key » : un nœud amélioré est remis dans le tas et son ancienne entrée ignorée à sa sortie, ce qui est plus rapide en pratique.',
   },
-  contours: {
-    level: (t) => `ligne ${t} min`,
-    formula: {
-      lines: ['t(c) = min(t(c), t(n) + w × k)', 'x = (T − t_0) / (t_1 − t_0)'],
-      terms: [
-        ['t(c)', 'temps d’une maille de 150 m : d’abord son meilleur nœud de rue'],
-        ['w', 'traversée d’une maille à pied (150 m à 4 km/h = 135 s), au plus 2 mailles depuis une rue'],
-        ['k', '1 vers un voisin n de côté, √2 en diagonale'],
-        ['x', 'où la ligne de durée T coupe le côté d’une maille, entre ses coins t_0 et t_1'],
-      ],
-    },
-    note: 'Deux passes sur la grille (distance de chanfrein) étalent les temps entre les rues ; chaque maille donne ensuite un morceau de ligne là où ses coins tombent de part et d’autre de la durée (marching squares).',
-  },
   layer: {
     meet: 'deux fronts se rejoignent',
     formula: {
@@ -425,6 +395,4 @@ export const REFERENCES: Record<ReferenceKey, string> = {
   dijkstra: 'https://doi.org/10.1007/BF01386390',
   chen: 'https://www.cs.utexas.edu/ftp/techreports/tr07-54.pdf',
   sharir: 'https://doi.org/10.1016/0898-1221(81)90008-0',
-  borgefors: 'https://doi.org/10.1016/S0734-189X(86)80047-0',
-  lorensen: 'https://doi.org/10.1145/37402.37422',
 };

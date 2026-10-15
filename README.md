@@ -3,7 +3,7 @@
 ### How far can you go in 15 minutes, from anywhere in France?
 
 Move the mouse: travel times on foot, by bike, by car or by public transport are recomputed **at every move**, and
-the map lights up from green (close) to red (far).
+the map lights up from green (close) to red, then violet (far).
 
 **[▶ Open the demo](https://ignf.github.io/geo-reach/)** · [How it works](https://ignf.github.io/geo-reach/how-it-works.html)
 · desktop browser recommended
@@ -79,7 +79,8 @@ docs/            technical documentation
 `cargo clippy --workspace --all-targets`; time it with `bun scripts/benchEngine.ts [region]`.
 
 **Rebuild the data**: `bun run data -- <region>|all` (roads) and `bun run transit -- <region>|all` (timetables); the
-downloads are cached in `.cache/`.
+downloads are cached in `.cache/`. The outlines of the regions (which one a searched place is in) come from
+`bun scripts/regionShapes.ts`.
 
 **Deployment**: every push to `main` publishes the site on GitHub Pages.
 

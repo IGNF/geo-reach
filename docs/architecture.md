@@ -18,12 +18,13 @@ flowchart LR
   end
 
   subgraph browser["Browser (web)"]
-    L[network.ts + transit.ts<br/>decode and merge] --> P[profile.ts<br/>costs + CSR graph]
+    L[network.worker.ts<br/>download, decode, merge,<br/>first profile + snap index] --> P[profile.ts<br/>costs + CSR graph]
     C[cuts.ts<br/>closed sections] -->|closed edges| P
     P --> E[travelEngine.ts<br/>snap + WASM Dijkstra]
     E -->|with closures: run all open too| B[baseline worker]
     B -->|delayed stations| UI
-    E -->|node times| R[networkLayer.ts<br/>WebGL custom layer]
+    E -->|node times| R[networkRenderer.ts<br/>WebGL, hosted by MapLibre]
+    P -->|segments.worker.ts<br/>segments by square| R
     R -->|same node times| BG[buildingGlLayer.ts<br/>3D buildings]
     E -->|path| UI[TripPanel / labels]
     UI -.cursor stops.-> GPF["GPF itineraire<br/>+ reverse geocoding"]
@@ -47,13 +48,14 @@ web/src/
   app/                  entry point, root component (App.tsx), global styles, view state in the URL
   features/
     routing/            networks (read, grafted), per-mode profiles, snapping, the WASM engine and its workers
-    map/                MapLibre map, network layer (WebGL), isochrone lines and their worker, camera
+    map/                MapLibre map, network renderer (WebGL) and its MapLibre layer, camera
     buildings/          3D buildings: tiles extruded in a worker, WebGL layer colored by the node times
     cuts/               closed sections: model, map layer, panel
     trip/               trip panel, legs, mode comparison, Géoplateforme route and addresses
     settings/           settings panel, mode picker, model of the travel times
     search/             address search
-    regions/            the 13 regions, startup (download, decode, engine) and its screen
+    regions/            the 13 regions (boxes, and outlines in shapes.json to tell which one a point is in, by
+                        scripts/regionShapes.ts), startup (a worker downloads and decodes, then the engine) and its screen
   shared/               config, formatting, colors, projection, bounds, WebGL helpers, binary reader, data cache,
                         Géoplateforme client, ui/ (Brand, LineBadge)
   pages/                how-it-works/ (diagram, step details, made-up town running TravelEngine), legal/
@@ -124,7 +126,7 @@ mode.
 
 ## State and sharing
 
-The view (`mode/direction/scale/contours/bus/lng,lat/hour/model/cuts`) lives in the URL hash (`app/urlState.ts`): a copied link
+The view (`mode/direction/scale/-/bus/lng,lat/hour/model/cuts`; the `-` slot held the former contour lines) lives in the URL hash (`app/urlState.ts`): a copied link
 opens the same view. No other persistence.
 
 ## More

@@ -5,6 +5,7 @@ import type { TravelEngine } from '@/features/routing';
 import { GPF_BASE } from '@/shared/config';
 import type { NetworkLayer } from '@/features/map';
 import { linkProgram, rampTexture, TIMES_WIDTH, zoneMatrix, zoneOrigin } from '@/shared/gl';
+import { perf } from '@/shared/perf';
 
 /** The BD TOPO vector tiles carry the buildings from zoom 15 */
 export const BUILDINGS_MIN_ZOOM = 15;
@@ -141,7 +142,16 @@ export class BuildingGlLayer implements CustomLayerInterface {
     this.worker.terminate();
   }
 
+  /** Tiles of buildings on the graphics card */
+  get tileCount(): number {
+    return [...this.tiles.values()].filter((tile) => tile.gpu).length;
+  }
+
   render(gl: WebGL2RenderingContext, args: CustomRenderMethodInput): void {
+    perf.time('buildings', () => this.draw(gl, args));
+  }
+
+  private draw(gl: WebGL2RenderingContext, args: CustomRenderMethodInput): void {
     const times = this.network.timesTexture;
     if (!this.visible || !this.program || !this.map || !times || this.map.getZoom() < DRAW_ZOOM) return;
 
@@ -298,6 +308,7 @@ export class BuildingGlLayer implements CustomLayerInterface {
     const { gl } = this;
     if (!gl) return;
 
+    const t0 = performance.now();
     const rows = Math.ceil(mesh.buildings / ANCHOR_WIDTH);
     const data = new Float32Array(ANCHOR_WIDTH * rows * 4);
     for (let i = 0; i < mesh.buildings; i += 1) {
@@ -308,6 +319,7 @@ export class BuildingGlLayer implements CustomLayerInterface {
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, ANCHOR_WIDTH, rows, 0, gl.RGBA, gl.FLOAT, data);
     for (const p of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, p, gl.NEAREST);
+    perf.record('anchors', performance.now() - t0);
   }
 
   private drop(tile: Tile): void {

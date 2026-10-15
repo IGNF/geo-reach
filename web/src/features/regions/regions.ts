@@ -1,5 +1,6 @@
 import type { LngLat } from '@/shared/config';
 import regionsJson from './regions.json';
+import shapesJson from './shapes.json';
 
 /** Box `[minLng, minLat, maxLng, maxLat]`, degrees */
 export type LngLatBox = [number, number, number, number];
@@ -48,5 +49,30 @@ const inBox = ([lng, lat]: LngLat, [minLng, minLat, maxLng, maxLat]: LngLatBox):
 /** The point is in the region's box (its network reaches a little further, its margin) */
 export const regionHolds = (region: Region, point: LngLat): boolean => inBox(point, region.bbox);
 
-/** The region a point is in (the first whose box holds it), if any */
-export const regionAt = (point: LngLat): Region | undefined => REGIONS.find((r) => inBox(point, r.bbox));
+/** A ring of flat `lng, lat, lng, lat…` holds the point (even-odd rule) */
+const ringHolds = (ring: number[], [lng, lat]: LngLat): boolean => {
+  let inside = false;
+  for (let i = 0, j = ring.length - 2; i < ring.length; j = i, i += 2) {
+    const [xi, yi, xj, yj] = [ring[i], ring[i + 1], ring[j], ring[j + 1]];
+    if (yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+
+  return inside;
+};
+
+/** Outlines of the regions (ADMIN EXPRESS, simplified to about 1 km by scripts/regionShapes.ts): polygons of rings */
+const SHAPES: Record<string, number[][][]> = shapesJson;
+
+const outlineHolds = (region: Region, point: LngLat): boolean =>
+  (SHAPES[region.id] ?? []).some(([outer, ...holes]) => ringHolds(outer, point) && !holes.some((h) => ringHolds(h, point)));
+
+/**
+ * The region a point is in, if any. The boxes of neighbouring regions overlap (Serre Chevalier, in the Hautes-Alpes,
+ * is in the boxes of both Auvergne-Rhône-Alpes and Provence-Alpes-Côte d'Azur): the region whose outline holds the
+ * point, else (at sea, just off the coast) the first box holding it.
+ */
+export const regionAt = (point: LngLat): Region | undefined => {
+  const boxes = REGIONS.filter((r) => inBox(point, r.bbox));
+
+  return boxes.find((r) => outlineHolds(r, point)) ?? boxes[0];
+};

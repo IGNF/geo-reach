@@ -24,5 +24,8 @@ export {
   tobler,
   TRAFFIC,
 } from './profile';
+export { type LoadedNetwork, loadNetwork } from './loadNetwork';
+export { pointFractions } from './snap';
 export { readTransit } from './transit';
+export { MAX_SNAP_METRES } from './trip';
 export { type CutImpact, type PathStep, type Result, TravelEngine } from './travelEngine';

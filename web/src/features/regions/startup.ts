@@ -1,6 +1,5 @@
 import { closedEdges, type Cut, edgesOfCut } from '@/features/cuts';
-import { type Network, type ProfileOptions, readRoadNetwork, readTransit, TravelEngine } from '@/features/routing';
-import { loadData } from '@/shared/dataCache';
+import { loadNetwork, type ProfileOptions, TravelEngine } from '@/features/routing';
 import { graphUrl, type Region, transitUrl } from './regions';
 
 /** Steps of the start, in order; the map and the first computation happen once the engine is handed over */
@@ -29,10 +28,6 @@ export const STEP_START: Record<StartupStep, number> = {
  * as the download goes on, never stops, and jumps to its step at the end
  */
 const UNKNOWN_SIZE_SCALE = 12_000_000;
-
-/** Lets the browser paint the bar before a long synchronous step */
-const nextPaint = (): Promise<void> =>
-  new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
 
 export interface Started {
   engine: TravelEngine;
@@ -72,27 +67,19 @@ export const startEngine = async (
   const transit = transitUrl(region);
   // Without a transit file, the bar measures the roads alone
   if (!transit) files.transit.total = 1;
-  const [graphBuffer, transitBuffer] = await Promise.all([
-    loadData(graphUrl(region), track('graph')),
-    transit ? loadData(transit, track('transit')).catch(() => undefined) : undefined,
-  ]);
+  // Decoded, grafted and indexed in a worker: the map in view keeps moving while another region loads
+  const loaded = await loadNetwork(
+    { graphUrl: graphUrl(region), transitUrl: transit, options: { ...options, closed: new Uint32Array(0) } },
+    { onDownload: (file, bytes, total) => track(file)(bytes, total), onStep: (step) => onProgress({ step, percent: STEP_START[step] }) },
+  );
+  const { net } = loaded;
 
-  onProgress({ step: 'roads', percent: STEP_START.roads });
-  await nextPaint();
-  const roads = readRoadNetwork(graphBuffer);
-
-  onProgress({ step: 'transit', percent: STEP_START.transit });
-  await nextPaint();
-  const net: Network = transitBuffer ? readTransit(transitBuffer)(roads) : roads;
-
-  onProgress({ step: 'engine', percent: STEP_START.engine });
-  await nextPaint();
   // Cuts of a link made on other data are dropped
   const valid = cuts.filter((c) => edgesOfCut(net, c).length);
-  const mode = !transitBuffer && options.mode === 'transit' ? 'pedestrian' : options.mode;
-  const engine = await TravelEngine.create(net, { ...options, mode, closed: closedEdges(net, valid) });
+  const mode = !loaded.transit && options.mode === 'transit' ? 'pedestrian' : options.mode;
+  const engine = await TravelEngine.create(net, { ...options, mode, closed: closedEdges(net, valid) }, loaded.first);
 
   onProgress({ step: 'map', percent: STEP_START.map });
 
-  return { engine, transit: !!transitBuffer, cuts: valid };
+  return { engine, transit: loaded.transit, cuts: valid };
 };

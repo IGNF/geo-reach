@@ -2,7 +2,6 @@ import { Box } from '@ign-junn/design-system';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type * as GeoJSON from 'geojson';
 import {
-  type FilterSpecification,
   type GeoJSONSource,
   type IControl,
   Map as MlMap,
@@ -15,15 +14,15 @@ import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&ur
 import { useEffect, useRef, type ReactElement } from 'react';
 import { type Cut, CutLayer } from '@/features/cuts';
 import { type Leg, toLegs } from '@/features/trip';
-import { type CutImpact, EDGE_BOARD, EDGE_RIDE, FLAG_BUS, type Result, TravelEngine } from '@/features/routing';
+import { type CutImpact, EDGE_BOARD, EDGE_RIDE, FLAG_BUS, MAX_SNAP_METRES, type Result, TravelEngine } from '@/features/routing';
 import { BASEMAP_STYLE, type Camera, HILLSHADE_TILES, LANDMARKS, type LngLat, type Perspective, type Mode } from '@/shared/config';
 import { rampCss } from '@/shared/colors';
 import { formatMinutes } from '@/shared/format';
 import { fromMercator, toMercator } from '@/shared/mercator';
+import { perf } from '@/shared/perf';
 import { t } from '@/locales';
 import { BuildingGlLayer } from '@/features/buildings';
 import { BUILDINGS_ZOOM, minZoomFor, TILT, TILT_PITCH } from './camera';
-import { ContourLines } from './contourLines';
 import { NetworkLayer } from './networkLayer';
 
 setWorkerUrl(maplibreWorkerUrl);
@@ -63,8 +62,6 @@ interface MapViewProps {
   profileVersion: number;
   /** Seconds */
   scale: number;
-  /** Seconds */
-  contours: number[];
   /** Pinned origin; undefined: the origin follows the cursor */
   pinned?: LngLat;
   onPin: (point: LngLat | undefined) => void;
@@ -91,6 +88,11 @@ interface MapViewProps {
 }
 
 const PANEL_THROTTLE_MS = 60;
+/**
+ * Runs that last took less than this are made on the main thread, in the mouse handler, so that the frame of the
+ * move draws their times; longer ones go to the worker
+ */
+const MAIN_THREAD_MS = 4;
 const SETTLE_MS = 350;
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 
@@ -179,6 +181,18 @@ class ButtonControl implements IControl {
   }
 }
 
+const PERF_ICON =
+  '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>';
+
+/** The graphics card the map draws with */
+const gpuName = (canvas: HTMLCanvasElement): string => {
+  const gl = canvas.getContext('webgl2');
+  if (!gl) return '?';
+  const info = gl.getExtension('WEBGL_debug_renderer_info');
+
+  return String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER));
+};
+
 const markerElement = (className: string) => {
   const el = document.createElement('div');
   el.className = className;
@@ -192,7 +206,6 @@ const MapView = ({
   onCamera,
   profileVersion,
   scale,
-  contours,
   pinned,
   onPin,
   onLive,
@@ -214,7 +227,6 @@ const MapView = ({
     camera,
     onCamera,
     scale,
-    contours,
     pinned,
     onPin,
     onLive,
@@ -239,6 +251,12 @@ const MapView = ({
     ready: boolean;
     /** Latest cursor position, Mercator metres relative to the zone */
     cursor?: [number, number];
+    /** When the cursor was there, for the latency measure */
+    cursorAt?: number;
+    /** Engine time of the last run, to choose where the next one runs (unknown after a change of profile) */
+    lastRunMs: number;
+    /** The last run was made on the main thread */
+    runOnMain: boolean;
     frame: number;
     lastPanel: number;
     settleTimer?: ReturnType<typeof setTimeout>;
@@ -251,7 +269,7 @@ const MapView = ({
     clearHover: () => void;
     /** Cut mode on: the map stays computed from the pinned point, else from the cursor's last position */
     freeze: () => void;
-  }>({ ready: false, frame: 0, lastPanel: 0, refresh: () => undefined, drawCuts: () => undefined, clearHover: () => undefined, freeze: () => undefined });
+  }>({ ready: false, frame: 0, lastPanel: 0, lastRunMs: Infinity, runOnMain: false, refresh: () => undefined, drawCuts: () => undefined, clearHover: () => undefined, freeze: () => undefined });
 
   useEffect(() => {
     const container = containerRef.current;
@@ -303,6 +321,16 @@ const MapView = ({
     };
     map.on('pitchend', showTilt);
     map.once('load', showTilt);
+    // Rendering measures, for a stutter: frames, engine, main thread, GPU layers
+    const perfButton = new ButtonControl(PERF_ICON, t.perf.button, () => perf.setOpen(!perf.open));
+    map.addControl(perfButton, 'bottom-right');
+    const showPerf = (): void => {
+      perfButton.button.classList.toggle('active', perf.open);
+      perfButton.button.setAttribute('aria-pressed', String(perf.open));
+    };
+    showPerf();
+    const stopPerf = perf.subscribe(showPerf);
+    map.on('render', () => perf.frame());
     c.map = map;
     const layer = new NetworkLayer(net);
     const buildings = new BuildingGlLayer(engine, layer);
@@ -356,8 +384,6 @@ const MapView = ({
       return true;
     };
 
-    const contourLines = new ContourLines(map, engine);
-
     const summary = (r: Result, point: LngLat): LiveInfo => {
       const limit = live.current.scale;
       const mode = engine.profile.mode;
@@ -386,10 +412,23 @@ const MapView = ({
       };
     };
 
-    /** One frame of work for the latest cursor position */
-    // One run at a time in the worker: moves made meanwhile collapse into one run from the latest position, and the
-    // map keeps showing the last result until the next one is ready
+    /** One run for the latest cursor position */
+    // One run at a time: moves made meanwhile collapse into one run from the latest position, and the map keeps
+    // showing the last result until the next one is ready. A short run is made on the main thread, right in the mouse
+    // handler: its times are drawn by the frame of that very move. A long one goes to the worker (the map stays fluid,
+    // the times come a frame later).
     const runs: { busy: boolean; dirty: boolean; shown?: Result } = { busy: false, dirty: false };
+    const show = (r: Result | undefined, cursor: [number, number], cursorAt: number | undefined) => {
+      if (r) {
+        perf.record('run', r.runMs);
+        c.lastRunMs = r.runMs;
+        c.runOnMain = !!r.inline;
+      }
+      perf.time('apply', () => apply(r, cursor));
+      perf.update(cursorAt);
+      if (runs.shown && runs.shown !== r) engine.recycle(runs.shown);
+      runs.shown = r;
+    };
     const process = () => {
       c.frame = 0;
       if (runs.busy) {
@@ -397,34 +436,46 @@ const MapView = ({
 
         return;
       }
-      runs.busy = true;
 
       const pin = live.current.pinned;
       const cursor: [number, number] = c.cursor ?? toRel(pin ?? live.current.camera.center);
+      const cursorAt = c.cursorAt;
+      const sent = performance.now();
+      // The predecessors only with a pinned point: the trip to it is traced
+      const options = { paths: !!pin };
+      if (engine.canRunNow && c.lastRunMs < MAIN_THREAD_MS) {
+        const r = engine.runNow(cursor[0], cursor[1], live.current.scale, options);
+        perf.record('roundTrip', performance.now() - sent);
+        show(r, cursor, cursorAt);
+
+        return;
+      }
+
+      runs.busy = true;
       engine
-        .run(cursor[0], cursor[1], live.current.scale)
+        .run(cursor[0], cursor[1], live.current.scale, options)
         .then((r) => {
-          apply(r, cursor);
-          if (runs.shown && runs.shown !== r) engine.recycle(runs.shown);
-          runs.shown = r;
+          perf.record('roundTrip', performance.now() - sent);
+          show(r, cursor, cursorAt);
         })
         .finally(() => {
           runs.busy = false;
+          // A move came meanwhile: its run starts right away, without waiting for a frame
           if (runs.dirty) {
             runs.dirty = false;
-            schedule();
+            runNow();
           }
         });
     };
 
-    /** Shows a result: network colors, contours, figures, and the trip to the anchored point */
+    /** Shows a result: network colors, figures, and the trip to the anchored point */
     const firstFrame = { done: false };
     const apply = (r: Result | undefined, cursor: [number, number]) => {
-      const { scale: s, contours: cs, pinned: pin } = live.current;
-      layer.setStyle({ scale: s, contours: [] });
+      const { scale: s, pinned: pin } = live.current;
+      layer.setStyle({ scale: s });
       // The colors always follow the cursor: from it (departure) or towards it (arrival)
       // The buildings read the same times: they follow the cursor too
-      layer.setTimes(r?.dist);
+      layer.setTimes(r?.times);
 
       // The first result drawn (even an empty one, a point off the network): the startup screen can go
       if (!firstFrame.done) {
@@ -433,7 +484,6 @@ const MapView = ({
         map.triggerRepaint();
       }
 
-      contourLines.draw(r?.dist, cs);
       // One panel slot per frame, shared by the figures and the trip
       const due = panelDue();
       if (due) live.current.onLive(r && summary(r, toLngLat(cursor)));
@@ -452,7 +502,7 @@ const MapView = ({
       label.setLngLat(pin);
       if (!label.getElement().isConnected) label.addTo(map);
       if (!r || !at || at.seconds > s) {
-        labelEl.textContent = at ? `> ${formatMinutes(s / 60)}` : t.outsideZone;
+        labelEl.textContent = at ? `> ${formatMinutes(s / 60)}` : t.outsideZone(MAX_SNAP_METRES);
         labelEl.style.setProperty('--label-color', '#777');
         setRoute(undefined);
         if (due) live.current.onTarget(undefined);
@@ -471,6 +521,11 @@ const MapView = ({
     };
     function schedule() {
       if (!c.frame) c.frame = requestAnimationFrame(process);
+    }
+    /** The run for the latest cursor position, now rather than at the next frame: its times can make that frame */
+    function runNow() {
+      cancelAnimationFrame(c.frame);
+      process();
     }
     c.refresh = () => {
       const pin = live.current.pinned;
@@ -504,7 +559,8 @@ const MapView = ({
       if (live.current.cutMode) return cutLayer.hover(e.point, point);
 
       c.cursor = toRel(point);
-      schedule();
+      c.cursorAt = performance.now();
+      runNow();
       clearTimeout(c.settleTimer);
       c.settleTimer = setTimeout(() => live.current.onSettle(live.current.pinned ? point : undefined), SETTLE_MS);
     });
@@ -610,47 +666,6 @@ const MapView = ({
           firstSymbol,
         );
       }
-      map.addSource('contours', { type: 'geojson', data: EMPTY });
-      // A multi-line cut into tiles can come back as a LineString: everything but the label points
-      const contourLines: FilterSpecification = ['!=', ['geometry-type'], 'Point'];
-      // White casing under a dark line, so that the isochrone stands out over the colored network
-      map.addLayer(
-        {
-          id: 'contours-casing',
-          type: 'line',
-          source: 'contours',
-          filter: contourLines,
-          layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: { 'line-color': '#fff', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2.5, 15, 3.5], 'line-opacity': 0.9 },
-        },
-        firstSymbol,
-      );
-      map.addLayer(
-        {
-          id: 'contours',
-          type: 'line',
-          source: 'contours',
-          filter: contourLines,
-          layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: { 'line-color': '#1d1d1f', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 1, 15, 1.5] },
-        },
-        firstSymbol,
-      );
-      map.addLayer({
-        id: 'contours-label',
-        type: 'symbol',
-        source: 'contours',
-        filter: ['==', ['geometry-type'], 'Point'],
-        layout: {
-          'text-field': ['concat', ['to-string', ['get', 'minutes']], ' min'],
-          'text-font': ['Source Sans Pro Regular'],
-          'text-size': 14,
-          'text-anchor': 'bottom',
-          'text-offset': [0, -0.2],
-          'text-allow-overlap': true,
-        },
-        paint: { 'text-color': '#111', 'text-halo-color': '#fff', 'text-halo-width': 2.5 },
-      });
       cutLayer.addLayers();
       c.drawCuts();
       map.addSource('route', { type: 'geojson', data: EMPTY });
@@ -676,12 +691,30 @@ const MapView = ({
       styleGroundLayers(map, engine.profile.mode);
       c.ready = true;
       c.refresh();
+      const gpu = gpuName(map.getCanvas());
+      perf.setProbe(() => {
+        const canvas = map.getCanvas();
+
+        return {
+          gpu,
+          canvas: [canvas.width, canvas.height],
+          dpr: window.devicePixelRatio || 1,
+          zoom: map.getZoom(),
+          tilesLoading: !map.areTilesLoaded(),
+          segments: layer.renderer.segments,
+          drawnSegments: layer.renderer.drawnSegments,
+          engineOnMain: c.runOnMain,
+          buildingTiles: buildings.tileCount,
+        };
+      });
     });
 
     return () => {
       cancelAnimationFrame(c.frame);
       clearTimeout(c.settleTimer);
-      contourLines.terminate();
+      stopPerf();
+      perf.setProbe(undefined);
+      layer.renderer.dispose();
       // Its tile worker and its GPU buffers go with the map (another region, another engine)
       if (map.getLayer(buildings.id)) map.removeLayer(buildings.id);
       map.remove();
@@ -694,6 +727,8 @@ const MapView = ({
   // Profile (mode, direction, bus, hour, model) or bound changed: new geometry, new run
   useEffect(() => {
     const c = ctl.current;
+    // The first run of the new settings goes to the worker: it tells how long they take
+    c.lastRunMs = Infinity;
     c.layer?.setProfile(engine.profile);
     if (c.ready && c.map) styleGroundLayers(c.map, engine.profile.mode);
     if (c.ready) c.refresh();
@@ -723,10 +758,6 @@ const MapView = ({
     if (c.ready) c.refresh();
   }, [pinned]);
 
-  useEffect(() => {
-    const c = ctl.current;
-    if (c.ready) c.refresh();
-  }, [contours]);
 
   useEffect(() => {
     const c = ctl.current;

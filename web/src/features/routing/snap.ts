@@ -15,6 +15,33 @@ export interface Snap {
   y: number;
 }
 
+/** Fractions along their edge of the geometry points, per network: they do not depend on the profile */
+const fractions = new WeakMap<object, Float32Array>();
+
+/** Fraction along its edge (0 at A, 1 at B, by length) of each geometry point of the network, computed once */
+export const pointFractions = (net: Pick<Network, 'coords' | 'coordStart' | 'edgeCount'>): Float32Array => {
+  const known = fractions.get(net);
+  if (known) return known;
+
+  const { coords, coordStart } = net;
+  const frac = new Float32Array(coords.length / 2);
+  for (let e = 0; e < net.edgeCount; e += 1) {
+    const [s, t] = [coordStart[e], coordStart[e + 1]];
+    let total = 0;
+    for (let p = s + 1; p < t; p += 1) {
+      const dx = coords[p * 2] - coords[p * 2 - 2];
+      const dy = coords[p * 2 + 1] - coords[p * 2 - 1];
+      total += Math.sqrt(dx * dx + dy * dy);
+      frac[p] = total;
+    }
+    const scale = total > 0 ? 1 / total : 0;
+    for (let p = s; p < t; p += 1) frac[p] *= scale;
+  }
+  fractions.set(net, frac);
+
+  return frac;
+};
+
 /** A group of streets smaller than this, cut off from the rest for a mode, is an island no trip starts from */
 const MIN_COMPONENT_NODES = 500;
 
@@ -97,6 +124,17 @@ const strongComponents = ({ offsets, heads }: Profile, nodes: number): { compone
   return { component, size: Uint32Array.from(sizes) };
 };
 
+/** A built snap index, as it travels between threads */
+export interface SnapParts {
+  cellStart: Uint32Array;
+  items: Uint32Array;
+  cols: number;
+  rows: number;
+  minX: number;
+  minY: number;
+  pointFrac: Float32Array;
+}
+
 /**
  * Grid of the road segments a profile can use, to attach any cursor position to the nearest one (the cursor can be
  * in a park, on a building: it walks to the street first).
@@ -113,62 +151,66 @@ export class SnapIndex {
 
   private readonly net: Network;
 
-  constructor(net: Network, profile: Profile) {
+  /**
+   * An index built elsewhere (the worker loading the region), or built here for this profile. `islandsOf`: the profile
+   * whose islands are left out, the same one without closed sections (see `build`).
+   */
+  constructor(net: Network, from: Profile | SnapParts, islandsOf?: Profile) {
     this.net = net;
+    const parts = 'cellStart' in from ? from : SnapIndex.build(net, from, islandsOf);
+    if (!fractions.has(net)) fractions.set(net, parts.pointFrac);
+    this.cellStart = parts.cellStart;
+    this.items = parts.items;
+    this.cols = parts.cols;
+    this.rows = parts.rows;
+    this.minX = parts.minX;
+    this.minY = parts.minY;
+    this.pointFrac = parts.pointFrac;
+  }
+
+  /**
+   * The islands are found on `islandsOf` (default: the profile itself). With closed sections, it is the same profile
+   * with every section open: a village a closed bridge cuts off stays where a point near it snaps to, and is shown
+   * unreached, rather than leaving the index (its points would snap across the river, to streets the cut does not
+   * concern).
+   */
+  static build(net: Network, profile: Profile, islandsOf: Profile = profile): SnapParts {
     const { coords, coordStart } = net;
     const [minX, minY, maxX, maxY] = pointsBounds(coords);
-    this.minX = minX;
-    this.minY = minY;
-    this.cols = Math.ceil((maxX - minX) / CELL) + 1;
-    this.rows = Math.ceil((maxY - minY) / CELL) + 1;
-
-    this.pointFrac = new Float32Array(coords.length / 2);
-    for (let e = 0; e < net.edgeCount; e += 1) {
-      const [s, t] = [coordStart[e], coordStart[e + 1]];
-      let total = 0;
-      for (let p = s + 1; p < t; p += 1) {
-        total += Math.hypot(coords[p * 2] - coords[p * 2 - 2], coords[p * 2 + 1] - coords[p * 2 - 1]);
-        this.pointFrac[p] = total;
-      }
-      for (let p = s; p < t; p += 1) this.pointFrac[p] = total > 0 ? this.pointFrac[p] / total : 0;
-    }
+    const cols = Math.ceil((maxX - minX) / CELL) + 1;
+    const rows = Math.ceil((maxY - minY) / CELL) + 1;
 
     // Segments of usable roads, bucketed by the cell of their middle (cells are larger than most segments). A road
     // outside the main network of the mode (a one-way street into a dead end, a car street inside a pedestrian zone)
     // is left out: a point snapped there could not leave it, or reach it.
-    const open = (e: number): boolean =>
-      net.edgeKind[e] === EDGE_ROAD && (profile.fwd[e] < Infinity || profile.bwd[e] < Infinity);
-    const { component, size } = strongComponents(profile, net.nodeCount);
-    const usable = (e: number): boolean => {
-      const [ca, cb] = [component[net.edgeA[e]], component[net.edgeB[e]]];
-
-      return open(e) && ca === cb && size[ca] >= MIN_COMPONENT_NODES;
-    };
-    const cellOf = (p: number) => {
-      const x = (coords[p * 2] + coords[p * 2 + 2]) / 2;
-      const y = (coords[p * 2 + 1] + coords[p * 2 + 3]) / 2;
-
-      return Math.floor((y - minY) / CELL) * this.cols + Math.floor((x - minX) / CELL);
-    };
-    const counts = new Uint32Array(this.cols * this.rows + 1);
-    const forEachSegment = (fn: (p: number) => void) => {
-      for (let e = 0; e < net.edgeCount; e += 1) {
-        if (!usable(e)) continue;
-        for (let p = coordStart[e]; p < coordStart[e + 1] - 1; p += 1) fn(p);
+    const { component, size } = strongComponents(islandsOf, net.nodeCount);
+    // The cell of each segment of a usable road, computed once for the two passes (NONE: not indexed)
+    const NONE = 0xffffffff;
+    const segmentCell = new Uint32Array(coords.length / 2).fill(NONE);
+    const counts = new Uint32Array(cols * rows + 1);
+    for (let e = 0; e < net.edgeCount; e += 1) {
+      if (net.edgeKind[e] !== EDGE_ROAD || !(profile.fwd[e] < Infinity || profile.bwd[e] < Infinity)) continue;
+      const ca = component[net.edgeA[e]];
+      if (ca !== component[net.edgeB[e]] || size[ca] < MIN_COMPONENT_NODES) continue;
+      for (let p = coordStart[e]; p < coordStart[e + 1] - 1; p += 1) {
+        const x = (coords[p * 2] + coords[p * 2 + 2]) / 2;
+        const y = (coords[p * 2 + 1] + coords[p * 2 + 3]) / 2;
+        const c = Math.floor((y - minY) / CELL) * cols + Math.floor((x - minX) / CELL);
+        segmentCell[p] = c;
+        counts[c + 1] += 1;
       }
-    };
-    forEachSegment((p) => {
-      counts[cellOf(p) + 1] += 1;
-    });
-    for (let c = 0; c < this.cols * this.rows; c += 1) counts[c + 1] += counts[c];
-    this.cellStart = counts;
-    this.items = new Uint32Array(counts[this.cols * this.rows]);
+    }
+    for (let c = 0; c < cols * rows; c += 1) counts[c + 1] += counts[c];
+    const items = new Uint32Array(counts[cols * rows]);
     const fill = counts.slice();
-    forEachSegment((p) => {
-      const c = cellOf(p);
-      this.items[fill[c]] = p;
+    for (let p = 0; p < segmentCell.length; p += 1) {
+      const c = segmentCell[p];
+      if (c === NONE) continue;
+      items[fill[c]] = p;
       fill[c] += 1;
-    });
+    }
+
+    return { cellStart: counts, items, cols, rows, minX, minY, pointFrac: pointFractions(net) };
   }
 
   /** Edge of a geometry point (binary search on the edge starts) */

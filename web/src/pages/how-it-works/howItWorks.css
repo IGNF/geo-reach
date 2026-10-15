@@ -152,19 +152,6 @@
   fill: #8a96a3;
 }
 
-.detail-figure .fig-cell {
-  fill: none;
-  stroke: var(--mantine-color-default-border);
-  stroke-width: 1;
-}
-
-.detail-figure .fig-isoline {
-  fill: none;
-  stroke: #1d3557;
-  stroke-width: 2.5;
-  stroke-linecap: round;
-}
-
 .detail-key {
   display: flex;
   flex-wrap: wrap;
