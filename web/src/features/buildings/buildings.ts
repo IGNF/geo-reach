@@ -21,6 +21,9 @@ const FAR = 1e9;
 /** Not reached within the max time */
 const NEUTRAL = 'rgb(217, 214, 204)';
 
+/** Tiles that failed after the worker's retries are asked again after this long */
+const RETRY_LATER_MS = 4000;
+
 const tileUrl = ({ z, x, y }: TileId): string => `${GPF_BASE}/tms/1.0.0/BDTOPO/${z}/${x}/${y}.pbf`;
 
 interface Tile {
@@ -44,6 +47,7 @@ export class Buildings {
   private visible = false;
   private lastUpdate = 0;
   private readonly cleanup: (() => void)[] = [];
+  private retry: ReturnType<typeof setTimeout> | undefined;
   private readonly map: GeoMap;
   private readonly engine: TravelEngine;
   private readonly network: NetworkLayer;
@@ -92,6 +96,7 @@ export class Buildings {
   }
 
   destroy(): void {
+    clearTimeout(this.retry);
     for (const off of this.cleanup) off();
     this.worker.terminate();
     this.layer.remove();
@@ -155,7 +160,10 @@ export class Buildings {
     const tile = this.tiles.get(result.key);
     if (!tile) return;
     if (!result.ok) {
+      // Failed after its retries: asked again a little later, even if the map does not move
       this.tiles.delete(result.key);
+      clearTimeout(this.retry);
+      this.retry = setTimeout(() => this.updateTiles(), RETRY_LATER_MS);
 
       return;
     }
