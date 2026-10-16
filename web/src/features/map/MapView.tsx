@@ -8,14 +8,14 @@ import {
   Marker,
   NavigationControl,
   type NetworkLayer,
-} from 'isard';
+} from '@ign-junn/isard';
 // The engine and its workers, served by Vite as files (the package's own `new URL` lookups break in a bundle); `?url`
 // imports have a default export, which the linter cannot see in the JavaScript files
 // oxlint-disable-next-line import/default
-import basemapWorkerUrl from 'isard/basemap.worker.js?url';
+import basemapWorkerUrl from '@ign-junn/isard/basemap.worker.js?url';
 // oxlint-disable-next-line import/default
-import decoderWorkerUrl from 'isard/decoder.worker.js?url';
-import wasmUrl from 'isard/isard_bg.wasm?url';
+import decoderWorkerUrl from '@ign-junn/isard/decoder.worker.js?url';
+import wasmUrl from '@ign-junn/isard/isard_bg.wasm?url';
 import { useEffect, useRef, type ReactElement } from 'react';
 import { type Cut, CutLayer } from '@/features/cuts';
 import { type Leg, toLegs } from '@/features/trip';

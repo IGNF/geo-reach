@@ -1,5 +1,5 @@
-import type { CircleLayer, Feature, GeoMap, Layer, LineLayer, Point, SymbolLayer } from 'isard';
-import { Marker } from 'isard';
+import type { CircleLayer, Feature, GeoMap, Layer, LineLayer, Point, SymbolLayer } from '@ign-junn/isard';
+import { Marker } from '@ign-junn/isard';
 import { type Cut, cutKey, cutLabel, cutOfEdge, edgesOfCut, parseCut } from './cuts';
 import type { Network, TravelEngine } from '@/features/routing';
 import type { LngLat } from '@/shared/config';

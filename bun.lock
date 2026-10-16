@@ -18,12 +18,12 @@
         "@dnd-kit/sortable": "^10.0.0",
         "@dnd-kit/utilities": "^3.2.2",
         "@ign-junn/design-system": "^0.32.0",
+        "@ign-junn/isard": "^0.1.1",
         "@mantine/code-highlight": "^9.7.1",
         "@mantine/core": "^9.7.1",
         "@mantine/hooks": "^9.7.1",
         "@mapbox/vector-tile": "3.0.0",
         "highlight.js": "^11.12.0",
-        "isard": "file:../../../RustroverProjects/isard/packages/isard",
         "pbf": "5.1.2",
         "react": "^19.2.8",
         "react-dom": "^19.2.8",
@@ -67,6 +67,8 @@
     "@fontsource/open-sans": ["@fontsource/open-sans@5.3.0", "", {}, "sha512-V1bdMlGNyZrJwzrdusshMOw2YR0aqYDL7kOo9dkxUEKl8dFv66A9HLckOOXl572sG/7ohhDQrCrTFGSn9LZcSw=="],
 
     "@ign-junn/design-system": ["@ign-junn/design-system@0.32.0", "", { "dependencies": { "@fontsource/fira-sans": "^5.3.0", "@fontsource/open-sans": "^5.3.0", "@tabler/icons-react": "^3.48.0", "@xyflow/react": "^12.12.0", "elkjs": "^0.12.0" }, "peerDependencies": { "@dnd-kit/core": "^6.3.1", "@dnd-kit/modifiers": "^9.0.0", "@dnd-kit/sortable": "^10.0.0", "@dnd-kit/utilities": "^3.2.2", "@mantine/code-highlight": "^9.6.2", "@mantine/core": "^9.6.2", "@mantine/hooks": "^9.6.2", "highlight.js": "^11.12.0", "react": "^19.2.8", "react-dom": "^19.2.8", "react-router": "^8.4.0" } }, "sha512-kc2rARLylotNjXBaTA8ksFlhjfm4KxkUP8HW6g+T2RPlLG7pWr6N0gXjHy2nCr22UGq3pXH2SXJeag4EgOPGFw=="],
+
+    "@ign-junn/isard": ["@ign-junn/isard@0.1.1", "", {}, "sha512-qi5X2yBEqYoiTCj730sTYfiUD2f7v7ep8fgjN0/B5Td54viXyQmcdHX5/DPfKIpKiVpGhllYnOlw5bXh0jk73A=="],
 
     "@mantine/code-highlight": ["@mantine/code-highlight@9.7.1", "", { "dependencies": { "clsx": "^2.1.1" }, "peerDependencies": { "@mantine/core": "9.7.1", "@mantine/hooks": "9.7.1", "react": "^19.2.0", "react-dom": "^19.2.0" } }, "sha512-iKr+gUauwvW5yrdB6rSNAeKCZqwuzXpb5pwopgymCB9JJs/UI7mfR5vyRkR5NkDgZOUHJU4O1QqzzG3bkroWPA=="],
 
@@ -311,7 +313,5 @@
     "web": ["web@workspace:web"],
 
     "zustand": ["zustand@4.5.7", "", { "dependencies": { "use-sync-external-store": "^1.2.2" }, "peerDependencies": { "@types/react": ">=16.8", "immer": ">=9.0.6", "react": ">=16.8" }, "optionalPeers": ["@types/react", "immer", "react"] }, "sha512-CHOUy7mu3lbD6o6LJLfllpjkzhHXSBlX8B9+qPddUsIfeF5S/UZ5q0kmCsnRqT1UHFQZchNFDDzMbQsuesHWlw=="],
-
-    "web/isard": ["isard@file:../../RustroverProjects/isard/packages/isard", {}],
   }
 }

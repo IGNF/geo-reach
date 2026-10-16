@@ -22,7 +22,7 @@ export default defineConfig({
   // Module workers: ours (travel time field, buildings)
   worker: { format: 'es' },
   // The map engine is served as it is built: its WebAssembly and its workers are loaded by URL
-  optimizeDeps: { exclude: ['isard'] },
+  optimizeDeps: { exclude: ['@ign-junn/isard'] },
   // 127.0.0.1 rather than localhost: on the IGN network, localhost resolves to localhost.ign.fr (the proxy)
   server: { host: '127.0.0.1' },
 })
