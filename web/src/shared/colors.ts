@@ -39,5 +39,8 @@ export const rampCss = (t: number): string => {
   return `rgb(${r}, ${g}, ${b})`;
 };
 
+/** The ramp as stops for the map layers: fraction of the max time, CSS color */
+export const RAMP_STOPS: [number, string][] = STOPS.map(([s, [r, g, b]]) => [s, `rgb(${r}, ${g}, ${b})`]);
+
 export const RAMP_GRADIENT_CSS = `linear-gradient(90deg, ${STOPS.map(([s]) => `${rampCss(s)} ${s * 100}%`).join(', ')})`;
 

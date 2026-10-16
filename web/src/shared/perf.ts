@@ -14,9 +14,9 @@ export type Channel =
   | 'roundTrip'
   /** Main thread work per result shown: upload prepared, panels, trip */
   | 'apply'
-  /** CPU time of the network layer per frame, uploads included */
+  /** CPU time of the map per frame: basemap, network, buildings and labels, uploads included */
   | 'network'
-  /** CPU time of the buildings layer per frame */
+  /** A tile of buildings handed to the map (main thread) */
   | 'buildings'
   /** A tile of buildings joined to its streets (main thread) */
   | 'anchors'

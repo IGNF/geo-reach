@@ -1,5 +1,5 @@
-import type * as GeoJSON from 'geojson';
-import { type FilterSpecification, type GeoJSONSource, type Map as MlMap, Marker, type PointLike } from 'maplibre-gl';
+import type { CircleLayer, Feature, GeoMap, Layer, LineLayer, Point, SymbolLayer } from 'isard';
+import { Marker } from 'isard';
 import { type Cut, cutKey, cutLabel, cutOfEdge, edgesOfCut, parseCut } from './cuts';
 import type { Network, TravelEngine } from '@/features/routing';
 import type { LngLat } from '@/shared/config';
@@ -18,13 +18,16 @@ export interface HoveredSection {
 
 const RED = '#e03131';
 const GREEN = '#2f9e44';
-const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 
 /** Pixels around the cursor where a section is picked */
 const PICK_PX = 8;
 
-const LINES: FilterSpecification = ['!=', ['geometry-type'], 'Point'];
-const POINTS: FilterSpecification = ['==', ['geometry-type'], 'Point'];
+type Props = { key: string; closed?: boolean };
+const line = (lines: LngLat[][], properties: Props): Feature<Props> => ({
+  type: 'Feature',
+  properties,
+  geometry: { type: 'MultiLineString', coordinates: lines },
+});
 
 /**
  * The closed sections on the map (red dashes, a cross halfway) and, in cut mode, the section under the cursor with a
@@ -34,13 +37,20 @@ export class CutLayer {
   /** The section a click would close or reopen */
   hovered?: HoveredSection;
 
-  private readonly map: MlMap;
+  private readonly map: GeoMap;
   private readonly engine: TravelEngine;
   private readonly net: Network;
   private readonly tipEl: HTMLDivElement;
   private readonly tip: Marker;
+  private hover?: LineLayer<Props>;
+  private casing?: LineLayer<Props>;
+  private lineLayer?: LineLayer<Props>;
+  private mark?: CircleLayer<Props>;
+  private cross?: SymbolLayer<Props>;
+  /** The rail lines of transit mode (each feature with its `edge`): a section of them is picked there */
+  rail?: Layer;
 
-  constructor(map: MlMap, engine: TravelEngine) {
+  constructor(map: GeoMap, engine: TravelEngine) {
     this.map = map;
     this.engine = engine;
     this.net = engine.net;
@@ -50,93 +60,85 @@ export class CutLayer {
     this.tip = new Marker({ element: this.tipEl, anchor: 'left', offset: [16, 0] });
   }
 
-  /** Sources and layers, once the style is loaded */
+  /** The layers, on top of the map (over the basemap's labels) */
   addLayers(): void {
     const { map } = this;
-
-    map.addSource('cut-hover', { type: 'geojson', data: EMPTY });
-    map.addLayer({
-      id: 'cut-hover',
-      type: 'line',
-      source: 'cut-hover',
-      layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: {
-        'line-color': ['case', ['get', 'closed'], GREEN, RED],
-        'line-width': ['interpolate', ['linear'], ['zoom'], 11, 7, 15, 12],
-        'line-opacity': 0.4,
-      },
+    const top = (layer: Layer) => layer.moveBefore(undefined);
+    this.hover = map.addLines<Props>({
+      data: [],
+      color: (p) => (p.closed ? GREEN : RED),
+      width: [
+        [11, 7],
+        [15, 12],
+      ],
+      opacity: 0.4,
+      visible: false,
     });
-
-    map.addSource('cuts', { type: 'geojson', data: EMPTY });
-    map.addLayer({
-      id: 'cuts-casing',
-      type: 'line',
-      source: 'cuts',
-      filter: LINES,
-      layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': '#fff', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 4, 15, 8] },
+    top(this.hover);
+    this.casing = map.addLines<Props>({
+      data: [],
+      color: '#fff',
+      width: [
+        [11, 4],
+        [15, 8],
+      ],
     });
-    map.addLayer({
-      id: 'cuts-line',
-      type: 'line',
-      source: 'cuts',
-      filter: LINES,
-      layout: { 'line-join': 'round' },
-      paint: {
-        'line-color': RED,
-        'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2.5, 15, 5],
-        'line-dasharray': [1.5, 1],
-      },
+    top(this.casing);
+    this.lineLayer = map.addLines<Props>({
+      data: [],
+      color: RED,
+      width: [
+        [11, 2.5],
+        [15, 5],
+      ],
+      dash: [1.5, 1],
     });
-    map.addLayer({
-      id: 'cuts-mark',
-      type: 'circle',
-      source: 'cuts',
-      filter: POINTS,
-      paint: {
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 6, 15, 10],
-        'circle-color': RED,
-        'circle-stroke-color': '#fff',
-        'circle-stroke-width': 2,
-      },
+    top(this.lineLayer);
+    this.mark = map.addCircles<Props>({
+      data: [],
+      color: RED,
+      radius: [
+        [11, 6],
+        [15, 10],
+      ],
+      strokeColor: '#fff',
+      strokeWidth: 2,
     });
-    map.addLayer({
-      id: 'cuts-cross',
-      type: 'symbol',
-      source: 'cuts',
-      filter: POINTS,
-      layout: {
-        'text-field': '×',
-        'text-font': ['Source Sans Pro Regular'],
-        'text-size': ['interpolate', ['linear'], ['zoom'], 11, 13, 15, 20],
-        'text-offset': [0, -0.05],
-        'text-allow-overlap': true,
-        'text-ignore-placement': true,
-      },
-      paint: { 'text-color': '#fff' },
+    top(this.mark);
+    this.cross = map.addSymbols<Props>({
+      data: [],
+      text: '×',
+      size: [
+        [11, 13],
+        [15, 20],
+      ],
+      color: '#fff',
+      offset: [0, -0.05],
+      overlap: true,
     });
+    top(this.cross);
   }
 
   /** Draws the closed sections */
   draw(cuts: Cut[]): void {
-    const features: GeoJSON.Feature[] = cuts.flatMap((cut): GeoJSON.Feature[] => {
-      const lines = this.lines(cut);
-      const first = lines[0];
-      if (!first) return [];
-
+    const lines: Feature<Props>[] = [];
+    const marks: Feature<Props>[] = [];
+    for (const cut of cuts) {
+      const parts = this.lines(cut);
+      const first = parts[0];
+      if (!first) continue;
       const properties = { key: cutKey(cut) };
-
-      return [
-        { type: 'Feature', properties, geometry: { type: 'MultiLineString', coordinates: lines } },
-        { type: 'Feature', properties, geometry: { type: 'Point', coordinates: this.middle(first) } },
-      ];
-    });
-
-    this.map.getSource<GeoJSONSource>('cuts')?.setData({ type: 'FeatureCollection', features });
+      lines.push(line(parts, properties));
+      marks.push({ type: 'Feature', properties, geometry: { type: 'Point', coordinates: this.middle(first) } });
+    }
+    this.casing?.setData(lines);
+    this.lineLayer?.setData(lines);
+    this.mark?.setData(marks);
+    this.cross?.setData(marks);
   }
 
   /** Highlights the section under the cursor, or clears the highlight when there is none */
-  hover(px: { x: number; y: number }, lngLat: LngLat): void {
+  hoverAt(px: Point, lngLat: LngLat): void {
     const found = this.sectionAt(px, this.toRel(lngLat));
     if (!found) {
       this.clearHover();
@@ -144,7 +146,7 @@ export class CutLayer {
       return;
     }
 
-    this.tip.setLngLat(lngLat);
+    this.tip.setLonLat(lngLat);
     if (!this.tipEl.isConnected) this.tip.addTo(this.map);
     this.map.getCanvas().style.cursor = 'pointer';
 
@@ -155,17 +157,13 @@ export class CutLayer {
     const what = this.describe(found.cut);
     this.tipEl.textContent = found.closed ? t.cuts.hoverCut(what) : t.cuts.hover(what);
     this.tipEl.classList.toggle('reopen', found.closed);
-
-    this.map.getSource<GeoJSONSource>('cut-hover')?.setData({
-      type: 'Feature',
-      properties: { closed: found.closed },
-      geometry: { type: 'MultiLineString', coordinates: this.lines(found.cut) },
-    });
+    this.hover?.setData([line(this.lines(found.cut), { key: cutKey(found.cut), closed: found.closed })]);
+    this.hover?.setVisible(true);
   }
 
   clearHover(): void {
     this.hovered = undefined;
-    this.map.getSource<GeoJSONSource>('cut-hover')?.setData(EMPTY);
+    this.hover?.setVisible(false);
     this.map.getCanvas().style.cursor = '';
     this.tip.remove();
   }
@@ -174,19 +172,15 @@ export class CutLayer {
    * The section under the cursor: a closed one first (to reopen it), then a metro, RER or tram section (transit mode),
    * then the nearest street.
    */
-  private sectionAt(px: { x: number; y: number }, rel: Rel): HoveredSection | undefined {
-    const box: [PointLike, PointLike] = [
-      [px.x - PICK_PX, px.y - PICK_PX],
-      [px.x + PICK_PX, px.y + PICK_PX],
-    ];
-
-    const closedHit = this.map.queryRenderedFeatures(box, { layers: ['cuts-line'] })[0];
-    const closedCut = closedHit && parseCut(String(closedHit.properties.key));
+  private sectionAt(px: Point, rel: Rel): HoveredSection | undefined {
+    const closedHit = this.lineLayer && this.map.pickFeature(px, { radius: PICK_PX, layers: [this.lineLayer] });
+    const closedCut = closedHit?.feature && parseCut(String((closedHit.feature.properties as Props).key));
     if (closedCut) return { cut: closedCut, closed: true };
 
-    if (this.engine.profile.mode === 'transit' && this.map.getLayer('rail-lines')) {
-      const railHit = this.map.queryRenderedFeatures(box, { layers: ['rail-lines'] })[0];
-      const railCut = railHit && cutOfEdge(this.net, Number(railHit.properties.edge));
+    if (this.engine.profile.mode === 'transit' && this.rail) {
+      const railHit = this.map.pickFeature(px, { radius: PICK_PX, layers: [this.rail] });
+      const edge = railHit?.feature && (railHit.feature.properties as { edge: number }).edge;
+      const railCut = edge !== undefined && cutOfEdge(this.net, edge);
       if (railCut) return { cut: railCut, closed: false };
     }
 
@@ -195,7 +189,7 @@ export class CutLayer {
 
     // Near enough on screen, whatever the zoom
     const at = this.map.project(this.toLngLat([snap.x, snap.y]));
-    if (Math.hypot(at.x - px.x, at.y - px.y) > PICK_PX * 1.5) return undefined;
+    if (!at || Math.hypot(at[0] - px[0], at[1] - px[1]) > PICK_PX * 1.5) return undefined;
 
     const roadCut = cutOfEdge(this.net, snap.edge);
 
@@ -204,8 +198,8 @@ export class CutLayer {
 
   /** "1 · Château de Vincennes ↔ Bérault", or a street name */
   private describe(cut: Cut): string {
-    const { line, text } = cutLabel(this.net, cut);
-    if (line) return `${line.name} · ${text}`;
+    const { line: l, text } = cutLabel(this.net, cut);
+    if (l) return `${l.name} · ${text}`;
 
     return text ? formatStreet(text) : t.unnamedRoad;
   }

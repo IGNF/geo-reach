@@ -19,12 +19,11 @@ body,
 }
 
 .app > .map {
-  /* Beats `.maplibregl-map { position: relative }` */
   position: absolute;
   inset: 0 var(--preview-width, 0) 0 0;
 }
 
-.map .maplibregl-canvas {
+.map canvas {
   cursor: crosshair;
 }
 
@@ -292,12 +291,12 @@ body,
 }
 
 /* Tilt button while the map is tilted */
-.maplibregl-ctrl-group .map-button.active {
+.isard-ctrl-group .map-button.active {
   background: var(--accent);
   color: #fff;
 }
 
-.map.cutting .maplibregl-canvas {
+.map.cutting canvas {
   cursor: cell;
 }
 

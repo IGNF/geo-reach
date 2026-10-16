@@ -1,13 +1,15 @@
 /// <reference lib="webworker" />
 /**
- * Downloads the BD TOPO tiles and extrudes their buildings off the main thread (tens of milliseconds a tile), then
- * hands the meshes over without copying them.
+ * Downloads the BD TOPO tiles and reads their buildings off the main thread, then hands the polygons over without
+ * copying them.
  */
-import { type BuildingMesh, buildingMesh, type TileId, type ZoneOrigin } from './buildingMesh';
+import { type BuildingPolygons, buildingPolygons, type TileId } from './buildingMesh';
 
-export type BuildingRequest = { type: 'tile'; key: string; url: string; tile: TileId; zone: ZoneOrigin } | { type: 'cancel'; key: string };
+export type BuildingRequest =
+  | { type: 'tile'; key: string; url: string; tile: TileId; origin: [number, number] }
+  | { type: 'cancel'; key: string };
 
-export type BuildingResult = { key: string } & ({ ok: true; mesh: BuildingMesh } | { ok: false });
+export type BuildingResult = { key: string } & ({ ok: true; polygons: BuildingPolygons } | { ok: false });
 
 /** Downloads still running, by tile key: a tile gone out of view is cancelled */
 const running = new Map<string, AbortController>();
@@ -27,9 +29,10 @@ self.onmessage = async (event: MessageEvent<BuildingRequest>) => {
     const res = await fetch(msg.url, { signal: controller.signal });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-    const mesh = buildingMesh(await res.arrayBuffer(), msg.tile, msg.zone);
-    const result: BuildingResult = { key: msg.key, ok: true, mesh };
-    self.postMessage(result, [mesh.vertices.buffer, mesh.indices.buffer, mesh.centers.buffer]);
+    const polygons = buildingPolygons(await res.arrayBuffer(), msg.tile, msg.origin);
+    const result: BuildingResult = { key: msg.key, ok: true, polygons };
+    const { points, ringStart, polygonStart, feature, heights, centers } = polygons;
+    self.postMessage(result, [points, ringStart, polygonStart, feature, heights, centers].map((a) => a.buffer));
   } catch {
     const result: BuildingResult = { key: msg.key, ok: false };
     self.postMessage(result);

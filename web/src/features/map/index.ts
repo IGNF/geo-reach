@@ -2,5 +2,3 @@
 
 export { type LiveInfo, default as MapView, type TargetInfo } from './MapView';
 export { cameraFor } from './camera';
-export { type NetworkLayer } from './networkLayer';
-export { NetworkRenderer, type NetworkStyle } from './networkRenderer';
