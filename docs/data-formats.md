@@ -124,7 +124,8 @@ bun run data -- all            # every region (same for transit)
 A region's transit file depends on its road file (origin and box): rebuild it after the roads. Both run `crates/prep` in release mode. Its roads are deterministic: the tiles are downloaded six at a time but read
 back in order. Away from the city centres (`crates/prep/src/regions.rs`) the WFS filters the paths, tracks,
 stairs and service roads out itself (`CQL_FILTER`, cached apart as `-f` pages). On the IGN network, set `HTTPS_PROXY=http://proxy.ign.fr:3128` for
-these tools.
+these tools. The files are then published with `bun run regions push` under a new `DATA_VERSION` (they live outside
+Git, see [data/README.md](../data/README.md)).
 
 ## In the browser
 

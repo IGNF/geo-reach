@@ -28,3 +28,6 @@ target
 
 # Downloaded sources (GTFS…)
 .cache
+
+# Region files: assets of a GitHub release, fetched by `bun run regions pull` (data/manifest.json)
+data/regions/

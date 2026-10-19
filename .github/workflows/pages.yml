@@ -20,14 +20,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      # The largest region file is stored with Git LFS: cached, keyed by the ids of the LFS files, so that it is only
-      # downloaded again when it changes (LFS downloads count against a monthly quota)
-      - run: git lfs ls-files --long | cut -d ' ' -f1 | sort > .lfs-ids
+      # The region files are the assets of a GitHub release (data/manifest.json): cached until the manifest changes,
+      # fetched by `bun run build` (`regions pull`) otherwise
       - uses: actions/cache@v4
         with:
-          path: .git/lfs
-          key: lfs-${{ hashFiles('.lfs-ids') }}
-      - run: git lfs pull
+          path: data/regions
+          key: regions-${{ hashFiles('data/manifest.json') }}
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       # The runner has Rust: the engine is rebuilt from crates/engine

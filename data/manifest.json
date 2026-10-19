@@ -1,0 +1,109 @@
+{
+  "release": "data-2026-10-19-gtfs",
+  "files": {
+    "auvergne-rhone-alpes.bin.gz": {
+      "size": 40724117,
+      "sha256": "a558d6ad98f5bc3f58563623bba048828f7e543dac4057a892164e039cc1fd9b"
+    },
+    "auvergne-rhone-alpes.transit.bin.gz": {
+      "size": 1333486,
+      "sha256": "c4a97a367d728e1f34e43eca9b54bd71bf8d2f0617c3d11ef719e499f421ce79"
+    },
+    "bourgogne-franche-comte.bin.gz": {
+      "size": 24413598,
+      "sha256": "7f638807fb670860a95c01de14306dd572fd34451f11085e3e57fce279bf2625"
+    },
+    "bourgogne-franche-comte.transit.bin.gz": {
+      "size": 522268,
+      "sha256": "3ab6e9b579076de737b8dc7f8d1ef1c15eac019abd4f55d4d26d5e9b0b2471d8"
+    },
+    "bretagne.bin.gz": {
+      "size": 20617335,
+      "sha256": "e79924bc9905c83dad86a84ddfc1e42914ab4442ef5a22217d668005ec26789b"
+    },
+    "bretagne.transit.bin.gz": {
+      "size": 858515,
+      "sha256": "83dc053acf00cc96697d059cd3ef4293c97df4b6325ab5a6d7bf01e0bc6f4ea0"
+    },
+    "centre-val-de-loire.bin.gz": {
+      "size": 28392119,
+      "sha256": "24b49e80935e96f80ab6ac1d5659b2074a1fd6d101af38b4916450665857576d"
+    },
+    "centre-val-de-loire.transit.bin.gz": {
+      "size": 479222,
+      "sha256": "aeec17a8abd91c4565c17109164717cfb84affde12a0b50afc43c6d62e30ecf3"
+    },
+    "corse.bin.gz": {
+      "size": 1407535,
+      "sha256": "b01bbc3bcfa8d3858e8298a9cadce03eacdad93ab2953cd8b6f3b3bea276a66a"
+    },
+    "corse.transit.bin.gz": {
+      "size": 84329,
+      "sha256": "2fab99137768ba287a4154fb5f70f7d30714730536dad03a678b7f9e45a5c07f"
+    },
+    "grand-est.bin.gz": {
+      "size": 23278173,
+      "sha256": "0becab699fba4efeaada20479924c23c889664979ad73a99b8e18a9f82fc0dbd"
+    },
+    "grand-est.transit.bin.gz": {
+      "size": 1564588,
+      "sha256": "88a580b5fc145865d8ec98d886dc2fe9f9c724bb71c3bf82580b1217ed82853e"
+    },
+    "hauts-de-france.bin.gz": {
+      "size": 22983147,
+      "sha256": "91298c95f57ff7ef1fc0b43111c53402418f0e049c95768f1638d06e95d0d21f"
+    },
+    "hauts-de-france.transit.bin.gz": {
+      "size": 641958,
+      "sha256": "3507a1ddf252e99481f9553faa2c0b6035efd94807bc15dc5cb8559a0d24cdaa"
+    },
+    "ile-de-france.bin.gz": {
+      "size": 15590818,
+      "sha256": "25e7b41dd11a58561651dede4b123732fb80735135e736277571be3f9eecb970"
+    },
+    "ile-de-france.transit.bin.gz": {
+      "size": 2278923,
+      "sha256": "d8e8954a3090e9c61e9271a50493cccd65135400e28b0be6f147753ad1491895"
+    },
+    "normandie.bin.gz": {
+      "size": 19697117,
+      "sha256": "7c44c5a07de7dbcbdab33ccde1dfce8628cdc7eec6e6de879b92bb525f26ae6c"
+    },
+    "normandie.transit.bin.gz": {
+      "size": 561077,
+      "sha256": "d2d697974486801fb7f4213360b6697820527e6dde6c976c730da9efec483272"
+    },
+    "nouvelle-aquitaine.bin.gz": {
+      "size": 52602432,
+      "sha256": "823624029e28749a9c0412bcb9b1126c0fcb86e788f8becf3ada1ac5b747a207"
+    },
+    "nouvelle-aquitaine.transit.bin.gz": {
+      "size": 1329400,
+      "sha256": "5a99437f9fc3bcafeb7343e6fc12672e1aea0ca5bd20f4ff89f3e8d02f1886dc"
+    },
+    "occitanie.bin.gz": {
+      "size": 38865379,
+      "sha256": "c42a2b531f60fe9a36b9bc4787979770c79d7c72467e148ea6a7903fa69d2edc"
+    },
+    "occitanie.transit.bin.gz": {
+      "size": 1137363,
+      "sha256": "4b1481e5411101511868a8143a2afd34b38d1fe07f2e03799c33959402b29d45"
+    },
+    "pays-de-la-loire.bin.gz": {
+      "size": 29828661,
+      "sha256": "c2bc5aab3c0154bd2045d148279b5505813005f9ef5096400a3a21d2170f6f43"
+    },
+    "pays-de-la-loire.transit.bin.gz": {
+      "size": 1408264,
+      "sha256": "85c0ee85bcb0a227f333140774e04bf2d976b2a111befc8c1c848760f31b186e"
+    },
+    "provence-alpes-cote-dazur.bin.gz": {
+      "size": 20177834,
+      "sha256": "1d1859f58330a6362f16b74932d48566b498b63d6eb5620a93f42bfd39019c12"
+    },
+    "provence-alpes-cote-dazur.transit.bin.gz": {
+      "size": 1184995,
+      "sha256": "3e1a4c06c34142695bc3157a9a4ee757efe5d44f96c2895b0c95303d5f700c29"
+    }
+  }
+}

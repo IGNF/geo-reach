@@ -37,7 +37,7 @@ the root of the repository, apart from the app: the dev server serves it under `
 | Pays de la Loire | 1.61 M | 29.8 MB | regional aggregate | 1.3 MB |
 | Provence-Alpes-Côte d’Azur | 1.05 M | 20.2 MB | SNCF, Aix-Marseille-Provence (RTM…), Lignes d’Azur (Nice), Mistral, Orizo | 1.0 MB |
 
-Sizes of the files as stored (gzipped); Nouvelle-Aquitaine is stored with Git LFS. Where several feeds are listed, `crates/prep` merges them into one layer; a feed
+Sizes of the files as stored (gzipped). Where several feeds are listed, `crates/prep` merges them into one layer; a feed
 that has no service on the reference day (an outdated one, like the Corsican railways) is read on the nearest same
 day of the week.
 
@@ -61,3 +61,16 @@ bun run transit -- all        # every region's public transport
 
 On the IGN network, set `HTTPS_PROXY=http://proxy.ign.fr:3128`. A region's transport layer depends on its road
 network (its origin and box): rebuild it after the roads.
+
+## Outside Git
+
+`data/regions/` is not versioned: its files are the assets of a GitHub release per `DATA_VERSION`
+(`data-<DATA_VERSION>`), and `data/manifest.json`, versioned, names that release with the size and SHA-256 of each
+file (`scripts/regions.ts`).
+
+```sh
+bun run regions pull   # the files missing or different from the manifest (run by bun run dev and build)
+bun run regions push   # after prep and a new DATA_VERSION: publishes the release, writes the manifest
+```
+
+A version is published once: changed files take a new `DATA_VERSION`, which also makes the browsers drop their copy.

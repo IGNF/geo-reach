@@ -4,11 +4,12 @@
   "type": "module",
   "workspaces": ["web"],
   "scripts": {
-    "dev": "bun run engine && bun --filter web dev",
-    "build": "bun run engine && bun --filter web build",
+    "dev": "bun run engine && bun run regions pull && bun --filter web dev",
+    "build": "bun run engine && bun run regions pull && bun --filter web build",
     "lint": "bun --filter web lint",
     "typecheck": "tsc -p scripts && tsc -b web",
     "engine": "bun scripts/buildEngine.ts",
+    "regions": "bun scripts/regions.ts",
     "data": "cargo run -q -p prep --release -- roads",
     "transit": "cargo run -q -p prep --release -- transit"
   },

@@ -57,8 +57,9 @@ official service; no account, no cookie: [legal notice](https://ignf.github.io/g
 
 ## For developers
 
-Requirements: [Bun](https://bun.sh); [git-lfs](https://git-lfs.com) for the largest region file. The data and the
-compiled engine are in the repository: no Rust needed to run the app.
+Requirements: [Bun](https://bun.sh). The compiled engine is in the repository: no Rust needed to run the app. The
+region files (336 MB) are not: `bun run dev` and `bun run build` fetch them first from the GitHub release named in
+`data/manifest.json` (`bun run regions pull`, only what is missing; on the IGN network, set `HTTPS_PROXY`).
 
 ```sh
 bun install
@@ -79,7 +80,8 @@ docs/            technical documentation
 `cargo clippy --workspace --all-targets`; time it with `bun scripts/benchEngine.ts [region]`.
 
 **Rebuild the data**: `bun run data -- <region>|all` (roads) and `bun run transit -- <region>|all` (timetables); the
-downloads are cached in `.cache/`. The outlines of the regions (which one a searched place is in) come from
+downloads are cached in `.cache/`. Then bump `DATA_VERSION` (`web/src/shared/dataCache.ts`) and publish the files with
+`bun run regions push` (a release `data-<DATA_VERSION>`, and `data/manifest.json` to commit). The outlines of the regions (which one a searched place is in) come from
 `bun scripts/regionShapes.ts`.
 
 **Deployment**: every push to `main` publishes the site on GitHub Pages.
