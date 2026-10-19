@@ -178,7 +178,7 @@ const en = {
       tiles: {
         label: 'Plan IGN',
         detail: 'vector tiles',
-        text: 'The basemap: Plan IGN vector tiles from the Géoplateforme, grey style, with the IGN hillshade (RGE ALTI). MapLibre GL draws it and hosts our WebGL layers between its streets and its labels.',
+        text: 'The basemap: Plan IGN vector tiles from the Géoplateforme, grey style. The isard engine draws it with the network, the buildings and the closed sections between its streets and its labels.',
       },
       buildingTiles: {
         label: 'BD TOPO tiles',
@@ -420,7 +420,7 @@ const fr: typeof en = {
       tiles: {
         label: 'Plan IGN',
         detail: 'tuiles vectorielles',
-        text: 'Le fond de carte : tuiles vectorielles Plan IGN de la Géoplateforme, style gris, avec l’estompage IGN (RGE ALTI). MapLibre GL le dessine et accueille nos couches WebGL entre ses rues et ses étiquettes.',
+        text: 'Le fond de carte : tuiles vectorielles Plan IGN de la Géoplateforme, style gris. Le moteur isard le dessine avec le réseau, les bâtiments et les coupures entre ses rues et ses étiquettes.',
       },
       buildingTiles: {
         label: 'Tuiles BD TOPO',

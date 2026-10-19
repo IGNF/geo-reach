@@ -8,14 +8,15 @@ import {
   Marker,
   NavigationControl,
   type NetworkLayer,
-} from '@ign-junn/isard';
+} from 'isard';
 // The engine and its workers, served by Vite as files (the package's own `new URL` lookups break in a bundle); `?url`
 // imports have a default export, which the linter cannot see in the JavaScript files
 // oxlint-disable-next-line import/default
-import basemapWorkerUrl from '@ign-junn/isard/basemap.worker.js?url';
+import basemapWorkerUrl from 'isard/basemap.worker.js?url';
 // oxlint-disable-next-line import/default
-import decoderWorkerUrl from '@ign-junn/isard/decoder.worker.js?url';
-import wasmUrl from '@ign-junn/isard/isard_bg.wasm?url';
+import decoderWorkerUrl from 'isard/decoder.worker.js?url';
+import coreWasmUrl from 'isard/isard_core_bg.wasm?url';
+import wasmUrl from 'isard/isard_bg.wasm?url';
 import { useEffect, useRef, type ReactElement } from 'react';
 import { type Cut, CutLayer } from '@/features/cuts';
 import { type Leg, toLegs } from '@/features/trip';
@@ -336,13 +337,14 @@ const MapView = ({
       minZoom: minZoomFor(container.clientWidth, live.current.camera.center[1]),
       projection: 'mercator',
       // The basemap's areas and roads at the bottom, its labels above everything added later
-      basemap: 'plan-grey-vector',
+      basemap: 'ign-plan-grey-vector',
       hillshade: 0,
       sky: false,
       attributionControl: {
         compact: true,
         customAttribution: [t.attribution, `<a href="${import.meta.env.BASE_URL}legal.html">${t.legalNotice}</a>`],
       },
+      coreWasmUrl,
       wasmUrl,
       workerUrl: decoderWorkerUrl,
       basemapWorkerUrl,

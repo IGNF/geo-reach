@@ -68,7 +68,7 @@ bun run typecheck && bun run lint
 ```
 
 ```
-web/             React + MapLibre app (Vite, @ign-junn/design-system); src/features/ one folder per feature
+web/             React app on the isard map engine (Vite, @ign-junn/design-system); src/features/ one folder per feature
 crates/engine/   travel time engine, Rust → WebAssembly
 crates/prep/     Rust tool: BD TOPO roads and GTFS timetables → the network files of a region
 scripts/         engine build, benchmarks, calibration

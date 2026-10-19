@@ -1,4 +1,4 @@
-import type { NetworkOptions } from '@ign-junn/isard';
+import type { NetworkOptions } from 'isard';
 import { EDGE_RIDE, EDGE_ROAD, FLAG_BUS, type Network, type Profile } from '@/features/routing';
 
 /**

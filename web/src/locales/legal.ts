@@ -40,7 +40,7 @@ const en = {
       lines: [
         'Road network and buildings (BD TOPO), basemap (Plan IGN), hillshade (RGE ALTI), geocoding and route service: IGN, Géoplateforme, Licence Ouverte Etalab 2.0.',
         'Public transport timetables: Île-de-France Mobilités (GTFS), ODbL; the transit layer of the site is a derived database under the same licence.',
-        'Map display: MapLibre GL JS (BSD-3-Clause).',
+        'Map display: isard (MIT).',
       ],
     },
     {
@@ -86,7 +86,7 @@ const fr: typeof en = {
       lines: [
         'Réseau routier et bâtiments (BD TOPO), fond de carte (Plan IGN), estompage (RGE ALTI), géocodage et calcul d’itinéraire : IGN, Géoplateforme, Licence Ouverte Etalab 2.0.',
         'Horaires de transports en commun : Île-de-France Mobilités (GTFS), ODbL ; la couche transports du site est une base dérivée sous la même licence.',
-        'Affichage de la carte : MapLibre GL JS (BSD-3-Clause).',
+        'Affichage de la carte : isard (MIT).',
       ],
     },
     {

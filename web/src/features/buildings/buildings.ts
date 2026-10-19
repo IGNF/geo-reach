@@ -1,4 +1,4 @@
-import type { ExtrusionLayer, GeoMap, Layer, NetworkLayer } from '@ign-junn/isard';
+import type { ExtrusionLayer, GeoMap, Layer, NetworkLayer } from 'isard';
 import type { TravelEngine } from '@/features/routing';
 import { GPF_BASE } from '@/shared/config';
 import { RAMP_STOPS } from '@/shared/colors';
