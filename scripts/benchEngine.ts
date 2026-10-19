@@ -108,7 +108,7 @@ const renumber = (net: Network, ordered: Uint32Array): Network => {
   return { ...net, nodeXY, edgeA: net.edgeA.map((n) => id[n]), edgeB: net.edgeB.map((n) => id[n]) };
 };
 
-const file = (name: string): URL => new URL(`../web/public/data/regions/${name}`, import.meta.url);
+const file = (name: string): URL => new URL(`../data/regions/${name}`, import.meta.url);
 const roads = await loadRoads(region);
 const ordered = order === 'hilbert' ? renumber(roads, hilbertOrder(roads)) : order === 'bfs' ? renumber(roads, bfsOrder(roads)) : roads;
 const transit = file(`${region}.transit.bin.gz`);

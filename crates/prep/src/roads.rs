@@ -61,7 +61,7 @@ pub fn build(http: &Http, region: &Region) -> Res<()> {
     let (bytes, summary) = graph.finish(&area);
     let mut gz = GzEncoder::new(Vec::new(), Compression::best());
     gz.write_all(&bytes)?;
-    let dir = root().join("web/public/data/regions");
+    let dir = root().join("data/regions");
     fs::create_dir_all(&dir)?;
     let stored = gz.finish()?;
     fs::write(dir.join(format!("{}.bin.gz", region.id)), &stored)?;

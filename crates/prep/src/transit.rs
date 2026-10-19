@@ -93,7 +93,7 @@ pub fn build(http: &Http, region: &Region, date: u32) -> Res<()> {
         return Err(format!("{}: no feed could be downloaded", region.id).into());
     }
 
-    let dir = root().join("web/public/data/regions");
+    let dir = root().join("data/regions");
     let zone = zone::Zone::read(&dir.join(format!("{}.bin.gz", region.id)))?;
     let schedule = schedule::Schedule::read_all(&zips, &zone, date);
     let mut tracks = if layer::rails_without_shapes(&schedule) {

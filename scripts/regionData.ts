@@ -2,7 +2,7 @@ import { type Network, readRoadNetwork } from '@/features/routing/network';
 import { readTransit } from '@/features/routing/transit';
 import { DEFAULT_REGION } from '@/features/regions/regions';
 
-const file = (name: string): URL => new URL(`../web/public/data/regions/${name}`, import.meta.url);
+const file = (name: string): URL => new URL(`../data/regions/${name}`, import.meta.url);
 
 const inflate = async (url: URL): Promise<ArrayBuffer> => Bun.gunzipSync(await Bun.file(url).bytes()).buffer as ArrayBuffer;
 

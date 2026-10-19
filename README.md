@@ -52,7 +52,7 @@ directly.
 | Roads and buildings (BD TOPO), basemap (Plan IGN), hillshade (RGE ALTI), addresses | IGN, Géoplateforme | Licence Ouverte Etalab 2.0 |
 | Public transport timetables | [transport.data.gouv.fr](https://transport.data.gouv.fr) (Île-de-France Mobilités, regional aggregates, SNCF) | per feed, mostly ODbL or Licence Ouverte |
 
-Region by region: [web/public/data/README.md](web/public/data/README.md). Published by IGN, a proof of concept, not an
+Region by region: [data/README.md](data/README.md). Published by IGN, a proof of concept, not an
 official service; no account, no cookie: [legal notice](https://ignf.github.io/geo-reach/legal.html).
 
 ## For developers

@@ -17,7 +17,7 @@ export interface Region {
 }
 
 /**
- * The 13 regions of metropolitan France, each with its network files: web/public/data/regions/<id>.bin.gz (roads) and
+ * The 13 regions of metropolitan France, each with its network files: data/regions/<id>.bin.gz (roads) and
  * <id>.transit.bin.gz (public transport), both built by the Rust tool crates/prep. The list itself is regions.json,
  * read by that tool too: one source for the app and the data.
  */

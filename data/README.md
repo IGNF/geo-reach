@@ -2,7 +2,7 @@
 
 The networks the app computes on, prepared once from open data and served as they are: the browser downloads the
 file of the region in view, keeps it in its cache, and reads it as typed arrays with no parsing. Byte layouts:
-[docs/data-formats.md](../../../docs/data-formats.md).
+[docs/data-formats.md](../docs/data-formats.md).
 
 ## Files
 
@@ -13,9 +13,11 @@ One pair of files per region, the same for every region:
 | `regions/<id>.bin.gz` | Road network (GRF4: nodes, edges, geometries, climb and descent, street names), gzipped | `bun run data -- <id>` |
 | `regions/<id>.transit.bin.gz` | Public transport (TRN3: stations, lines, hourly waits and ride times), gzipped | `bun run transit -- <id>` |
 
-The region ids, boxes and opening points are in [web/src/features/regions/regions.ts](../../src/features/regions/regions.ts); each network
+The region ids, boxes and opening points are in [web/src/features/regions/regions.ts](../web/src/features/regions/regions.ts); each network
 covers its region's box plus a 0.25° margin (about 20 km) for the trips that cross its edge. The files are inflated
-by the browser (`web/src/shared/dataCache.ts`): every file stays under the 100 MB a file of GitHub.
+by the browser (`web/src/shared/dataCache.ts`): every file stays under the 100 MB a file of GitHub. This folder sits at
+the root of the repository, apart from the app: the dev server serves it under `/data/` and the build copies it into
+`web/dist/data/` (plugin `region-data` of `web/vite.config.ts`).
 
 ## Regions
 
@@ -45,7 +47,7 @@ day of the week.
 |---|---|---|
 | Road network, heights | IGN BD TOPO, `troncon_de_route`, Géoplateforme WFS | Licence Ouverte Etalab 2.0 |
 | Rail tracks (drawing of the rides without GTFS shapes) | IGN BD TOPO, `troncon_de_voie_ferree`, Géoplateforme WFS | Licence Ouverte Etalab 2.0 |
-| Timetables | Île-de-France Mobilités, aggregates of the urban and interurban networks, SNCF feed, on [transport.data.gouv.fr](https://transport.data.gouv.fr) (feeds listed in [crates/prep/src/transit/feeds.rs](../../../crates/prep/src/transit/feeds.rs)) | per feed, mostly Licence Ouverte or ODbL |
+| Timetables | Île-de-France Mobilités, aggregates of the urban and interurban networks, SNCF feed, on [transport.data.gouv.fr](https://transport.data.gouv.fr) (feeds listed in [crates/prep/src/transit/feeds.rs](../crates/prep/src/transit/feeds.rs)) | per feed, mostly Licence Ouverte or ODbL |
 
 The `.transit` files are databases derived from these timetables, under the licence of their feed.
 

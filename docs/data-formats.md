@@ -1,10 +1,10 @@
 # Data formats
 
-Each region has two files, `web/public/data/regions/<id>.bin.gz` (roads, GRF4) and `<id>.transit.bin.gz` (public
+Each region has two files, `data/regions/<id>.bin.gz` (roads, GRF4) and `<id>.transit.bin.gz` (public
 transport, TRN3), gzipped and inflated by the browser (`web/src/shared/dataCache.ts`). Inflated, both are little endian,
 every section 4-byte aligned, so the browser reads them as typed array views on the `ArrayBuffer` (no parsing, no
 copy). Positions are `f32` Web Mercator metres relative to the region's origin, stored in its road file. File by
-file: `web/public/data/README.md`.
+file: `data/README.md`.
 
 ## Road network (GRF4, `<id>.bin.gz`)
 

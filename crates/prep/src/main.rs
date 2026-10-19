@@ -1,4 +1,4 @@
-//! Prepares the data of geo-reach, region by region, into web/public/data/regions/:
+//! Prepares the data of geo-reach, region by region, into data/regions/:
 //!
 //! - `prep roads <region>|all`: the BD TOPO road sections from the Géoplateforme WFS, tile by tile, into the road
 //!   network of the region (`<id>.bin.gz`, GRF4);
