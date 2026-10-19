@@ -152,16 +152,16 @@ const en = {
         file: 'crates/engine/src/dijkstra.rs',
       },
       layer: {
-        label: 'WebGL layer',
+        label: 'Network layer',
         detail: 'colors on the GPU',
-        text: 'The geometry of the streets is prepared by a worker and sent to the graphics card once per mode, sorted in squares of about 2 km: each image draws only the squares in view (some 20,000 pieces of street out of several million). At each move, only the time of each crossing is sent (one number per crossing); the graphics card works out the color of every piece of street, then draws a wide glow (the heat map) and thin lines on top.',
-        file: 'web/src/features/map/networkLayer.ts',
+        text: 'The network layer of the isard engine: the streets are sent to the graphics card once per region, sorted in squares, and each image draws only the squares in view (some 20,000 pieces of street out of several million). A new mode sends only the cost of each street; at each move, only the time of each crossing is sent (one number per crossing). The graphics card works out the color of every piece of street, then draws a wide glow (the heat map) and thin lines on top.',
+        file: 'web/src/features/map/network.ts',
       },
       buildings: {
         label: '3D buildings',
         detail: 'colored on the GPU',
-        text: 'The BD TOPO buildings, extruded to their height by a worker (walls shaded by the direction they face, flat roofs). Each building is joined once to its nearest street; the graphics card then reads the times of that street in the same texture as the network, so the buildings follow the cursor at every move, at no cost on the page.',
-        file: 'web/src/features/buildings/buildingGlLayer.ts',
+        text: 'The BD TOPO buildings, read by a worker and extruded to their height by the isard engine. Each building is joined once to its nearest street; the graphics card then reads the times of that street in the same texture as the network, so the buildings follow the cursor at every move, at no cost on the page.',
+        file: 'web/src/features/buildings/buildings.ts',
       },
       panel: {
         label: 'Trip panel',
@@ -178,7 +178,7 @@ const en = {
       tiles: {
         label: 'Plan IGN',
         detail: 'vector tiles',
-        text: 'The basemap: Plan IGN vector tiles from the Géoplateforme, grey style. The isard engine draws it with the network, the buildings and the closed sections between its streets and its labels.',
+        text: 'The basemap: Plan IGN vector tiles from the Géoplateforme, grey style, with the IGN hillshade (RGE ALTI). The isard engine draws it with the network, the buildings and the closed sections between its streets and its labels.',
       },
       buildingTiles: {
         label: 'BD TOPO tiles',
@@ -394,16 +394,16 @@ const fr: typeof en = {
         file: 'crates/engine/src/dijkstra.rs',
       },
       layer: {
-        label: 'Couche WebGL',
+        label: 'Couche réseau',
         detail: 'couleurs sur le GPU',
-        text: 'La géométrie des rues est préparée par un worker et envoyée une fois par mode à la carte graphique, rangée en carrés d’environ 2 km : chaque image ne dessine que les carrés à l’écran (quelque 20 000 bouts de rue sur plusieurs millions). À chaque mouvement, seul le temps de chaque carrefour est envoyé (un nombre par carrefour) ; la carte graphique calcule la couleur de chaque bout de rue, puis dessine un halo large (la carte de chaleur) et des lignes fines par-dessus.',
-        file: 'web/src/features/map/networkLayer.ts',
+        text: 'La couche réseau du moteur isard : les rues sont envoyées une fois par région à la carte graphique, rangées en carrés, et chaque image ne dessine que les carrés à l’écran (quelque 20 000 bouts de rue sur plusieurs millions). Un nouveau mode n’envoie que le coût de chaque rue ; à chaque mouvement, seul le temps de chaque carrefour est envoyé (un nombre par carrefour). La carte graphique calcule la couleur de chaque bout de rue, puis dessine un halo large (la carte de chaleur) et des lignes fines par-dessus.',
+        file: 'web/src/features/map/network.ts',
       },
       buildings: {
         label: 'Bâtiments 3D',
         detail: 'colorés sur le GPU',
-        text: 'Les bâtiments BD TOPO, extrudés à leur hauteur par un worker (façades ombrées selon leur orientation, toits plats). Chaque bâtiment est rattaché une fois à sa rue la plus proche ; la carte graphique lit ensuite les temps de cette rue dans la même texture que le réseau : les bâtiments suivent le curseur à chaque mouvement, sans coût pour la page.',
-        file: 'web/src/features/buildings/buildingGlLayer.ts',
+        text: 'Les bâtiments BD TOPO, lus par un worker et extrudés à leur hauteur par le moteur isard. Chaque bâtiment est rattaché une fois à sa rue la plus proche ; la carte graphique lit ensuite les temps de cette rue dans la même texture que le réseau : les bâtiments suivent le curseur à chaque mouvement, sans coût pour la page.',
+        file: 'web/src/features/buildings/buildings.ts',
       },
       panel: {
         label: 'Panneau de trajet',
@@ -420,7 +420,7 @@ const fr: typeof en = {
       tiles: {
         label: 'Plan IGN',
         detail: 'tuiles vectorielles',
-        text: 'Le fond de carte : tuiles vectorielles Plan IGN de la Géoplateforme, style gris. Le moteur isard le dessine avec le réseau, les bâtiments et les coupures entre ses rues et ses étiquettes.',
+        text: 'Le fond de carte : tuiles vectorielles Plan IGN de la Géoplateforme, style gris, avec l’estompage IGN (RGE ALTI). Le moteur isard le dessine avec le réseau, les bâtiments et les coupures entre ses rues et ses étiquettes.',
       },
       buildingTiles: {
         label: 'Tuiles BD TOPO',

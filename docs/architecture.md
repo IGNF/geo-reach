@@ -23,12 +23,13 @@ flowchart LR
     P --> E[travelEngine.ts<br/>snap + WASM Dijkstra]
     E -->|with closures: run all open too| B[baseline worker]
     B -->|delayed stations| UI
-    E -->|node times| R[networkRenderer.ts<br/>WebGL, hosted by MapLibre]
-    P -->|segments.worker.ts<br/>segments by square| R
-    R -->|same node times| BG[buildingGlLayer.ts<br/>3D buildings]
+    E -->|node times| R[isard network layer<br/>MapView.tsx, network.ts]
+    P -->|costs per edge| R
+    R -->|same node times, on the GPU| BG[isard extrusions<br/>buildings.ts]
     E -->|path| UI[TripPanel / labels]
     UI -.cursor stops.-> GPF["GPF itineraire<br/>+ reverse geocoding"]
-    BT["GPF BD TOPO vector tiles<br/>batiment, zoom 15"] -->|building.worker.ts<br/>extruded| BG
+    BT["GPF BD TOPO vector tiles<br/>batiment, zoom 15"] -->|building.worker.ts<br/>polygons| BG
+    PV["GPF Plan IGN vector tiles<br/>+ hillshade"] -->|isard workers| BM[basemap and its labels]
   end
 
   G --> L
@@ -48,22 +49,22 @@ web/src/
   app/                  entry point, root component (App.tsx), global styles, view state in the URL
   features/
     routing/            networks (read, grafted), per-mode profiles, snapping, the WASM engine and its workers
-    map/                MapLibre map, network renderer (WebGL) and its MapLibre layer, camera
-    buildings/          3D buildings: tiles extruded in a worker, WebGL layer colored by the node times
+    map/                the isard map and its layers, the network as its network layer takes it, camera
+    buildings/          3D buildings: tiles read in a worker, extruded by isard, colored by the node times
     cuts/               closed sections: model, map layer, panel
     trip/               trip panel, legs, mode comparison, Géoplateforme route and addresses
     settings/           settings panel, mode picker, model of the travel times
     search/             address search
     regions/            the 13 regions (boxes, and outlines in shapes.json to tell which one a point is in, by
                         scripts/regionShapes.ts), startup (a worker downloads and decodes, then the engine) and its screen
-  shared/               config, formatting, colors, projection, bounds, WebGL helpers, binary reader, data cache,
+  shared/               config, formatting, colors, projection, bounds, node times for the map (gl.ts), binary reader, data cache,
                         Géoplateforme client, ui/ (Brand, LineBadge)
   pages/                how-it-works/ (diagram, step details, made-up town running TravelEngine), legal/
   locales/              UI strings (English, French), picked from the browser language
 ```
 
 Workers are named `*.worker.ts`. The UI is built with `@ign-junn/design-system` (`Box`, `Stack`, `Grid`,
-`Typography`…); plain HTML only where it has no equivalent (MapLibre controls, colors computed from the data).
+`Typography`…); plain HTML only where it has no equivalent (map controls and markers, colors computed from the data).
 
 | Path | Language | Role |
 |---|---|---|
@@ -84,28 +85,29 @@ The design goal is "no network call on mouse move". Each piece removes one cost 
 | JSON parsing of the network | Binary files read as typed array views (zero copy) |
 | Allocation per run | Buffers allocated once in WASM memory, reset lazily (only the nodes touched last time) |
 | Copying results out of WASM | JS reads `dist` / `pred_*` as views on the WASM memory |
-| Re-uploading geometry to the GPU | Geometry uploaded once per profile; each move uploads only the node times (one float per node) |
-| Running more than once per frame | Mouse events only store the cursor; `requestAnimationFrame` runs the engine once for the latest position |
+| Re-uploading geometry to the GPU | Geometry uploaded once per region, costs once per profile; each move uploads only the node times (one float per node) |
+| Running more than once per frame | One run at a time: moves made meanwhile collapse into one run from the latest position |
+| Drawing the times a frame late | isard calls the hover listener in its frame, before drawing: a short run made there is drawn by that frame |
 | React re-renders at 60 Hz | Map label and route are updated imperatively; React panels are throttled |
 
 ## Hot path: one mouse move
 
 ```mermaid
 sequenceDiagram
-  participant M as MapLibre mousemove
-  participant V as MapView (rAF)
+  participant M as isard hover (in its frame)
+  participant V as MapView
   participant T as TravelEngine (TS)
   participant W as engine.wasm
   participant G as NetworkLayer (GPU)
 
-  M->>V: store cursor, schedule frame
-  V->>T: run(x, y, maxSeconds)
+  M->>V: cursor position
+  V->>T: runNow (main thread) or run (worker)
   T->>T: SnapIndex.nearest → edge, fraction, distance
   T->>W: write 2 sources (edge ends + access walk), run()
   W-->>T: dist / pred buffers (views, no copy)
   T-->>V: Result
-  V->>G: setTimes(dist) → texSubImage2D
-  G->>G: shader: time per segment end, color ramp
+  V->>G: setValues(times) → one texture upload
+  G->>G: shader: time per pixel of each edge, color ramp
 ```
 
 When a point is pinned (click), the engine runs once from that point and the result is copied (`TravelEngine.pin`).
@@ -117,7 +119,8 @@ all. After `SETTLE_MS` without movement, `useGpfRoute` asks the Géoplateforme r
 
 A *profile* (`web/src/features/routing/profile.ts`) is one combination of mode (`pedestrian`, `bike`, `car`,
 `transit`), direction (`departure`, `arrival`), hour of departure (traffic, service frequency) and bus on/off. Switching profile rebuilds the cost arrays and the CSR graph in
-JS (a few tens of ms), writes them into the WASM memory, and re-uploads the GPU geometry. Snap indexes are cached per
+JS (a few tens of ms), writes them into the WASM memory, and sends the new costs to the network layer (its geometry
+stays on the graphics card). Snap indexes are cached per
 mode.
 
 - **Departure**: times from the point to every node.
@@ -132,5 +135,5 @@ opens the same view. No other persistence.
 ## More
 
 - [Engine](engine.md): graph model, costs, Dijkstra, snapping, paths.
-- [Rendering](rendering.md): the WebGL layer and its shader.
+- [Rendering](rendering.md): the map on the isard engine, its layers, the network layer and the buildings.
 - [Data formats](data-formats.md): the road and transit files of the regions, byte by byte, and how to rebuild them.

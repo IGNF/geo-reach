@@ -127,7 +127,7 @@ const railFeatures = (engine: TravelEngine): { lines: Feature<RailProps>[]; stat
       geometry: { type: 'LineString', coordinates },
     });
   }
-  // The drawing order is the data's: MapLibre's `line-sort-key`
+  // The drawing order is the data's: the lines drawn last are on top
   lines.sort((a, b) => a.properties.order - b.properties.order);
 
   const stations = [...net.railStations].map(
@@ -206,7 +206,7 @@ const markerElement = (className: string) => {
 };
 
 /**
- * Widths of the network, as the zoom changes (CSS pixels, MapLibre zooms): lines from 1.2 px to 5 px; a wide glow under
+ * Widths of the network, as the zoom changes (CSS pixels, zooms of 512 px tiles): lines from 1.2 px to 5 px; a wide glow under
  * them that fills the blocks between streets, narrowing as the streets spread apart on screen
  */
 const LINE_WIDTH: [number, number][] = [

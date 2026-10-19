@@ -7,7 +7,7 @@ export const TILT_PITCH = 45;
 export const TILT = { pitch: TILT_PITCH, bearing: -17 };
 /** Widest view, metres across the map: a city and its suburbs; beyond, the network blurs into a solid patch of color */
 export const WIDEST_VIEW_METRES = 55_000;
-/** Earth circumference at the equator, metres, spread over 512 px at zoom 0 (MapLibre tiles) */
+/** Earth circumference at the equator, metres, spread over 512 px at zoom 0 (the 512 px tiles of the map) */
 const EQUATOR_METRES = 40_075_016.7;
 const WORLD_PX = 512;
 
