@@ -51,6 +51,8 @@ export class CutLayer {
   rail?: Layer;
   /** Stops the picking under the cursor, while cut mode is on */
   private stopPicking?: () => void;
+  /** The closed section or rail line the map last picked under the cursor (a frame behind it) */
+  private picked?: FeatureHit;
 
   constructor(map: GeoMap, engine: TravelEngine) {
     this.map = map;
@@ -140,23 +142,27 @@ export class CutLayer {
   }
 
   /**
-   * Cut mode on: the sections under the cursor are picked by the map as it draws (closed sections, and the rail lines
-   * in transit mode), read a frame later without stalling the graphics card; off: no picking, no highlight. Called
-   * again when the mode changes.
+   * Cut mode on: the closed sections and the rail lines (transit mode) under the cursor are picked by the map as it
+   * draws, read a frame later without stalling the graphics card; the streets are snapped at each move (`hoverAt`).
+   * Off: no picking, no highlight. Called again when the mode changes.
    */
   setActive(on: boolean): void {
     this.stopPicking?.();
     this.stopPicking = undefined;
+    this.picked = undefined;
     if (!on) return this.clearHover();
 
     const rail = this.engine.profile.mode === 'transit' ? this.rail : undefined;
     this.map.hoverPicking = { radius: PICK_PX, layers: [this.lineLayer, rail].filter((l) => l !== undefined) };
-    this.stopPicking = this.map.on('hoverfeature', ({ point, lonLat, hit }) => (lonLat ? this.hoverAt(point, lonLat, hit) : this.clearHover()));
+    this.stopPicking = this.map.on('hoverfeature', ({ point, lonLat, hit }) => {
+      this.picked = hit;
+      if (lonLat) this.hoverAt(point, lonLat);
+    });
   }
 
   /** Highlights the section under the cursor, or clears the highlight when there is none */
-  private hoverAt(px: Point, lngLat: LngLat, hit: FeatureHit | undefined): void {
-    const found = this.sectionAt(px, this.toRel(lngLat), hit);
+  hoverAt(px: Point, lngLat: LngLat): void {
+    const found = this.sectionAt(px, this.toRel(lngLat), this.picked);
     if (!found) {
       this.clearHover();
 

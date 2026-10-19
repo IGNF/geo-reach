@@ -634,10 +634,10 @@ const MapView = ({
       };
 
       cleanup.push(
-        map.on('hover', ({ lonLat }) => {
+        map.on('hover', ({ point, lonLat }) => {
           if (!lonLat) return;
-          // Cut mode: the cursor picks sections ('hoverfeature' of the cut layer), the origin of the map stays put
-          if (live.current.cutMode) return;
+          // Cut mode: the cursor picks sections, the origin of the map stays where it was
+          if (live.current.cutMode) return cutLayer.hoverAt(point, lonLat);
 
           c.cursor = toRel(lonLat);
           c.cursorAt = performance.now();

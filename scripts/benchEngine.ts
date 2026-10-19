@@ -15,7 +15,7 @@ import type { Mode } from '@/shared/config';
 const args = process.argv.slice(2);
 const orderArg = args.indexOf('--order');
 const order = orderArg >= 0 ? args[orderArg + 1] : undefined;
-const region = args.find((a, i) => !a.startsWith('--') && i !== orderArg + 1) ?? DEFAULT_REGION;
+const region = args.find((a, i) => !a.startsWith('--') && (orderArg < 0 || i !== orderArg + 1)) ?? DEFAULT_REGION;
 
 /** Runs per mode, and their maximum time: the scales the app offers by default */
 const RUNS = 300;
