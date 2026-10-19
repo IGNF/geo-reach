@@ -15,13 +15,24 @@ mod roads;
 mod transit;
 
 use std::error::Error;
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 pub type Res<T> = Result<T, Box<dyn Error>>;
 
 /// The repository, where the data and the caches live
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
+/// Writes a file whole or not at all: through a temporary file renamed over it. A cache written halfway (an interrupted
+/// run) would otherwise be read back as if complete at every later run.
+fn write_atomic(path: &Path, bytes: &[u8]) -> Res<()> {
+    let mut temporary = path.as_os_str().to_owned();
+    temporary.push(".tmp");
+    fs::write(&temporary, bytes)?;
+    fs::rename(&temporary, path)?;
+    Ok(())
 }
 
 /// A size for a message: precision does not matter

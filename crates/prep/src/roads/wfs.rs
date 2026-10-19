@@ -4,7 +4,7 @@
 
 use crate::http::{Http, encode};
 use crate::regions::{self, Box};
-use crate::{Res, root};
+use crate::{Res, root, write_atomic};
 use flate2::Compression;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
@@ -178,7 +178,7 @@ impl Tile {
         fs::create_dir_all(file.parent().ok_or("cache dir")?)?;
         let mut gz = GzEncoder::new(Vec::new(), Compression::default());
         gz.write_all(&serde_json::to_vec(&sections)?)?;
-        fs::write(&file, gz.finish()?)?;
+        write_atomic(&file, &gz.finish()?)?;
         Ok(sections)
     }
 }

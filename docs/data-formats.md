@@ -57,10 +57,11 @@ dropped.
 Written by `crates/prep` (`prep transit`, `src/transit.rs`, feeds in `src/transit/feeds.rs`), read by
 `web/src/features/routing/transit.ts` (`readTransit`). A region can have several feeds (the SNCF trains with the urban
 networks): `prep` reads them one by one and merges them, each feed's ids prefixed with its index. It takes feeds
-without `calendar.txt` or `shapes.txt` (their rail, metro and tram rides then follow the BD TOPO tracks, see below), values padded with spaces,
-stray control characters in the names (written as JSON escapes), and turns the extended GTFS route types into the
-basic ones (ferries go with the buses). A feed with no service on the reference day is read on the nearest same day
-of the week (logged).
+without `calendar.txt`, `calendar_dates.txt` or `shapes.txt` (their rail, metro and tram rides then follow the BD TOPO
+tracks, see below), values padded with spaces, stray control characters in the names (written as JSON escapes), and
+turns the extended GTFS route types into the basic ones (300 suburban rail as trains, 500 and 600 as metros, 1300 as
+aerial lifts, ferries with the buses). A feed with no service on the reference day is read on the nearest same day of
+the week (logged). A downloaded feed is kept in `.cache/gtfs/` only when it opens as a zip.
 
 | Section | Type | Content |
 |---|---|---|
@@ -80,7 +81,11 @@ For a reference day (default Tuesday 2026-10-13, `prep transit <region> --date Y
 - **ride** = median of the scheduled times between two consecutive stations of a line;
 - **wait** = 3600 / (departures in the hour) / 2, capped at 12 min, plus 60 s.
 
-Platforms are merged into their parent station; GTFS times past 24:00 wrap to the hour of the day.
+Platforms are merged into their parent station; GTFS times past 24:00 wrap to the hour of the day. The stops of a trip
+pair in increasing `stop_sequence`, whatever its steps (10, 20, 30…). Stops the feed gives no time (`timepoint=0`)
+share the time between the timed stops around them evenly. A trip of `frequencies.txt` counts one departure per run of
+its windows (every `headway_secs` from `start_time` to `end_time`), its stop times standing for the gaps between stops.
+Without `direction_id`, the headsign (`trip_headsign`) tells the two ways of a line apart.
 
 ### Ride geometries without shapes
 

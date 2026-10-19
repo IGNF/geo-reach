@@ -29,6 +29,8 @@ pub type SegmentKey = (String, String, String, String);
 
 /// Trips of the day by id: (route, direction, shape)
 type Trips = HashMap<String, (String, String, String)>;
+/// Trips run at a frequency (`frequencies.txt`), by id: their windows (start, end, headway), seconds
+type Frequencies = HashMap<String, Vec<(u32, u32, u32)>>;
 type Platforms = HashMap<String, Platform>;
 type Stations = HashMap<String, Station>;
 type Departures = HashMap<LineStopKey, [u32; HOURS]>;
@@ -54,13 +56,16 @@ pub struct Schedule {
     pub shapes: HashMap<String, Vec<(f64, f64)>>,
 }
 
-/// The stop read just before, to pair it with the next one of the same trip
-struct PreviousStop {
-    trip: String,
+/// Shortest ride between two stations, seconds: feeds round to the minute, and two stops can share it
+const MIN_RIDE_SECONDS: u32 = 30;
+
+/// The last stop of the trip read with a time, to pair it with the next one, and the stops read since without one
+struct PreviousStop<'a> {
     seq: u32,
-    station: String,
+    platform: &'a Platform,
     departure: u32,
-    pos: (f64, f64),
+    /// Stops whose times the feed leaves out (`timepoint=0`): their times are interpolated at the next timed stop
+    untimed: Vec<&'a Platform>,
 }
 
 /// A platform of the zone, attached to its station
@@ -129,13 +134,15 @@ impl Schedule {
         let services = services_near(&mut zip, date)?;
         let routes = read_routes(&mut zip)?;
         let trips = read_trips(&mut zip, &services)?;
+        let frequencies = read_frequencies(&mut zip, &trips)?;
         eprintln!(
-            "{} platforms in the zone, {} services, {} trips on the day",
+            "{} platforms in the zone, {} services, {} trips on the day, {} run at a frequency",
             platforms.len(),
             services.len(),
-            trips.len()
+            trips.len(),
+            frequencies.len()
         );
-        let (segments, departures) = read_stop_times(&mut zip, &platforms, &trips)?;
+        let (segments, departures) = read_stop_times(&mut zip, &platforms, &trips, &frequencies)?;
         let shapes = read_shapes(&mut zip, &segments)?;
         Ok(Schedule {
             stations,
@@ -233,6 +240,10 @@ fn read_services(zip: &mut Archive, date: u32) -> Res<HashSet<String>> {
             services.insert(r.get("service_id").to_string());
         }
     })?;
+    // Optional next to `calendar.txt`: no exception
+    if zip.index_for_name("calendar_dates.txt").is_none() {
+        return Ok(services);
+    }
     feed::read_csv(zip, "calendar_dates.txt", |r| {
         if r.get("date").parse::<u32>().ok() == Some(date) {
             match r.get("exception_type") {
@@ -261,30 +272,37 @@ fn read_routes(zip: &mut Archive) -> Res<HashMap<String, Route>> {
     Ok(routes)
 }
 
-/// The basic GTFS route type the app knows (0 tram, 1 metro, 2 rail, 3 bus, 7 funicular) from any route type:
-/// ferries and the extended codes of the regional aggregates (100 rail, 200 coach, 400 urban rail, 700 bus, 900
-/// tram…). Ferries go with the buses: small river crossings, not lines to draw like a tram.
+/// The basic GTFS route type the app knows (0 tram, 1 metro, 2 rail, 3 bus, 5 cable tram, 6 aerial lift, 7
+/// funicular) from any route type: ferries and the extended codes of the regional aggregates (100 rail, 200 coach,
+/// 300 suburban rail, 400 urban rail, 500 metro, 600 underground, 700 bus, 900 tram, 1300 aerial lift…). Ferries go
+/// with the buses: small river crossings, not lines to draw like a tram. A monorail (12) runs like a metro.
 fn basic_route_type(kind: u32) -> u32 {
     match kind {
         0..=2 | 5..=7 => kind,
-        100..=199 => 2,
-        400..=499 => 1,
+        12 | 400..=699 => 1,
+        100..=199 | 300..=399 => 2,
         900..=999 => 0,
+        1300..=1399 => 6,
         1400..=1499 => 7,
         _ => 3,
     }
 }
 
-/// Trips of the day: route, direction, shape
+/// Trips of the day: route, direction, shape. Without `direction_id` (optional in the GTFS), the headsign tells the
+/// two ways of a line apart: merged, their departures would add up and halve the wait.
 fn read_trips(zip: &mut Archive, services: &HashSet<String>) -> Res<Trips> {
     let mut trips = HashMap::new();
     feed::read_csv(zip, "trips.txt", |r| {
         if services.contains(r.get("service_id")) {
+            let direction = match r.get("direction_id") {
+                "" => format!("to {}", r.get("trip_headsign")),
+                id => id.into(),
+            };
             trips.insert(
                 r.get("trip_id").into(),
                 (
                     r.get("route_id").into(),
-                    r.get("direction_id").into(),
+                    direction,
                     r.get("shape_id").into(),
                 ),
             );
@@ -293,67 +311,209 @@ fn read_trips(zip: &mut Archive, services: &HashSet<String>) -> Res<Trips> {
     Ok(trips)
 }
 
+/// Windows of the trips of the day run at a frequency (optional file); a window without a positive headway is left out
+fn read_frequencies(zip: &mut Archive, trips: &Trips) -> Res<Frequencies> {
+    let mut frequencies = Frequencies::new();
+    if zip.index_for_name("frequencies.txt").is_none() {
+        return Ok(frequencies);
+    }
+    feed::read_csv(zip, "frequencies.txt", |r| {
+        let trip = r.get("trip_id");
+        let window = (
+            feed::seconds(r.get("start_time")),
+            feed::seconds(r.get("end_time")),
+            r.get("headway_secs").parse::<u32>().ok(),
+        );
+        if let (Some(start), Some(end), Some(headway)) = window
+            && headway > 0
+            && trips.contains_key(trip)
+        {
+            frequencies
+                .entry(trip.into())
+                .or_default()
+                .push((start, end, headway));
+        }
+    })?;
+    Ok(frequencies)
+}
+
 /// Consecutive stops of a trip, both in the zone, at two different stations
 fn read_stop_times(
     zip: &mut Archive,
     platforms: &Platforms,
     trips: &Trips,
+    frequencies: &Frequencies,
 ) -> Res<(Segments, Departures)> {
-    let mut segments = Segments::new();
-    let mut departures = Departures::new();
-    let mut previous: Option<PreviousStop> = None;
+    let mut pairing = Pairing::new(platforms, trips, frequencies);
     let mut rows = 0u64;
     feed::read_csv(zip, "stop_times.txt", |r| {
         rows += 1;
-        let trip = r.get("trip_id");
-        let (Some((route, dir, shape)), Some(stop)) =
-            (trips.get(trip), platforms.get(r.get("stop_id")))
-        else {
-            previous = None;
-            return;
-        };
-        let seq: u32 = r.get("stop_sequence").parse().unwrap_or(0);
-        let arr = feed::seconds(r.get("arrival_time")).unwrap_or(0);
-        let dep = feed::seconds(r.get("departure_time")).unwrap_or(0);
-        if let Some(p) = &previous
-            && p.trip == trip
-            && p.seq + 1 == seq
-            && p.station != stop.station
-        {
-            // GTFS times run past 24:00 for the night of the service day
-            let hour = (p.departure / 3600) as usize % HOURS;
-            departures
-                .entry((route.clone(), dir.clone(), p.station.clone()))
-                .or_insert([0; HOURS])[hour] += 1;
-            let seg = segments
-                .entry((
-                    route.clone(),
-                    dir.clone(),
-                    p.station.clone(),
-                    stop.station.clone(),
-                ))
-                .or_default();
-            seg.times
-                .push((hour, arr.saturating_sub(p.departure).max(30)));
-            if seg.shape.is_empty() {
-                seg.shape.clone_from(shape);
-                seg.from_pos = p.pos;
-                seg.to_pos = (stop.lng, stop.lat);
-            }
-        }
-        previous = Some(PreviousStop {
-            trip: trip.into(),
-            seq,
-            station: stop.station.clone(),
-            departure: dep,
-            pos: (stop.lng, stop.lat),
-        });
+        pairing.row(
+            r.get("trip_id"),
+            r.get("stop_id"),
+            r.get("stop_sequence").parse().unwrap_or(0),
+            feed::seconds(r.get("arrival_time")),
+            feed::seconds(r.get("departure_time")),
+        );
     })?;
     eprintln!(
         "{rows} stop times read, {} line segments in the zone",
-        segments.len()
+        pairing.segments.len()
     );
-    Ok((segments, departures))
+    Ok((pairing.segments, pairing.departures))
+}
+
+/// Hour of the day of a GTFS time: past 24:00, the night of the service day
+fn hour_of(seconds: u32) -> usize {
+    (seconds / 3600) as usize % HOURS
+}
+
+/// Pairs the stop times, streamed row by row, into line segments and departures. The rows of a trip come together,
+/// in increasing `stop_sequence` (the numbers may skip: 10, 20, 30…).
+struct Pairing<'a> {
+    platforms: &'a Platforms,
+    trips: &'a Trips,
+    frequencies: &'a Frequencies,
+    segments: Segments,
+    departures: Departures,
+    /// The trip being read, and the departure of its first stop (in the zone or not): its frequencies count from it
+    trip: String,
+    trip_start: Option<u32>,
+    previous: Option<PreviousStop<'a>>,
+}
+
+impl<'a> Pairing<'a> {
+    fn new(platforms: &'a Platforms, trips: &'a Trips, frequencies: &'a Frequencies) -> Self {
+        Pairing {
+            platforms,
+            trips,
+            frequencies,
+            segments: Segments::new(),
+            departures: Departures::new(),
+            trip: String::new(),
+            trip_start: None,
+            previous: None,
+        }
+    }
+
+    /// One stop time; a time left out is `None` (only one of the two given: it stands for both)
+    fn row(
+        &mut self,
+        trip: &str,
+        stop_id: &str,
+        seq: u32,
+        arrival: Option<u32>,
+        departure: Option<u32>,
+    ) {
+        if trip != self.trip {
+            trip.clone_into(&mut self.trip);
+            self.trip_start = None;
+            self.previous = None;
+        }
+        let (platforms, trips) = (self.platforms, self.trips);
+        let Some(line) = trips.get(trip) else { return };
+        let (arrival, departure) = (arrival.or(departure), departure.or(arrival));
+        self.trip_start = self.trip_start.or(departure);
+        // A stop out of the zone breaks the trip: the next stop in the zone starts it again
+        let Some(stop) = platforms.get(stop_id) else {
+            self.previous = None;
+            return;
+        };
+
+        match (self.previous.take().filter(|p| seq > p.seq), arrival) {
+            (Some(mut p), None) => {
+                p.seq = seq;
+                p.untimed.push(stop);
+                self.previous = Some(p);
+            }
+            (Some(p), Some(arrival)) => {
+                self.rides(line, &p, stop, arrival);
+                self.previous = Some(PreviousStop {
+                    seq,
+                    platform: stop,
+                    departure: departure.unwrap_or(arrival),
+                    untimed: Vec::new(),
+                });
+            }
+            // The first stop of the trip in the zone (or a row out of order): nothing to pair it with yet
+            (None, _) => {
+                self.previous = departure.map(|departure| PreviousStop {
+                    seq,
+                    platform: stop,
+                    departure,
+                    untimed: Vec::new(),
+                });
+            }
+        }
+    }
+
+    /// The rides from the previous timed stop to this one, through the untimed stops between, which share the time
+    /// evenly
+    fn rides(
+        &mut self,
+        line: &'a (String, String, String),
+        p: &PreviousStop<'a>,
+        stop: &'a Platform,
+        arrival: u32,
+    ) {
+        let legs = u32::try_from(p.untimed.len()).map_or(u32::MAX, |n| n.saturating_add(1));
+        let total = arrival.saturating_sub(p.departure);
+        let mut from = p.platform;
+        for (to, k) in p.untimed.iter().copied().chain([stop]).zip(0u32..) {
+            let leave = p.departure + total * k / legs;
+            let reach = p.departure + total * (k + 1) / legs;
+            if from.station != to.station {
+                self.segment(line, from, to, leave, reach - leave);
+            }
+            from = to;
+        }
+    }
+
+    /// A ride between two stations leaving at `leave`: its time, and the departures it stands for at the first one
+    /// (each run of the trip when it repeats at a frequency)
+    fn segment(
+        &mut self,
+        (route, dir, shape): &'a (String, String, String),
+        from: &Platform,
+        to: &Platform,
+        leave: u32,
+        seconds: u32,
+    ) {
+        let mut hour = hour_of(leave);
+        let departures = self
+            .departures
+            .entry((route.clone(), dir.clone(), from.station.clone()))
+            .or_insert([0; HOURS]);
+        match (self.frequencies.get(&self.trip), self.trip_start) {
+            (Some(windows), Some(start)) => {
+                // The stop times are a template: only their gaps count. The runs leave the first stop every headway of
+                // each window, the ride time sampled at the hour of the first one.
+                let offset = leave.saturating_sub(start);
+                hour = windows.first().map_or(hour, |w| hour_of(w.0 + offset));
+                for &(first, end, headway) in windows {
+                    for run in (first..end).step_by(headway as usize) {
+                        departures[hour_of(run + offset)] += 1;
+                    }
+                }
+            }
+            _ => departures[hour] += 1,
+        }
+        let seg = self
+            .segments
+            .entry((
+                route.clone(),
+                dir.clone(),
+                from.station.clone(),
+                to.station.clone(),
+            ))
+            .or_default();
+        seg.times.push((hour, seconds.max(MIN_RIDE_SECONDS)));
+        if seg.shape.is_empty() {
+            seg.shape.clone_from(shape);
+            seg.from_pos = (from.lng, from.lat);
+            seg.to_pos = (to.lng, to.lat);
+        }
+    }
 }
 
 /// Points of the shapes the segments need, in order
@@ -384,4 +544,101 @@ fn read_shapes(zip: &mut Archive, segments: &Segments) -> Res<HashMap<String, Ve
             (id, pts.into_iter().map(|p| (p.1, p.2)).collect())
         })
         .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Three stations A, B, C in the zone, a line L whose trips "t" and "f" run A → B → C; "f" every 10 min from 6:00
+    /// to 9:00
+    fn network() -> (Platforms, Trips, Frequencies) {
+        let platform = |station: &str| Platform {
+            station: station.into(),
+            lng: 2.4,
+            lat: 48.8,
+        };
+        let platforms = ["A", "B", "C"]
+            .into_iter()
+            .map(|s| (format!("p{s}"), platform(s)))
+            .collect();
+        let line = ("L".to_string(), "0".to_string(), String::new());
+        let trips = [("t".to_string(), line.clone()), ("f".to_string(), line)]
+            .into_iter()
+            .collect();
+        let frequencies = [("f".to_string(), vec![(6 * 3600, 9 * 3600, 600)])]
+            .into_iter()
+            .collect();
+        (platforms, trips, frequencies)
+    }
+
+    fn segment_seconds(pairing: &Pairing, from: &str, to: &str) -> Vec<u32> {
+        let key = ("L".into(), "0".into(), from.into(), to.into());
+        pairing.segments[&key].times.iter().map(|t| t.1).collect()
+    }
+
+    fn departures_at(pairing: &Pairing, station: &str) -> [u32; HOURS] {
+        pairing.departures[&("L".into(), "0".into(), station.into())]
+    }
+
+    const H8: u32 = 8 * 3600;
+
+    #[test]
+    fn pairs_stops_whose_sequence_skips() {
+        let (platforms, trips, frequencies) = network();
+        let mut pairing = Pairing::new(&platforms, &trips, &frequencies);
+        pairing.row("t", "pA", 10, Some(H8), Some(H8));
+        pairing.row("t", "pB", 20, Some(H8 + 120), Some(H8 + 150));
+        pairing.row("t", "pC", 30, Some(H8 + 300), Some(H8 + 300));
+        assert_eq!(segment_seconds(&pairing, "A", "B"), [120]);
+        assert_eq!(segment_seconds(&pairing, "B", "C"), [150]);
+        assert_eq!(departures_at(&pairing, "B")[8], 1);
+    }
+
+    #[test]
+    fn shares_the_time_among_untimed_stops() {
+        let (platforms, trips, frequencies) = network();
+        let mut pairing = Pairing::new(&platforms, &trips, &frequencies);
+        pairing.row("t", "pA", 1, Some(H8), Some(H8));
+        pairing.row("t", "pB", 2, None, None);
+        pairing.row("t", "pC", 3, Some(H8 + 600), None);
+        assert_eq!(segment_seconds(&pairing, "A", "B"), [300]);
+        assert_eq!(segment_seconds(&pairing, "B", "C"), [300]);
+    }
+
+    #[test]
+    fn counts_every_run_of_a_frequency() {
+        let (platforms, trips, frequencies) = network();
+        let mut pairing = Pairing::new(&platforms, &trips, &frequencies);
+        // The template run leaves A at 0:00; B is reached 2 min later, so its runs leave at 6:02, 6:12… 8:52
+        pairing.row("f", "pA", 1, Some(0), Some(0));
+        pairing.row("f", "pB", 2, Some(120), Some(120));
+        pairing.row("f", "pC", 3, Some(240), Some(240));
+        let at_b = departures_at(&pairing, "B");
+        assert_eq!(&at_b[5..10], [0, 6, 6, 6, 0]);
+        assert_eq!(departures_at(&pairing, "A")[6], 6);
+    }
+
+    #[test]
+    fn breaks_a_trip_at_a_stop_out_of_the_zone() {
+        let (platforms, trips, frequencies) = network();
+        let mut pairing = Pairing::new(&platforms, &trips, &frequencies);
+        pairing.row("t", "pA", 1, Some(H8), Some(H8));
+        pairing.row("t", "elsewhere", 2, Some(H8 + 60), Some(H8 + 60));
+        pairing.row("t", "pC", 3, Some(H8 + 120), Some(H8 + 120));
+        assert!(pairing.segments.is_empty());
+    }
+
+    #[test]
+    fn maps_extended_route_types() {
+        assert_eq!(basic_route_type(109), 2);
+        assert_eq!(basic_route_type(300), 2);
+        assert_eq!(basic_route_type(401), 1);
+        assert_eq!(basic_route_type(500), 1);
+        assert_eq!(basic_route_type(12), 1);
+        assert_eq!(basic_route_type(900), 0);
+        assert_eq!(basic_route_type(1300), 6);
+        assert_eq!(basic_route_type(700), 3);
+        assert_eq!(basic_route_type(4), 3);
+    }
 }

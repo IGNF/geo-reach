@@ -22,13 +22,13 @@ mod zone;
 
 use crate::http::Http;
 use crate::regions::Region;
-use crate::{Res, megabytes, root};
+use crate::{Res, megabytes, root, write_atomic};
 use flate2::Compression;
 use flate2::write::GzEncoder;
 use sha1::{Digest, Sha1};
 use std::fmt::Write as _;
 use std::fs;
-use std::io::Write;
+use std::io::{Cursor, Write};
 use std::path::PathBuf;
 
 /// Hours of the day the frequencies are computed for
@@ -39,7 +39,8 @@ pub const HOURS: usize = 24;
 pub const DEFAULT_DATE: u32 = 2026_10_13;
 
 /// A feed's zip in the cache, downloaded once (one file per URL: the SNCF feed serves several regions); none when
-/// it cannot be had, the region goes on without it
+/// it cannot be had, the region goes on without it. Kept only when it opens as a zip: an error page served with a 200
+/// would otherwise stay in the cache, and the feed be left out at every run.
 fn download(http: &Http, feed: &feeds::Feed) -> Option<PathBuf> {
     let hash = Sha1::digest(feed.url.as_bytes());
     let name = hash.iter().take(6).fold(String::new(), |mut name, b| {
@@ -51,10 +52,14 @@ fn download(http: &Http, feed: &feeds::Feed) -> Option<PathBuf> {
         return Some(zip);
     }
 
-    match http.get(feed.url) {
+    let body = http.get(feed.url).and_then(|body| {
+        zip::ZipArchive::new(Cursor::new(&body))?;
+        Ok(body)
+    });
+    match body {
         Ok(body) => {
             fs::create_dir_all(zip.parent()?).ok()?;
-            fs::write(&zip, &body).ok()?;
+            write_atomic(&zip, &body).ok()?;
             eprintln!(
                 "  downloaded {}, {:.0} MB",
                 feed.name,
