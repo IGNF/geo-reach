@@ -39,13 +39,15 @@ export interface Started {
 
 /**
  * Downloads the data files of a region, decodes them and builds the engine, reporting the progress. The transit layer
- * is optional: without it (every region but Île-de-France for now) the app runs on the roads alone.
+ * is optional: without it the app runs on the roads alone. `signal`: the region is no longer wanted, its loading
+ * stops.
  */
 export const startEngine = async (
   region: Region,
   options: Omit<ProfileOptions, 'closed'>,
   cuts: Cut[],
   onProgress: (p: StartupProgress) => void,
+  signal?: AbortSignal,
 ): Promise<Started> => {
   // Both downloads at once, one bar
   const files = { graph: { bytes: 0, total: 0 }, transit: { bytes: 0, total: 0 } };
@@ -71,7 +73,9 @@ export const startEngine = async (
   const loaded = await loadNetwork(
     { graphUrl: graphUrl(region), transitUrl: transit, options: { ...options, closed: new Uint32Array(0) } },
     { onDownload: (file, bytes, total) => track(file)(bytes, total), onStep: (step) => onProgress({ step, percent: STEP_START[step] }) },
+    signal,
   );
+  signal?.throwIfAborted();
   const { net } = loaded;
 
   // Cuts of a link made on other data are dropped

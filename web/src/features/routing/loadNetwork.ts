@@ -19,11 +19,21 @@ export interface LoadProgress {
 
 /**
  * Loads a region in a worker of its own (download, decoding, transit, first profile, snap index): the page only
- * receives the result, and the map in view keeps moving meanwhile.
+ * receives the result, and the map in view keeps moving meanwhile. Aborted (the view went on to another region), the
+ * worker stops, its download with it.
  */
-export const loadNetwork = (request: NetworkRequest, progress: LoadProgress): Promise<LoadedNetwork> =>
+export const loadNetwork = (request: NetworkRequest, progress: LoadProgress, signal?: AbortSignal): Promise<LoadedNetwork> =>
   new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason);
     const worker = new Worker(new URL('./network.worker.ts', import.meta.url), { type: 'module' });
+    signal?.addEventListener(
+      'abort',
+      () => {
+        worker.terminate();
+        reject(signal.reason);
+      },
+      { once: true },
+    );
     worker.onmessage = ({ data: msg }: MessageEvent<NetworkMessage>) => {
       if (msg.type === 'progress') return progress.onDownload(msg.file, msg.bytes, msg.total);
       if (msg.type === 'step') return progress.onStep(msg.step);

@@ -7,6 +7,7 @@ import { t } from '@/locales';
 import type { ModelOptions } from '@/features/routing';
 import ModelSection from './ModelSection';
 import ModePicker from './ModePicker';
+import { useDraft } from './useDraft';
 import type { ReactElement } from 'react';
 import type { Region } from '@/features/regions';
 
@@ -69,6 +70,9 @@ const SettingsPanel = ({
   onWidthChange,
 }: SettingsPanelProps): ReactElement => {
   const max = MAX_SCALE[mode];
+  // The hour rebuilds the profile: committed once the thumb is released
+  const hourDraft = useDraft(hour, onHourChange);
+  const shownHour = hourDraft.value;
   const timed = mode === 'transit' || mode === 'car';
   const directions = [
     { value: 'departure' as const, label: t.directions.departure },
@@ -138,10 +142,10 @@ const SettingsPanel = ({
         <Stack gap={4}>
           <Stack direction="row" justify="space-between">
             <Typography variant="caption">{t.departureAt}</Typography>
-            <Typography variant="strong">{t.hour(hour)}</Typography>
+            <Typography variant="strong">{t.hour(shownHour)}</Typography>
           </Stack>
-          <Slider label={t.departureAt} min={0} max={23} step={1} value={hour} onChange={onHourChange} marks={HOUR_MARKS} />
-          <Typography variant="hint">{mode === 'car' ? t.trafficNote(trafficLevel(hour)) : t.serviceNote}</Typography>
+          <Slider label={t.departureAt} min={0} max={23} step={1} {...hourDraft} marks={HOUR_MARKS} />
+          <Typography variant="hint">{mode === 'car' ? t.trafficNote(trafficLevel(shownHour)) : t.serviceNote}</Typography>
         </Stack>
       )}
       <Stack gap={4} title={t.scaleHint}>

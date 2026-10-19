@@ -148,6 +148,9 @@ export class SnapIndex {
   private readonly minY: number;
   /** Fraction along its edge of each geometry point */
   private readonly pointFrac: Float32Array;
+  private readonly parts: SnapParts;
+  /** Geometry points of the closed roads (1): their segments are passed over */
+  private closedPoints?: Uint8Array;
 
   private readonly net: Network;
 
@@ -158,6 +161,7 @@ export class SnapIndex {
   constructor(net: Network, from: Profile | SnapParts, islandsOf?: Profile) {
     this.net = net;
     const parts = 'cellStart' in from ? from : SnapIndex.build(net, from, islandsOf);
+    this.parts = parts;
     if (!fractions.has(net)) fractions.set(net, parts.pointFrac);
     this.cellStart = parts.cellStart;
     this.items = parts.items;
@@ -213,6 +217,20 @@ export class SnapIndex {
     return { cellStart: counts, items, cols, rows, minX, minY, pointFrac: pointFractions(net) };
   }
 
+  /**
+   * The same index without the closed edges: what `build` makes of the profile with its cuts, the islands being those
+   * of the profile without them, at the cost of marking their points (no grid nor islands built again)
+   */
+  without(closed: ArrayLike<number>): SnapIndex {
+    const { coordStart } = this.net;
+    const mask = new Uint8Array(this.pointFrac.length);
+    for (let i = 0; i < closed.length; i += 1) mask.fill(1, coordStart[closed[i]], coordStart[closed[i] + 1]);
+    const index = new SnapIndex(this.net, this.parts);
+    index.closedPoints = mask;
+
+    return index;
+  }
+
   /** Edge of a geometry point (binary search on the edge starts) */
   private edgeOfPoint(p: number) {
     const starts = this.net.coordStart;
@@ -240,6 +258,7 @@ export class SnapIndex {
           const c = j * this.cols + i;
           for (let k = this.cellStart[c]; k < this.cellStart[c + 1]; k += 1) {
             const p = this.items[k];
+            if (this.closedPoints?.[p]) continue;
             const [x0, y0, x1, y1] = [coords[p * 2], coords[p * 2 + 1], coords[p * 2 + 2], coords[p * 2 + 3]];
             const [dx, dy] = [x1 - x0, y1 - y0];
             const len2 = dx * dx + dy * dy;

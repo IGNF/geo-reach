@@ -48,6 +48,8 @@ const App = (): ReactElement => {
   // in the background while the current map stays; the new engine and its map replace them once ready
   useEffect(() => {
     const load = { cancelled: false };
+    // Leaving the region before it is loaded stops its download and decoding
+    const controller = new AbortController();
     const first = !engineRef.current;
     const report = (progress: StartupProgress): void => {
       if (load.cancelled) return;
@@ -56,7 +58,7 @@ const App = (): ReactElement => {
     };
     report({ step: 'download', percent: 0 });
 
-    startEngine(region, { mode, direction, bus, hour, model }, cuts, report)
+    startEngine(region, { mode, direction, bus, hour, model }, cuts, report, controller.signal)
       .then((started) => {
         if (load.cancelled) return started.engine.dispose();
         setSwitching(undefined);
@@ -72,8 +74,8 @@ const App = (): ReactElement => {
         setEngine(started.engine);
       })
       .catch((error: unknown) => {
-        console.error(error);
         if (load.cancelled) return;
+        console.error(error);
         // At the start, the startup screen says it; later, the current map stays
         if (first) return setStartupFailed('network');
         setSwitching(undefined);
@@ -82,6 +84,7 @@ const App = (): ReactElement => {
 
     return () => {
       load.cancelled = true;
+      controller.abort();
     };
     // A new region only; the profile follows the view in the effect below
     // eslint-disable-next-line react-hooks/exhaustive-deps

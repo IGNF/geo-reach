@@ -290,8 +290,8 @@ const MapView = ({
     refresh: () => void;
     /** Draws the closed sections */
     drawCuts: () => void;
-    /** Clears the section highlighted in cut mode */
-    clearHover: () => void;
+    /** Cut mode off: no section picked nor highlighted */
+    leaveCutMode: () => void;
     /** Cut mode on: the map stays computed from the pinned point, else from the cursor's last position */
     freeze: () => void;
     /** New profile: new costs on the network, the rail lines shown or not */
@@ -304,7 +304,7 @@ const MapView = ({
     runOnMain: false,
     refresh: () => undefined,
     drawCuts: () => undefined,
-    clearHover: () => undefined,
+    leaveCutMode: () => undefined,
     freeze: () => undefined,
     setProfile: () => undefined,
   });
@@ -490,6 +490,8 @@ const MapView = ({
         const transit = engine.profile.mode === 'transit';
         c.rail?.lines.setVisible(transit);
         c.rail?.stations.setVisible(transit);
+        // The rail lines are picked in transit mode only
+        if (live.current.cutMode) cutLayer.setActive(true);
       };
       c.setProfile();
 
@@ -716,19 +718,20 @@ const MapView = ({
       };
 
       c.drawCuts = () => cutLayer.draw(live.current.cuts);
-      c.clearHover = () => cutLayer.clearHover();
+      c.leaveCutMode = () => cutLayer.setActive(false);
 
       c.freeze = () => {
         const pin = live.current.pinned;
         if (pin) c.cursor = toRel(pin);
+        cutLayer.setActive(true);
         schedule();
       };
 
       cleanup.push(
-        map.on('hover', ({ point, lonLat }) => {
+        map.on('hover', ({ lonLat }) => {
           if (!lonLat) return;
-          // Cut mode: the cursor picks sections, the origin of the map stays where it was
-          if (live.current.cutMode) return cutLayer.hoverAt(point, lonLat);
+          // Cut mode: the cursor picks sections ('hoverfeature' of the cut layer), the origin of the map stays put
+          if (live.current.cutMode) return;
 
           c.cursor = toRel(lonLat);
           c.cursorAt = performance.now();
@@ -848,7 +851,7 @@ const MapView = ({
   useEffect(() => {
     const c = ctl.current;
     if (!cutMode) {
-      c.clearHover();
+      c.leaveCutMode();
 
       return;
     }

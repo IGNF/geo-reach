@@ -195,12 +195,16 @@ export class TravelEngine {
 
     this.setBaseline(p);
 
-    // The roads one can start from depend on the mode, and on the closed roads (never cached: one per set of cuts)
+    // The roads one can start from depend on the mode (one index each, kept), and on the closed roads: those are
+    // passed over in the index of the mode, the islands staying those of the network without cuts
     const roadCut = options.closed.some((e) => this.net.edgeKind[e] === EDGE_ROAD);
     const key = `${options.mode}/${options.bus}`;
-    const index = (!roadCut && this.snapIndexes.get(key)) || new SnapIndex(this.net, fits ? built.snap : p, this.baseline);
-    if (!roadCut) this.snapIndexes.set(key, index);
-    this.snapIndex = index;
+    let index = this.snapIndexes.get(key);
+    if (!index) {
+      index = new SnapIndex(this.net, fits ? built.snap : (this.baseline ?? p));
+      this.snapIndexes.set(key, index);
+    }
+    this.snapIndex = roadCut ? index.without(options.closed) : index;
 
     return p;
   }

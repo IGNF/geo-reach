@@ -3,6 +3,7 @@ import type { ModelOptions } from '@/features/routing';
 import type { Mode } from '@/shared/config';
 import { t } from '@/locales';
 import type { ReactElement } from 'react';
+import { useDraft } from './useDraft';
 
 interface ModelSectionProps {
   mode: Mode;
@@ -22,20 +23,24 @@ const Value = ({ label, value }: { label: string; value: string }) => (
 /** The assumptions of the travel times that matter for the chosen mode */
 const ModelSection = ({ mode, model, onChange, onReset }: ModelSectionProps): ReactElement => {
   const walking = mode === 'pedestrian' || mode === 'transit';
+  // Each value rebuilds the profile: committed once the thumb is released
+  const walk = useDraft(model.walkKmh, (walkKmh) => onChange({ walkKmh }));
+  const bike = useDraft(model.bikeKmh, (bikeKmh) => onChange({ bikeKmh }));
+  const transfer = useDraft(model.transferMin, (transferMin) => onChange({ transferMin }));
 
   return (
     <CollapsibleSection title={t.model.title} description={t.model.description} defaultOpened={false}>
       <Stack gap="md">
         {walking && (
           <Stack gap={4}>
-            <Value label={t.model.walk} value={t.kmh(model.walkKmh)} />
-            <Slider label={t.model.walk} min={3} max={6} step={0.5} value={model.walkKmh} onChange={(v) => onChange({ walkKmh: v })} />
+            <Value label={t.model.walk} value={t.kmh(walk.value)} />
+            <Slider label={t.model.walk} min={3} max={6} step={0.5} {...walk} />
           </Stack>
         )}
         {mode === 'bike' && (
           <Stack gap={4}>
-            <Value label={t.model.bike} value={t.kmh(model.bikeKmh)} />
-            <Slider label={t.model.bike} min={10} max={25} step={1} value={model.bikeKmh} onChange={(v) => onChange({ bikeKmh: v })} />
+            <Value label={t.model.bike} value={t.kmh(bike.value)} />
+            <Slider label={t.model.bike} min={10} max={25} step={1} {...bike} />
           </Stack>
         )}
         {mode !== 'car' && (
@@ -78,15 +83,8 @@ const ModelSection = ({ mode, model, onChange, onReset }: ModelSectionProps): Re
               <Typography variant="hint">{t.model.waitHint}</Typography>
             </Stack>
             <Stack gap={4}>
-              <Value label={t.model.transfer} value={t.minutes(model.transferMin)} />
-              <Slider
-                label={t.model.transfer}
-                min={0}
-                max={5}
-                step={0.5}
-                value={model.transferMin}
-                onChange={(v) => onChange({ transferMin: v })}
-              />
+              <Value label={t.model.transfer} value={t.minutes(transfer.value)} />
+              <Slider label={t.model.transfer} min={0} max={5} step={0.5} {...transfer} />
             </Stack>
           </>
         )}

@@ -86,7 +86,8 @@ node, the time to reach the point.
 
 **Closed sections** (`cuts.ts`, a what-if set from the map): a metro, RER, train or tram line between two neighbouring
 stations (its rides both ways), or one BD TOPO road section (every mode). Their edges get `Infinity` both ways, so they
-leave the CSR and the snap index; the engine itself is unchanged. Rebuilding the profile takes about 120 ms for the
+leave the CSR; in the snap index of the mode, their points are marked and passed over (`SnapIndex.without`: no grid
+nor islands built again). The engine itself is unchanged. Rebuilding the profile takes about 120 ms for the
 whole region. In the URL a cut is `r<line>.<station>.<station>` (indexes of the region's transit file) or `s<edge>` (index in its road file):
 a link stays valid as long as the data files do. An express ride that skips the closed stations is not cut.
 

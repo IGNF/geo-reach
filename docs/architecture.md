@@ -121,7 +121,8 @@ A *profile* (`web/src/features/routing/profile.ts`) is one combination of mode (
 `transit`), direction (`departure`, `arrival`), hour of departure (traffic, service frequency) and bus on/off. Switching profile rebuilds the cost arrays and the CSR graph in
 JS (a few tens of ms), writes them into the WASM memory, and sends the new costs to the network layer (its geometry
 stays on the graphics card). Snap indexes are cached per
-mode.
+mode. The sliders that change the profile (hour, walking and cycling speeds, transfer time) commit their value once
+released: the thumb and its label follow every step, the profile is rebuilt once.
 
 - **Departure**: times from the point to every node.
 - **Arrival**: the graph is reversed (each arc A→B becomes B→A), so the same Dijkstra gives the time from every

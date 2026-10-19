@@ -17,7 +17,7 @@ them the network once, then the node times at every move.
 | Rail lines, stations | `addLines`, `addCircles` | Metro, RER, train and tram rides in their line colors, the stations they serve (transit mode only) |
 | Basemap labels | | Streets, places, points of interest and their icons |
 | Zone mask | `addFills` | The world with the region as a hole, darkened |
-| Closed sections | `addLines`, `addCircles`, `addSymbols` | Red dashes, a cross halfway, and the section under the cursor in cut mode (`features/cuts/cutLayer.ts`) |
+| Closed sections | `addLines`, `addCircles`, `addSymbols` | Red dashes, a cross halfway, and the section under the cursor in cut mode (`features/cuts/cutLayer.ts`), picked by `hoverfeature` (read a frame later, no stall of the graphics card) |
 | Trip | `addLines` | The path to the pinned point: a white casing and an indigo line, a color no travel time has |
 
 The last four are moved over the basemap's labels with `layer.moveBefore(undefined)`.

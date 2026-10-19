@@ -15,13 +15,31 @@ export interface Route {
   steps: RouteStep[];
 }
 
-const getJson = async <T>(path: string, params: Record<string, string>, signal?: AbortSignal): Promise<T> => {
-  const res = await fetch(`${GPF_BASE}${path}?${new URLSearchParams(params)}`, { signal });
-  if (!res.ok) throw new Error(`GPF ${path}: HTTP ${res.status}`);
+/** Answers kept, by URL: coming back to a point, or typing back a letter, asks nothing again */
+const CACHE_SIZE = 128;
+const answers = new Map<string, unknown>();
 
-  return res.json() as Promise<T>;
+/** A Géoplateforme answer, from the cache when the same request was answered before (the least recent one goes first) */
+const getJson = async <T>(path: string, params: Record<string, string>, signal?: AbortSignal): Promise<T> => {
+  const url = `${GPF_BASE}${path}?${new URLSearchParams(params)}`;
+  if (answers.has(url)) {
+    const kept = answers.get(url);
+    answers.delete(url);
+    answers.set(url, kept);
+
+    return kept as T;
+  }
+
+  const res = await fetch(url, { signal });
+  if (!res.ok) throw new Error(`GPF ${path}: HTTP ${res.status}`);
+  const body: unknown = await res.json();
+  answers.set(url, body);
+  if (answers.size > CACHE_SIZE) answers.delete(answers.keys().next().value as string);
+
+  return body as T;
 };
 
+/** Six decimals: a tenth of a metre, the same point gives the same request */
 const fmt = ([lng, lat]: LngLat) => `${lng.toFixed(6)},${lat.toFixed(6)}`;
 
 interface RawStep {
@@ -84,7 +102,7 @@ export const fetchRoute = async (
 export const reverseGeocode = async ([lon, lat]: LngLat, signal?: AbortSignal): Promise<string | undefined> => {
   const body = await getJson<{ features: { properties: { name?: string; city?: string; label?: string } }[] }>(
     '/geocodage/reverse',
-    { lon: String(lon), lat: String(lat), limit: '1' },
+    { lon: lon.toFixed(6), lat: lat.toFixed(6), limit: '1' },
     signal,
   );
   const p = body.features[0]?.properties;

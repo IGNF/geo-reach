@@ -1,4 +1,4 @@
-import type { CircleLayer, Feature, GeoMap, Layer, LineLayer, Point, SymbolLayer } from 'isard';
+import type { CircleLayer, Feature, FeatureHit, GeoMap, Layer, LineLayer, Point, SymbolLayer } from 'isard';
 import { Marker } from 'isard';
 import { type Cut, cutKey, cutLabel, cutOfEdge, edgesOfCut, parseCut } from './cuts';
 import type { Network, TravelEngine } from '@/features/routing';
@@ -49,6 +49,8 @@ export class CutLayer {
   private cross?: SymbolLayer<Props>;
   /** The rail lines of transit mode (each feature with its `edge`): a section of them is picked there */
   rail?: Layer;
+  /** Stops the picking under the cursor, while cut mode is on */
+  private stopPicking?: () => void;
 
   constructor(map: GeoMap, engine: TravelEngine) {
     this.map = map;
@@ -137,9 +139,24 @@ export class CutLayer {
     this.cross?.setData(marks);
   }
 
+  /**
+   * Cut mode on: the sections under the cursor are picked by the map as it draws (closed sections, and the rail lines
+   * in transit mode), read a frame later without stalling the graphics card; off: no picking, no highlight. Called
+   * again when the mode changes.
+   */
+  setActive(on: boolean): void {
+    this.stopPicking?.();
+    this.stopPicking = undefined;
+    if (!on) return this.clearHover();
+
+    const rail = this.engine.profile.mode === 'transit' ? this.rail : undefined;
+    this.map.hoverPicking = { radius: PICK_PX, layers: [this.lineLayer, rail].filter((l) => l !== undefined) };
+    this.stopPicking = this.map.on('hoverfeature', ({ point, lonLat, hit }) => (lonLat ? this.hoverAt(point, lonLat, hit) : this.clearHover()));
+  }
+
   /** Highlights the section under the cursor, or clears the highlight when there is none */
-  hoverAt(px: Point, lngLat: LngLat): void {
-    const found = this.sectionAt(px, this.toRel(lngLat));
+  private hoverAt(px: Point, lngLat: LngLat, hit: FeatureHit | undefined): void {
+    const found = this.sectionAt(px, this.toRel(lngLat), hit);
     if (!found) {
       this.clearHover();
 
@@ -169,18 +186,15 @@ export class CutLayer {
   }
 
   /**
-   * The section under the cursor: a closed one first (to reopen it), then a metro, RER or tram section (transit mode),
-   * then the nearest street.
+   * The section under the cursor: the closed section or the metro, RER or tram section (transit mode) the map picked
+   * there, the nearer one; else the nearest street.
    */
-  private sectionAt(px: Point, rel: Rel): HoveredSection | undefined {
-    const closedHit = this.lineLayer && this.map.pickFeature(px, { radius: PICK_PX, layers: [this.lineLayer] });
-    const closedCut = closedHit?.feature && parseCut(String((closedHit.feature.properties as Props).key));
+  private sectionAt(px: Point, rel: Rel, hit: FeatureHit | undefined): HoveredSection | undefined {
+    const closedCut = hit?.feature && hit.layer === this.lineLayer && parseCut(String((hit.feature.properties as Props).key));
     if (closedCut) return { cut: closedCut, closed: true };
 
-    if (this.engine.profile.mode === 'transit' && this.rail) {
-      const railHit = this.map.pickFeature(px, { radius: PICK_PX, layers: [this.rail] });
-      const edge = railHit?.feature && (railHit.feature.properties as { edge: number }).edge;
-      const railCut = edge !== undefined && cutOfEdge(this.net, edge);
+    if (hit?.feature && hit.layer === this.rail) {
+      const railCut = cutOfEdge(this.net, (hit.feature.properties as { edge: number }).edge);
       if (railCut) return { cut: railCut, closed: false };
     }
 
