@@ -1,8 +1,6 @@
 import { Box } from '@ign-junn/design-system';
 import {
   type CircleLayer,
-  type Control,
-  type Feature,
   GeoMap,
   type LineLayer,
   Marker,
@@ -20,7 +18,7 @@ import wasmUrl from 'isard/isard_bg.wasm?url';
 import { useEffect, useRef, type ReactElement } from 'react';
 import { type Cut, CutLayer } from '@/features/cuts';
 import { type Leg, toLegs } from '@/features/trip';
-import { type CutImpact, EDGE_BOARD, EDGE_RIDE, FLAG_BUS, MAX_SNAP_METRES, type Result, TravelEngine } from '@/features/routing';
+import { type CutImpact, MAX_SNAP_METRES, type Result, TravelEngine } from '@/features/routing';
 import { type Camera, HILLSHADE_TILES, LANDMARKS, type LngLat, type Perspective } from '@/shared/config';
 import { RAMP_STOPS, rampCss } from '@/shared/colors';
 import { formatMinutes } from '@/shared/format';
@@ -29,7 +27,9 @@ import { perf } from '@/shared/perf';
 import { t } from '@/locales';
 import { Buildings } from '@/features/buildings';
 import { BUILDINGS_ZOOM, minZoomFor, TILT, TILT_PITCH } from './camera';
+import { ButtonControl, gpuName, LOCATE_ICON, markerElement, PERF_ICON } from './controls';
 import { networkCosts, networkGeometry } from './network';
+import { type RailProps, railFeatures } from './rail';
 
 /** What the explored point reaches, sent to the panels (throttled) */
 export interface LiveInfo {
@@ -101,48 +101,6 @@ const PANEL_THROTTLE_MS = 60;
 const MAIN_THREAD_MS = 4;
 const SETTLE_MS = 350;
 
-type RailProps = { color: string; order: number; edge: number };
-
-/** Metro, RER, train and tram rides in their line colors (the lines drawn last on top), and the stations they serve */
-const railFeatures = (engine: TravelEngine): { lines: Feature<RailProps>[]; stations: Feature<{ color: string }>[] } => {
-  const { net } = engine;
-  const [ox, oy] = net.origin;
-  const at = (x: number, y: number) => fromMercator([x + ox, y + oy]);
-  // A station takes the color of the first rail line boarded there: one pass over the edges
-  const stationColor = new Map<number, string>();
-  for (let e = 0; e < net.edgeCount; e += 1) {
-    const station = net.edgeA[e];
-    if (net.edgeKind[e] !== EDGE_BOARD || net.edgeFlags[e] & FLAG_BUS || stationColor.has(station)) continue;
-
-    stationColor.set(station, net.lines[net.edgeName[e]].color);
-  }
-
-  const lines: Feature<RailProps>[] = [];
-  for (let e = 0; e < net.edgeCount; e += 1) {
-    if (net.edgeKind[e] !== EDGE_RIDE || net.edgeFlags[e] & FLAG_BUS) continue;
-    const line = net.lines[net.edgeName[e]];
-    const coordinates: LngLat[] = [];
-    for (let p = net.coordStart[e]; p < net.coordStart[e + 1]; p += 1) coordinates.push(at(net.coords[p * 2], net.coords[p * 2 + 1]));
-    lines.push({
-      type: 'Feature',
-      properties: { color: line.color, order: line.type === 1 ? 2 : 1, edge: e },
-      geometry: { type: 'LineString', coordinates },
-    });
-  }
-  // The drawing order is the data's: the lines drawn last are on top
-  lines.sort((a, b) => a.properties.order - b.properties.order);
-
-  const stations = [...net.railStations].map(
-    (s): Feature<{ color: string }> => ({
-      type: 'Feature',
-      properties: { color: stationColor.get(s) ?? '#555' },
-      geometry: { type: 'Point', coordinates: at(net.nodeXY[s * 2], net.nodeXY[s * 2 + 1]) },
-    }),
-  );
-
-  return { lines, stations };
-};
-
 /** The trip on the map: an indigo no travel time has */
 const ROUTE_COLOR = '#3b3fb6';
 
@@ -154,58 +112,6 @@ const WORLD: LngLat[] = [
   [-180, 85],
   [-180, -85],
 ];
-
-const LOCATE_ICON =
-  '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2M12 20v2M20 12h2M2 12h2"/></svg>';
-
-/** A button of its own in the map controls: "my location", "close a section" */
-class ButtonControl implements Control {
-  private container?: HTMLDivElement;
-  readonly button: HTMLButtonElement;
-
-  constructor(icon: string, title: string, onClick: () => void) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'map-button';
-    button.title = title;
-    button.setAttribute('aria-label', title);
-    button.innerHTML = icon;
-    button.addEventListener('click', onClick);
-    this.button = button;
-  }
-
-  onAdd(): HTMLDivElement {
-    const container = document.createElement('div');
-    container.className = 'isard-ctrl-group';
-    container.append(this.button);
-    this.container = container;
-
-    return container;
-  }
-
-  onRemove(): void {
-    this.container?.remove();
-  }
-}
-
-const PERF_ICON =
-  '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>';
-
-/** The graphics card the map draws with */
-const gpuName = (canvas: HTMLCanvasElement): string => {
-  const gl = canvas.getContext('webgl2');
-  if (!gl) return '?';
-  const info = gl.getExtension('WEBGL_debug_renderer_info');
-
-  return String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER));
-};
-
-const markerElement = (className: string) => {
-  const el = document.createElement('div');
-  el.className = className;
-
-  return el;
-};
 
 /**
  * Widths of the network, as the zoom changes (CSS pixels, zooms of 512 px tiles): lines from 1.2 px to 5 px; a wide glow under

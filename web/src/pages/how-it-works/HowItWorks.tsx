@@ -9,8 +9,7 @@ import { EDGES, GROUPS, isStepId, NODES } from '@/pages/how-it-works/diagram';
 import Sandbox from '@/pages/how-it-works/Sandbox';
 import StepDetail from '@/pages/how-it-works/StepDetail';
 import { howItWorks as h, type StepId } from '@/locales/howItWorks';
-
-const REPO = 'https://github.com/IGNF/geo-reach';
+import { REPO } from '@/shared/config';
 
 /** Legend above the diagram, as badges of the same tones (the diagram's own legend sits under it) */
 const LEGEND = [

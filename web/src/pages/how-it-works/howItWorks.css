@@ -75,11 +75,6 @@
   fill: var(--mantine-color-text);
 }
 
-.detail-figure .fig-text.on-color {
-  font-weight: 600;
-  fill: #ffffff;
-}
-
 .detail-figure .fig-ground {
   fill: #e8dcc4;
 }

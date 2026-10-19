@@ -285,9 +285,4 @@ export class SnapIndex {
       y: coords[p * 2 + 1] + t * (coords[p * 2 + 3] - coords[p * 2 + 1]),
     };
   }
-
-  /** Fraction along its edge of a geometry point */
-  fraction(p: number): number {
-    return this.pointFrac[p];
-  }
 }

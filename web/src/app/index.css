@@ -75,6 +75,7 @@ body,
   flex-direction: column;
   gap: 18px;
   width: 100%;
+  padding-bottom: 16px;
 }
 
 .settings > * {
@@ -85,19 +86,6 @@ body,
   display: flex;
   align-items: center;
   gap: 10px;
-}
-
-.how-link {
-  margin-left: auto;
-  align-self: flex-start;
-  font-size: var(--mantine-font-size-xs);
-  color: var(--mantine-color-anchor);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.how-link:hover {
-  text-decoration: underline;
 }
 
 .brand-dot {
@@ -499,10 +487,6 @@ body,
   margin-top: auto;
   padding: 16px 0 4px;
   border-top: 1px solid var(--mantine-color-default-border);
-}
-
-.settings {
-  padding-bottom: 16px;
 }
 
 /* Startup: over the app until the first map is drawn, then fades out */

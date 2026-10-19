@@ -1,5 +1,4 @@
 import { BinaryReader } from '@/shared/binaryReader';
-import { loadData, type Progress } from '@/shared/dataCache';
 
 /**
  * The network the engine runs on: the BD TOPO road sections of a region (GRF4 file, crates/prep), and its
@@ -120,10 +119,6 @@ const rebuildGeometries = (
 
   return { coordStart, coords };
 };
-
-/** Downloads (or reads from the browser cache) and decodes a road network file */
-export const loadRoadNetwork = async (url: string, onProgress?: Progress): Promise<Network> =>
-  readRoadNetwork(await loadData(url, onProgress));
 
 /** Decodes a road network file, GRF4 (crates/prep) */
 export const readRoadNetwork = (buffer: ArrayBuffer): Network => {

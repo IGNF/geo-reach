@@ -307,9 +307,6 @@ export class TravelEngine {
       baseline && this.baseWorker?.run(sources, this.endCosts(baseline, snap).map((c) => access + c), maxSeconds, false, false),
     ]);
 
-    // Only the times of the baseline are kept
-    if (base) this.baseWorker?.recycle([base.times.buffer] as ArrayBuffer[]);
-
     return {
       profile,
       dist: r.dist,

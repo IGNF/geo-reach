@@ -1,5 +1,4 @@
 import { BinaryReader } from '@/shared/binaryReader';
-import { loadData, type Progress } from '@/shared/dataCache';
 import {
   HOURS,
   EDGE_ALIGHT,
@@ -23,13 +22,9 @@ const NO_SERVICE = 0xffff;
 const css = (rgb: number) => `#${rgb.toString(16).padStart(6, '0')}`;
 
 /**
- * Loads a transit file, TRN3 (crates/prep), and returns how to graft it on the road network: stations and line stops
+ * Decodes a transit file, TRN3 (crates/prep), and returns how to graft it on the road network: stations and line stops
  * become nodes; boarding (the wait), rides, alighting and walking links become edges.
  */
-export const loadTransit = async (url: string, onProgress?: Progress): Promise<(roads: Network) => Network> =>
-  readTransit(await loadData(url, onProgress));
-
-/** Decodes a transit file; the returned function grafts it on the road network */
 export const readTransit = (buffer: ArrayBuffer): ((roads: Network) => Network) => {
   const header = new Uint32Array(buffer, 0, 8);
   const [magic, stationCount, lineCount, lineStopCount, rideCount, coordCount, stringsBytes] = header;

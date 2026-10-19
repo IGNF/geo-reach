@@ -14,7 +14,7 @@ them the network once, then the node times at every move.
 | Hillshade | `addRaster` | IGN hillshade (RGE ALTI, WMTS of the Géoplateforme) at 55 %, over the veil so that it is not washed out |
 | Buildings | `addExtrusions` | BD TOPO buildings, colored by the network's times (3D view, `features/buildings`) |
 | Network | `addNetwork` | Every road and ride of the profile, colored by the time to reach it |
-| Rail lines, stations | `addLines`, `addCircles` | Metro, RER, train and tram rides in their line colors, the stations they serve (transit mode only) |
+| Rail lines, stations | `addLines`, `addCircles` | Metro, RER, train and tram rides in their line colors, the stations they serve (transit mode only, `features/map/rail.ts`) |
 | Basemap labels | | Streets, places, points of interest and their icons |
 | Zone mask | `addFills` | The world with the region as a hole, darkened |
 | Closed sections | `addLines`, `addCircles`, `addSymbols` | Red dashes, a cross halfway, and the section under the cursor in cut mode (`features/cuts/cutLayer.ts`), picked by `hoverfeature` (read a frame later, no stall of the graphics card) |

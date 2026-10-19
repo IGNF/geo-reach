@@ -109,7 +109,9 @@ chosen hour of departure.
 
 Built by `bun run engine` (`scripts/buildEngine.ts`): `cargo build -p engine --target wasm32-unknown-unknown
 --release`, copied to `web/src/features/routing/engine.wasm` and imported by Vite as an asset URL. The file is versioned
-so that the app builds without Rust.
+so that the app builds without Rust. The release profile strips the symbols, the paths of the machine are written
+relative to the home folder (`--remap-path-prefix`), and `wasm-opt -O3` (binaryen) runs when it is installed: 24 KB
+without it (30 KB before the stripping).
 
 ## Rebuilding
 

@@ -31,6 +31,9 @@ export const LANDMARKS: { name: string; at: LngLat }[] = [
   { name: 'IGN Saint-Mandé', at: [2.4246, 48.8457] },
 ];
 
+/** The source code, linked from the pages */
+export const REPO = 'https://github.com/IGNF/geo-reach';
+
 /** GPF routing resource, to check a local route against the Géoplateforme */
 export const GPF_RESOURCE = 'bdtopo-valhalla';
 export const GPF_BASE = 'https://data.geopf.fr';
