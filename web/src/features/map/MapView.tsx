@@ -87,6 +87,8 @@ interface MapViewProps {
   onMapLoad: () => void;
   /** The first computed map is on screen: the app is ready */
   onFirstFrame: () => void;
+  /** The map could not be created (no WebGL2, its engine not loaded) */
+  onMapError: () => void;
   /** Flat, or tilted with the buildings colored by time */
   perspective: Perspective;
 }
@@ -239,6 +241,7 @@ const MapView = ({
   onCutToggle,
   onMapLoad,
   onFirstFrame,
+  onMapError,
   perspective,
 }: MapViewProps): ReactElement => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -259,6 +262,7 @@ const MapView = ({
     onCutToggle,
     onMapLoad,
     onFirstFrame,
+    onMapError,
     perspective,
   };
   const live = useRef(props);
@@ -348,14 +352,19 @@ const MapView = ({
       wasmUrl,
       workerUrl: decoderWorkerUrl,
       basemapWorkerUrl,
-    }).then((map) => {
-      if (disposed) {
-        map.destroy();
+    })
+      .then((map) => {
+        if (disposed) {
+          map.destroy();
 
-        return;
-      }
-      setup(map);
-    });
+          return;
+        }
+        setup(map);
+      })
+      .catch((error: unknown) => {
+        console.error(error);
+        if (!disposed) live.current.onMapError();
+      });
 
     const setup = (map: GeoMap) => {
       c.map = map;
@@ -485,7 +494,8 @@ const MapView = ({
       c.setProfile();
 
       const originMarker = new Marker({ element: markerElement('origin-marker'), draggable: true });
-      originMarker.on('drag', ({ lonLat }) => live.current.onPin(lonLat));
+      // Pinned where the drag ends: each step of the drag would otherwise ask for an address, a route and a comparison
+      originMarker.on('dragend', ({ lonLat }) => live.current.onPin(lonLat));
       const labelEl = markerElement('time-label');
       const label = new Marker({ element: labelEl, anchor: 'bottom', offset: [0, -14] });
 
@@ -563,6 +573,8 @@ const MapView = ({
       // goes to the worker (the map stays fluid, the times come a frame later).
       const runs: { busy: boolean; dirty: boolean; shown?: Result } = { busy: false, dirty: false };
       const show = (r: Result | undefined, cursor: [number, number], cursorAt: number | undefined) => {
+        // A run that ends after the map is gone (another region): its engine's buffers are not this map's
+        if (disposed) return;
         if (r) {
           perf.record('run', r.runMs);
           c.lastRunMs = r.runMs;
@@ -576,6 +588,7 @@ const MapView = ({
       };
       const process = () => {
         c.frame = 0;
+        if (disposed) return;
         if (runs.busy) {
           runs.dirty = true;
 
@@ -603,6 +616,11 @@ const MapView = ({
             perf.record('roundTrip', performance.now() - sent);
             show(r, cursor, cursorAt);
           })
+          .catch((error: unknown) => {
+            // The worker failed: the map keeps its last colors, and the next runs go to the main thread if they can
+            console.error(error);
+            c.lastRunMs = 0;
+          })
           .finally(() => {
             runs.busy = false;
             // A move came meanwhile: its run starts right away, without waiting for a frame
@@ -616,10 +634,15 @@ const MapView = ({
       /** Shows a result: network colors, figures, and the trip to the anchored point */
       const firstFrame = { done: false };
       const unreached = new Float32Array(net.nodeCount).fill(1e30);
+      /** The max time the network and the buildings are styled for: restyling every building costs, once per change */
+      let styledScale: number | undefined;
       const apply = (r: Result | undefined, cursor: [number, number]) => {
         const { scale: s, pinned: pin } = live.current;
-        layer.setStyle({ max: s });
-        buildings.setScale(s);
+        if (s !== styledScale) {
+          styledScale = s;
+          layer.setStyle({ max: s });
+          buildings.setScale(s);
+        }
         // The colors always follow the cursor: from it (departure) or towards it (arrival); the buildings read the
         // same times on the graphics card. Off the network, all of it unreached (grey)
         layer.setValues(r?.times.length ? r.times : unreached);
@@ -762,7 +785,10 @@ const MapView = ({
     return () => {
       disposed = true;
       cancelAnimationFrame(c.frame);
+      // The next map schedules its own frames: a stale id would keep it from asking one
+      c.frame = 0;
       clearTimeout(c.settleTimer);
+      clearTimeout(c.panelTimer);
       for (const off of cleanup) off();
       perf.setProbe(undefined);
       // Its tile worker and its GPU objects go with the map (another region, another engine)

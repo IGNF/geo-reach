@@ -1,5 +1,5 @@
 import wasmUrl from './engine.wasm?url';
-import type { WorkerRequest, WorkerResult } from './engine.worker';
+import type { WorkerFailure, WorkerRequest, WorkerResult } from './engine.worker';
 import { EDGE_BOARD, EDGE_ROAD, FLAG_CYCLEWAY, type Network } from './network';
 import { buildProfile, type Profile, type ProfileOptions } from './profile';
 import { type Snap, SnapIndex, type SnapParts } from './snap';
@@ -31,15 +31,26 @@ const startInlineCore = async (): Promise<EngineCore | undefined> => {
 class EngineWorker {
   private readonly worker: Worker;
   private nextId = 0;
-  private pending = new Map<number, (r: WorkerResult) => void>();
+  private pending = new Map<number, { resolve: (r: WorkerResult) => void; reject: (e: Error) => void }>();
 
   constructor() {
     this.worker = new Worker(new URL('./engine.worker.ts', import.meta.url), { type: 'module' });
-    this.worker.onmessage = (event: MessageEvent<WorkerResult>) => {
-      this.pending.get(event.data.id)?.(event.data);
-      this.pending.delete(event.data.id);
+    this.worker.onmessage = (event: MessageEvent<WorkerResult | WorkerFailure>) => {
+      const { data } = event;
+      const waiting = this.pending.get(data.id);
+      this.pending.delete(data.id);
+      if ('error' in data) waiting?.reject(new Error(data.error));
+      else waiting?.resolve(data);
     };
+    // The worker itself failed (module not loaded, crash): no answer will come for the runs sent
+    this.worker.onerror = (event) => this.failAll(event.message || 'engine worker failed');
+    this.worker.onmessageerror = () => this.failAll('engine worker: unreadable message');
     this.post({ type: 'init', wasmUrl: new URL(wasmUrl, window.location.href).href });
+  }
+
+  private failAll(reason: string): void {
+    for (const { reject } of this.pending.values()) reject(new Error(reason));
+    this.pending.clear();
   }
 
   post(msg: WorkerRequest, transfer: Transferable[] = []) {
@@ -54,7 +65,7 @@ class EngineWorker {
   run(sources: number[], costs: number[], maxCost: number, texture: boolean, paths: boolean) {
     this.nextId += 1;
     const id = this.nextId;
-    const answer = new Promise<WorkerResult>((resolve) => this.pending.set(id, resolve));
+    const answer = new Promise<WorkerResult>((resolve, reject) => this.pending.set(id, { resolve, reject }));
     this.post({ type: 'run', id, sources, costs, maxCost, texture, paths });
 
     return answer;
@@ -62,6 +73,7 @@ class EngineWorker {
 
   terminate(): void {
     this.worker.terminate();
+    this.failAll('engine worker terminated');
   }
 
   recycle(buffers: ArrayBuffer[]) {

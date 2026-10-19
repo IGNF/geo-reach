@@ -24,8 +24,8 @@ const App = (): ReactElement => {
   const [settled, setSettled] = useState<LngLat>();
   const [focus, setFocus] = useState<{ point: LngLat }>();
   const [notice, setNotice] = useState<string>();
-  /** The first region could not be loaded: the startup screen says so */
-  const [startupFailed, setStartupFailed] = useState(false);
+  /** The first region or a map could not start: the startup screen says so, with a button to reload */
+  const [startupFailed, setStartupFailed] = useState<'network' | 'map'>();
   const [startup, setStartup] = useState<StartupProgress>({ step: 'download', percent: 0 });
   /** The first map is drawn: the startup screen fades out, then goes */
   const [ready, setReady] = useState(false);
@@ -75,7 +75,7 @@ const App = (): ReactElement => {
         console.error(error);
         if (load.cancelled) return;
         // At the start, the startup screen says it; later, the current map stays
-        if (first) return setStartupFailed(true);
+        if (first) return setStartupFailed('network');
         setSwitching(undefined);
         setNotice(t.region.failed(region.name));
       });
@@ -116,6 +116,8 @@ const App = (): ReactElement => {
     setStartup((s) => ({ ...s, percent: 100 }));
     setReady(true);
   }, []);
+  // No map without WebGL 2 or the files of its engine, whatever the region: the startup screen comes back to say it
+  const onMapError = useCallback(() => setStartupFailed('map'), []);
 
   const update = useCallback((patch: Partial<ViewState>) => setView((v) => ({ ...v, ...patch })), []);
   const onPin = useCallback(
@@ -209,9 +211,15 @@ const App = (): ReactElement => {
     };
     // As in the trip panel: from the map's point to the pinned one (departure), or the reverse (arrival)
     const [from, to] = direction === 'departure' ? [settled, pinned] : [pinned, settled];
+    // An answer for a trip no longer shown (point unpinned, other settings) is dropped
+    let stale = false;
     engine.compare(toZone(from), toZone(to), compareModes).then((seconds) => {
-      if (seconds) setComparison(seconds);
+      if (seconds && !stale) setComparison(seconds);
     });
+
+    return () => {
+      stale = true;
+    };
   }, [engine, pinned, settled, direction, compareModes, profileVersion]);
 
   const originAddress = useAddress(pinned ?? live?.point, pinned ? 0 : 300);
@@ -299,6 +307,7 @@ const App = (): ReactElement => {
         onCutToggle={onCutToggle}
         onMapLoad={onMapLoad}
         onFirstFrame={onFirstFrame}
+        onMapError={onMapError}
         perspective={perspective}
       />
       <Box className="left-slot">
@@ -330,7 +339,9 @@ const App = (): ReactElement => {
           <ProgressBar label={t.region.loading(switching.name)} value={Math.round(switching.progress.percent)} animated size="sm" />
         </Box>
       )}
-      {!startupGone && <StartupScreen progress={startup} region={region.name} done={ready} />}
+      {(!startupGone || startupFailed) && (
+        <StartupScreen progress={startup} region={region.name} done={ready && !startupFailed} failed={startupFailed} />
+      )}
     </Box>
   );
 };

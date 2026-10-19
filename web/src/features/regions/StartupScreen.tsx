@@ -10,12 +10,12 @@ interface StartupScreenProps {
   region: string;
   /** Fading out: the first map is drawn */
   done: boolean;
-  /** The loading failed: what happened, and a button to reload the page */
-  failed?: boolean;
+  /** The network or the map could not start: what happened, and a button to reload the page */
+  failed?: 'network' | 'map';
 }
 
 /** Over the app until the first map is drawn: the progress of the download, the decoding, the engine and the map */
-const StartupScreen = ({ progress, region, done, failed = false }: StartupScreenProps): ReactElement => {
+const StartupScreen = ({ progress, region, done, failed }: StartupScreenProps): ReactElement => {
   const { step, percent, mb } = progress;
   const label = step === 'download' ? t.startup.download(region, (mb ?? 0).toFixed(0)) : t.startup[step];
 
@@ -26,7 +26,7 @@ const StartupScreen = ({ progress, region, done, failed = false }: StartupScreen
 
         {failed ? (
           <>
-            <Typography variant="error">{t.startup.failed}</Typography>
+            <Typography variant="error">{failed === 'map' ? t.startup.mapFailed : t.startup.failed}</Typography>
             <Button label={t.startup.retry} onClick={() => window.location.reload()} />
           </>
         ) : (

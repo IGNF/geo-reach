@@ -32,6 +32,7 @@ export const fr: Messages = {
   startup: {
     download: (region, mb) => `Téléchargement du réseau, ${region}… ${mb} Mo`,
     failed: 'Le réseau n’a pas pu être chargé (connexion perdue ou serveur arrêté).',
+    mapFailed: 'La carte n’a pas pu démarrer (elle demande WebGL 2, ou ses fichiers n’ont pas pu être chargés).',
     retry: 'Recharger',
     roads: 'Lecture des routes BD TOPO…',
     transit: 'Raccordement des lignes de métro, RER, tram et bus…',

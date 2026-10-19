@@ -30,6 +30,7 @@ export const en = {
   startup: {
     download: (region: string, mb: string): string => `Downloading the ${region} network… ${mb} MB`,
     failed: 'The network could not be loaded (connection lost, or server stopped).',
+    mapFailed: 'The map could not start (it needs WebGL 2, or its files could not be loaded).',
     retry: 'Reload',
     roads: 'Reading the BD TOPO roads…',
     transit: 'Linking the metro, RER, tram and bus lines…',
