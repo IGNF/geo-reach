@@ -1,7 +1,7 @@
 import type { ExtrusionLayer, GeoMap, Layer, NetworkLayer } from 'isard';
 import type { TravelEngine } from '@/features/routing';
 import { GPF_BASE } from '@/shared/config';
-import { RAMP_STOPS } from '@/shared/colors';
+import { rampStops } from '@/shared/colors';
 import { perf } from '@/shared/perf';
 import type { BuildingRequest, BuildingResult } from './building.worker';
 import type { TileId } from './buildingMesh';
@@ -79,10 +79,10 @@ export class Buildings {
     this.updateTiles();
   }
 
-  /** Longest time shown, seconds: the ramp of the streets over it, neutral beyond */
+  /** Longest time shown, seconds: the ramp of the streets over it (oriented by the direction), neutral beyond */
   setScale(scale: number): void {
     this.layer.linkNetwork(this.network, scale);
-    this.layer.setStyle({ ramp: RAMP_STOPS.map(([t, c]) => [t * scale, c]) });
+    this.layer.setStyle({ ramp: rampStops(this.engine.profile.direction).map(([t, c]) => [t * scale, c]) });
   }
 
   /** The profile changed (mode, cuts…): every building joins its street again */

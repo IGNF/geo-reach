@@ -1,3 +1,5 @@
+import type { Direction } from '@/shared/config';
+
 /**
  * Travel time ramp, near (green) to far: yellow, orange, red as in the reference dataviz, then crimson and violet for
  * the last minutes, so that the far end reads apart from the middle reds
@@ -33,14 +35,23 @@ export const RAMP_LUT = (() => {
   return lut;
 })();
 
-export const rampCss = (t: number): string => {
-  const [r, g, b] = rampAt(t).map(Math.round);
+/** Arrival maps run the ramp the other way round, so that the two directions never read alike */
+const oriented = (t: number, direction: Direction): number => (direction === 'arrival' ? 1 - t : t);
+
+export const rampCss = (t: number, direction: Direction = 'departure'): string => {
+  const [r, g, b] = rampAt(oriented(t, direction)).map(Math.round);
 
   return `rgb(${r}, ${g}, ${b})`;
 };
 
 /** The ramp as stops for the map layers: fraction of the max time, CSS color */
-export const RAMP_STOPS: [number, string][] = STOPS.map(([s, [r, g, b]]) => [s, `rgb(${r}, ${g}, ${b})`]);
+export const rampStops = (direction: Direction = 'departure'): [number, string][] => {
+  const stops: [number, string][] = STOPS.map(([s, [r, g, b]]) => [oriented(s, direction), `rgb(${r}, ${g}, ${b})`]);
 
-export const RAMP_GRADIENT_CSS = `linear-gradient(90deg, ${STOPS.map(([s]) => `${rampCss(s)} ${s * 100}%`).join(', ')})`;
+  return direction === 'arrival' ? stops.reverse() : stops;
+};
 
+export const rampGradientCss = (direction: Direction = 'departure'): string =>
+  `linear-gradient(90deg, ${rampStops(direction)
+    .map(([s, c]) => `${c} ${s * 100}%`)
+    .join(', ')})`;

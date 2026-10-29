@@ -12,7 +12,7 @@ import {
   TravelEngine,
 } from '@/features/routing';
 import type { Mode } from '@/shared/config';
-import { RAMP_GRADIENT_CSS } from '@/shared/colors';
+import { rampGradientCss } from '@/shared/colors';
 import { howItWorks as h } from '@/locales/howItWorks';
 import { bridgeEdges, buildTown, SIZE } from './town';
 import { drawTown, type Scene, toTown, type View } from './townCanvas';
@@ -292,7 +292,7 @@ const Sandbox = (): ReactElement => {
         </Box>
         <Box className="sandbox-legend">
           <span>0</span>
-          <i style={{ background: RAMP_GRADIENT_CSS }} />
+          <i style={{ background: rampGradientCss() }} />
           <span>{`${maxMinutes} min`}</span>
         </Box>
         <Typography variant="hint">{pinned ? s.pinned : s.hint}</Typography>

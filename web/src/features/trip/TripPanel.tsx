@@ -150,7 +150,7 @@ const TripPanel = ({
           {target ? (
             <>
               <Stack direction="row" gap="xs" align="baseline">
-                <Box component="span" className="trip-duration" style={{ color: rampCss(target.seconds / 60 / scale) }}>
+                <Box component="span" className="trip-duration" style={{ color: rampCss(target.seconds / 60 / scale, direction) }}>
                   {formatMinutes(target.seconds / 60)}
                 </Box>
                 {gpfRoute && <Typography variant="hint">{t.gpfDuration(formatMinutes(gpfRoute.duration))}</Typography>}
@@ -183,7 +183,7 @@ const TripPanel = ({
                   <Box component="li" key={l.name}>
                     <Box component="span"
                       className="dot"
-                      style={{ background: l.seconds <= scale * 60 ? rampCss(l.seconds / 60 / scale) : 'var(--mantine-color-gray-4)' }}
+                      style={{ background: l.seconds <= scale * 60 ? rampCss(l.seconds / 60 / scale, direction) : 'var(--mantine-color-gray-4)' }}
                     />
                     <Box component="span" className="trip-step-name">{l.name}</Box>
                     <Box component="span" className="trip-step-meta">

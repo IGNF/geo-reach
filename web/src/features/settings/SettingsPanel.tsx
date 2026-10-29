@@ -1,6 +1,6 @@
 import { Box, Button, CopyButton, PreviewPanel, SegmentedSwitch, Slider, Stack, Switch, Typography } from '@ign-junn/design-system';
 import { IconAdjustmentsHorizontal, IconInfoCircle, IconScissors } from '@ign-junn/design-system/icons';
-import { RAMP_GRADIENT_CSS } from '@/shared/colors';
+import { rampGradientCss } from '@/shared/colors';
 import { trafficLevel } from '@/features/trip';
 import { type Direction, MAX_SCALE, type Mode, PERSPECTIVES, type Perspective } from '@/shared/config';
 import { t } from '@/locales';
@@ -155,7 +155,7 @@ const SettingsPanel = ({
         </Stack>
         <Slider label={t.scale} min={5} max={max} step={5} value={Math.min(scale, max)} onChange={onScaleChange} />
         {/* Legend of the map colors, graduated with the chosen max time */}
-        <Box className="legend-ramp" style={{ background: RAMP_GRADIENT_CSS }} />
+        <Box className="legend-ramp" style={{ background: rampGradientCss(direction) }} />
         <Stack direction="row" justify="space-between">
           <Typography variant="caption">0</Typography>
           <Typography variant="caption">{Math.round(Math.min(scale, max) / 2)} min</Typography>

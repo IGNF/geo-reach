@@ -19,8 +19,8 @@ import { useEffect, useRef, type ReactElement } from 'react';
 import { type Cut, CutLayer } from '@/features/cuts';
 import { type Leg, toLegs } from '@/features/trip';
 import { type CutImpact, MAX_SNAP_METRES, type Result, TravelEngine } from '@/features/routing';
-import { type Camera, HILLSHADE_TILES, LANDMARKS, type LngLat, type Perspective } from '@/shared/config';
-import { RAMP_STOPS, rampCss } from '@/shared/colors';
+import { type Camera, type Direction, HILLSHADE_TILES, LANDMARKS, type LngLat, type Perspective } from '@/shared/config';
+import { rampCss, rampStops } from '@/shared/colors';
 import { formatMinutes } from '@/shared/format';
 import { fromMercator, toMercator } from '@/shared/mercator';
 import { perf } from '@/shared/perf';
@@ -320,7 +320,7 @@ const MapView = ({
         opacity: 0.75,
         halo: GLOW_WIDTH,
         haloOpacity: 0.11,
-        ramp: RAMP_STOPS,
+        ramp: rampStops(engine.profile.direction),
         unreachedColor: 'rgba(140, 140, 140, 0.4)',
         fade: 0.1,
       });
@@ -542,13 +542,18 @@ const MapView = ({
       /** Shows a result: network colors, figures, and the trip to the anchored point */
       const firstFrame = { done: false };
       const unreached = new Float32Array(net.nodeCount).fill(1e30);
-      /** The max time the network and the buildings are styled for: restyling every building costs, once per change */
-      let styledScale: number | undefined;
+      /**
+       * The max time and direction the network and the buildings are styled for (arrival reverses the ramp):
+       * restyling every building costs, once per change
+       */
+      const styled: { scale?: number; direction?: Direction } = {};
       const apply = (r: Result | undefined, cursor: [number, number]) => {
         const { scale: s, pinned: pin } = live.current;
-        if (s !== styledScale) {
-          styledScale = s;
-          layer.setStyle({ max: s });
+        const { direction } = engine.profile;
+        if (s !== styled.scale || direction !== styled.direction) {
+          styled.scale = s;
+          styled.direction = direction;
+          layer.setStyle({ max: s, ramp: rampStops(direction) });
           buildings.setScale(s);
         }
         // The colors always follow the cursor: from it (departure) or towards it (arrival); the buildings read the
@@ -590,7 +595,7 @@ const MapView = ({
           return;
         }
         labelEl.textContent = formatMinutes(at.seconds / 60);
-        labelEl.style.setProperty('--label-color', rampCss(at.seconds / s));
+        labelEl.style.setProperty('--label-color', rampCss(at.seconds / s, direction));
         const { coords, steps } = routeCoords(r, at.node, anchored, [at.snap.x, at.snap.y]);
         setRoute(coords);
         if (due) {
