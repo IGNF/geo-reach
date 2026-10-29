@@ -23,7 +23,7 @@
         "@mantine/hooks": "^9.7.1",
         "@mapbox/vector-tile": "3.0.0",
         "highlight.js": "^11.12.0",
-        "isard": "^1.0.0",
+        "isard": "^1.15.0",
         "pbf": "5.1.2",
         "react": "^19.2.8",
         "react-dom": "^19.2.8",
@@ -226,7 +226,7 @@
 
     "highlight.js": ["highlight.js@11.12.0", "", {}, "sha512-nbfWpyRMcMrPMmDwJB+dhX/eiaPKtc2RB+0QZskqJ3WjRA/FDS0e9hZrx8EC/lbEv8gXy98FcDbNa/dspAaJMg=="],
 
-    "isard": ["isard@1.0.0", "", {}, "sha512-EbIbUi3wFr0RnwhjPJdTcdQvQinKeab7yC3yjyGwvq+Wsw9Bz2HZIsbp603SA00zk0tZq7FW5uCm4iLYuADnsg=="],
+    "isard": ["isard@1.15.0", "", { "peerDependencies": { "react": ">=18", "react-dom": ">=18" }, "optionalPeers": ["react", "react-dom"] }, "sha512-huJvM7CrdXQOh98PhE1Z1i61QnnoFCl+r12+YoQLHjOOu74BL7ItGY300PDoGhydlKdveorwRlvV26+mM/uGLQ=="],
 
     "lightningcss": ["lightningcss@1.33.0", "", { "dependencies": { "detect-libc": "^2.0.3" }, "optionalDependencies": { "lightningcss-android-arm64": "1.33.0", "lightningcss-darwin-arm64": "1.33.0", "lightningcss-darwin-x64": "1.33.0", "lightningcss-freebsd-x64": "1.33.0", "lightningcss-linux-arm-gnueabihf": "1.33.0", "lightningcss-linux-arm64-gnu": "1.33.0", "lightningcss-linux-arm64-musl": "1.33.0", "lightningcss-linux-x64-gnu": "1.33.0", "lightningcss-linux-x64-musl": "1.33.0", "lightningcss-win32-arm64-msvc": "1.33.0", "lightningcss-win32-x64-msvc": "1.33.0" } }, "sha512-WkUDrojuJs0xkgGf2udWxa3yGBRxPtxUkB79i6aCZLRgc7PM8fZe9TosfPDcvEpQZbuFASnHYmRLBLUbmLOIIA=="],
 
