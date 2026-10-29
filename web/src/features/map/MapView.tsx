@@ -250,6 +250,8 @@ const MapView = ({
       basemap: 'ign-plan-grey-vector',
       hillshade: 0,
       sky: false,
+      // No MSAA: about 2.5x the frame rate on dense views (isard #138)
+      antialias: false,
       attributionControl: {
         compact: true,
         customAttribution: [t.attribution, `<a href="${import.meta.env.BASE_URL}legal.html">${t.legalNotice}</a>`],

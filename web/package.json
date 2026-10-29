@@ -20,7 +20,7 @@
     "@mantine/hooks": "^9.7.1",
     "@mapbox/vector-tile": "3.0.0",
     "highlight.js": "^11.12.0",
-    "isard": "^1.15.0",
+    "isard": "^1.16.0",
     "pbf": "5.1.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
